@@ -1,0 +1,13 @@
+#command cdx uniq -k3g
+#stdin
+ CDX	one	two	three
+stuff	junk	1.0
+stuff	thing	1.000
+junk	junk	-1.0
+junk	junk	+1.0
+this	that	+1.0e0
+#stdout
+ CDX	one	two	three
+stuff	junk	1.0
+junk	junk	-1.0
+junk	junk	+1.0

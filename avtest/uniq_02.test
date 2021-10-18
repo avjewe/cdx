@@ -1,0 +1,5 @@
+#command cdx uniq -k3g
+#stdin
+ CDX	one	two	three
+#stdout
+ CDX	one	two	three
