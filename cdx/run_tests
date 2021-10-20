@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cd ../target/debug/
+av tooltest ../../cdx/avtest/*.test

@@ -1,2 +1,2 @@
 # cdx
-Rust crate for text file manipulation
+Rust crates for text file manipulation

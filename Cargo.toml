@@ -1,19 +1,6 @@
-[package]
-name = "cdx"
-version = "0.1.0"
-authors = ["Andy Jewell <avjewe@gmail.com>"]
-edition = "2021"
-license = "BSD-3-Clause"
-description = "App and library for text file manipulation, a little like the gnu coreutils"
-homepage = "https://github.com/avjewe/cdx"
-repository = "https://github.com/avjewe/cdx"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-regex = "1"
-lazy_static = "1" 
-flate2 = "1"
-fs-err = "2"
-clap = "2"
-libm = "0"
+members = [
+    "cdxlib",
+    "cdx"
+]

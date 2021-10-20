@@ -1,4 +1,0 @@
-#!/bin/bash
-
-cd target/debug/
-av tooltest ../../avtest/*.test
