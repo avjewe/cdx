@@ -1,5 +1,8 @@
 //! Tools for comparing lines and fields
-
+//! Comparison -- an enum for comparison semantics
+//! Compare -- a trait. Roughly one impl per Comparison
+//! CompareSettings -- a Comparison, plus a column and other context
+//! Comparator -- a CompareSettings, plus an instance of Compare matching the Comparison
 #![allow(dead_code)]
 #![allow(clippy::float_cmp)]
 use crate::column::NamedCol;
@@ -63,7 +66,7 @@ pub fn str_to_d2(n: &str) -> f64 {
 
 /// turn text into f64, return unused portion of text
 ///```
-/// use cdx::comp::str_to_d;
+/// use cdxlib::comp::str_to_d;
 /// let (x, y) = str_to_d(b"123.456xyz");
 /// assert_eq!(x, 123.456);
 /// assert_eq!(y, b"xyz");
@@ -155,9 +158,12 @@ pub fn str_to_d(num: &[u8]) -> (f64, &[u8]) {
 /// One line in a buffer of text
 #[derive(Debug, Clone, Copy)]
 pub struct Item {
-    offset: u32,
-    size_plus: u32,
-    cache: u64,
+    /// offset from beginning of buffer
+    pub offset: u32,
+    /// length of line, including newline, with high bit reserved
+    pub size_plus: u32,
+    /// Compare caches, and then if necessary compare actual data
+    pub cache: u64,
 }
 
 /// How to compare two slices
@@ -166,30 +172,32 @@ pub enum Comparison {
     /// bytewise comparison of whole line
     Whole,
     /// bytewise comparison of one column
-    Plain,  
+    Plain,
     /// compare length of data, not contents
-    Length, 
+    Length,
     /// parse as f64, and compare that. Needs option for malfomed numbers.
-    Double, 
-            /*
-                Reverse, // compare right to left
-                Lower, // ascii_tolower before comparison
-                Human,  // 2.3K or 4.5G
-                Numeric, // compare nnn.nnn with no limit on length
-                Fuzzy(u32 n), // integer compare, but equal if within n
-                Date(String fmt), // formatted date compare
-                Url, //. Compare backwards from first slash, then forwards from first slash
-                Prefix, // columns are equal if either is a prefix of the other
-            */
+    Double,
+    /*
+        Reverse, // compare right to left
+        Lower, // ascii_tolower before comparison
+        Human,  // 2.3K or 4.5G
+        Numeric, // compare nnn.nnn with no limit on length
+        Fuzzy(u32 n), // integer compare, but equal if within n
+        Date(String fmt), // formatted date compare
+        Url, //. Compare backwards from first slash, then forwards from first slash
+        Prefix, // columns are equal if either is a prefix of the other
+    */
 }
 
 /// Settings for one compare object
 #[derive(Debug, Clone)]
 pub struct CompareSettings {
-    /// type of comparosin
+    /// type of comparison
     pub kind: Comparison,
     /// column to compare
-    pub column: NamedCol,
+    pub left_col: NamedCol,
+    /// column to compare
+    pub right_col: NamedCol,
     /// reverse comparison?
     pub reverse: bool,
     // failure 0, -inf +inf
@@ -216,13 +224,24 @@ impl CompareSettings {
     pub fn new() -> Self {
         Self {
             kind: Comparison::Plain,
-            column: NamedCol::new(),
+            left_col: NamedCol::new(),
+            right_col: NamedCol::new(),
             reverse: false,
         }
     }
+    /// reverse a comparison, if reverse flag is set
+    pub fn do_reverse(&self, x: Ordering) -> Ordering {
+	if self.reverse {
+	    x.reverse()
+	}
+	else {
+	    x
+	}
+    }
     /// Resolve any named columns
     pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
-        self.column.lookup(fieldnames)
+        self.left_col.lookup(fieldnames)?;
+        self.right_col.lookup(fieldnames)
     }
     /// make Compare from Comparison
     fn make_box(&self) -> Box<dyn Compare> {
@@ -253,6 +272,10 @@ impl Comparator {
     pub fn equal_cols(&self, left: &TextLine, right: &TextLine) -> bool {
         self.comp.equal_cols(self, left, right)
     }
+    /// compare two lines
+    pub fn comp_cols(&self, left: &TextLine, right: &TextLine) -> Ordering {
+        self.comp.comp_cols(self, left, right)
+    }
     /// resolve any named columns
     pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
         self.mode.lookup(fieldnames)
@@ -260,6 +283,24 @@ impl Comparator {
     /// Does comparison require line split into columns
     pub fn need_split(&self) -> bool {
         self.comp.need_split()
+    }
+    /// Get the column out of an unparsed line
+    /// FIXME - need delim
+    /// FIXME - need left vs right
+    pub fn get_col<'a>(&self, line: &'a [u8]) -> &'a [u8] {
+	let col = self.mode.left_col.num;
+	let mut curr_col = 0;
+	let mut start = 0;
+	for x in line.iter().enumerate() {
+	    if x.1 == &b'\t' {
+		if curr_col == col {
+		    return &line[start..x.0];
+		}
+		curr_col += 1;
+		start = x.0 + 1;
+	    }
+	}
+	&line[0..0]
     }
 }
 
@@ -269,8 +310,8 @@ pub trait Compare {
     fn comp(&self, left: &[u8], right: &[u8]) -> Ordering;
     /// Compare two slices for equality
     fn equal(&self, left: &[u8], right: &[u8]) -> bool;
-    /// set cache for this item
-    fn fill_cache(&self, item: &mut Item, base: &[u8]);
+    /// set cache for this value
+    fn fill_cache(&self, item: &mut Item, value: &[u8]);
     /// set my value
     fn set(&mut self, value: &[u8]);
     /// Compare self to slice
@@ -284,30 +325,34 @@ pub trait Compare {
     }
     /// Compare two columns
     fn comp_cols(&self, spec: &Comparator, left: &TextLine, right: &TextLine) -> Ordering {
-        self.comp(
-            left.get(spec.mode.column.num),
-            right.get(spec.mode.column.num),
-        )
+        spec.mode.do_reverse(self.comp(
+            left.get(spec.mode.left_col.num),
+            right.get(spec.mode.right_col.num),
+        ))
     }
     /// Compare two columns for equality
     fn equal_cols(&self, spec: &Comparator, left: &TextLine, right: &TextLine) -> bool {
         self.equal(
-            left.get(spec.mode.column.num),
-            right.get(spec.mode.column.num),
+            left.get(spec.mode.left_col.num),
+            right.get(spec.mode.right_col.num),
         )
     }
     /// Compare two items
-    fn comp_items(&self, _spec: &Comparator, base: &[u8], left: &Item, right: &Item) -> Ordering {
-        if left.cache < right.cache {
-            return Ordering::Less;
-        }
-        if left.cache > right.cache {
-            return Ordering::Greater;
-        }
-        if left.complete() && right.complete() {
-            return Ordering::Equal;
-        }
-        self.comp(left.get(base), right.get(base))
+    fn comp_items(&self, spec: &Comparator, base: &[u8], left: &Item, right: &Item) -> Ordering {
+	spec.mode.do_reverse({
+            if left.cache < right.cache {
+		Ordering::Less
+            }
+            else if left.cache > right.cache {
+		Ordering::Greater
+            }
+            else if left.complete() && right.complete() {
+		Ordering::Equal
+            }
+	    else {
+		self.comp(left.get(base), right.get(base))
+	    }
+	})
     }
     /// Compare two Items for equality
     fn equal_items(&self, _spec: &Comparator, base: &[u8], left: &Item, right: &Item) -> bool {
@@ -318,6 +363,12 @@ pub trait Compare {
             return true;
         }
         self.equal(left.get(base), right.get(base))
+    }
+    /// set cache for this item
+    fn fill_cache_item(&self, spec: &Comparator, item: &mut Item, base: &[u8]) {
+	let line = item.get(base);
+	let col = spec.get_col(line);
+	self.fill_cache(item, col);
     }
 }
 
@@ -388,8 +439,8 @@ impl Compare for CompareList {
         }
         true
     }
-    fn fill_cache(&self, item: &mut Item, base: &[u8]) {
-        self.c[0].fill_cache(item, base);
+    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+        self.c[0].fill_cache(item, value);
         item.clear_complete();
     }
     fn set(&mut self, value: &[u8]) {
@@ -423,9 +474,13 @@ impl Compare for CompareWhole {
     fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         left == right
     }
-    fn fill_cache(&self, item: &mut Item, base: &[u8]) {
-        item.cache = u64::from_be_bytes(make_array(base));
-        item.assign_complete(base.len() <= 8);
+    fn fill_cache(&self, _item: &mut Item, _value: &[u8]) {
+	unreachable!();
+    }
+    fn fill_cache_item(&self, _spec: &Comparator, item: &mut Item, base: &[u8]) {
+	let line = item.get(base);
+        item.cache = u64::from_be_bytes(make_array(line));
+        item.assign_complete(line.len() <= 8);
     }
     fn set(&mut self, value: &[u8]) {
         self.value = value.to_vec();
@@ -436,8 +491,8 @@ impl Compare for CompareWhole {
     fn equal_self(&self, right: &[u8]) -> bool {
         self.value == right
     }
-    fn comp_cols(&self, _spec: &Comparator, left: &TextLine, right: &TextLine) -> Ordering {
-        self.comp(&left.line, &right.line)
+    fn comp_cols(&self, spec: &Comparator, left: &TextLine, right: &TextLine) -> Ordering {
+        spec.mode.do_reverse(self.comp(&left.line, &right.line))
     }
     fn equal_cols(&self, _spec: &Comparator, left: &TextLine, right: &TextLine) -> bool {
         self.equal(&left.line, &right.line)
@@ -454,9 +509,9 @@ impl Compare for ComparePlain {
     fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         left == right
     }
-    fn fill_cache(&self, item: &mut Item, base: &[u8]) {
-        item.cache = u64::from_be_bytes(make_array(base));
-        item.assign_complete(base.len() <= 8);
+    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+        item.cache = u64::from_be_bytes(make_array(value));
+        item.assign_complete(value.len() <= 8);
     }
     fn set(&mut self, value: &[u8]) {
         self.value = value.to_vec();
@@ -478,6 +533,17 @@ fn fcmp(x: f64, y: f64) -> Ordering {
     }
     Ordering::Less
 }
+
+fn ulp_to_ulong(d : f64) -> u64 {
+    let x = u64::from_ne_bytes(d.to_ne_bytes());
+    if (x & 0x8000000000000000u64) != 0 {
+	x ^ 0xffffffffffffffffu64
+    }
+    else {
+	x | 0x8000000000000000u64
+    }
+}
+
 impl Compare for Comparef64 {
     fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
         fcmp(str_to_d_q(left), str_to_d_q(right))
@@ -485,9 +551,9 @@ impl Compare for Comparef64 {
     fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         str_to_d_q(left) == str_to_d_q(right)
     }
-    fn fill_cache(&self, _item: &mut Item, _base: &[u8]) {
-        //        item.cache = u64::from_be_bytes(make_array(base));
-        //        item.clear_complete(base.len() <= 8);
+    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+	item.cache = ulp_to_ulong(str_to_d_q(value));
+	item.set_complete();
     }
     fn set(&mut self, value: &[u8]) {
         self.value = str_to_d_q(value);
@@ -507,8 +573,9 @@ impl Compare for CompareLen {
     fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         left.len() == right.len()
     }
-    fn fill_cache(&self, item: &mut Item, base: &[u8]) {
-        item.cache = base.len() as u64;
+    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+        item.cache = value.len() as u64;
+	item.set_complete();
     }
     fn set(&mut self, value: &[u8]) {
         self.value = value.len() as u32;
@@ -527,7 +594,9 @@ pub fn make_comp(spec: &str) -> Result<Comparator> {
     if spec.is_empty() {
         c.kind = Comparison::Whole;
     } else {
-        let mut rest = c.column.parse(spec)?.as_bytes();
+	// FIXME - need left vs right
+        let mut rest = c.left_col.parse(spec)?.as_bytes();
+	c.right_col = c.left_col.clone();
         if !rest.is_empty() && (rest[0] == b':') {
             rest = &rest[1..];
         }
@@ -570,11 +639,11 @@ impl Item {
     }
     /// test complete bit
     pub fn complete(&self) -> bool {
-        (self.size_plus & 0x10000000) != 0
+        (self.size_plus & 0x80000000) != 0
     }
     /// set complete bit
     pub fn set_complete(&mut self) {
-        self.size_plus |= 0x10000000;
+        self.size_plus |= 0x80000000;
     }
     /// clear complete bit
     pub fn clear_complete(&mut self) {
@@ -588,11 +657,11 @@ impl Item {
             self.clear_complete();
         }
     }
-    /// offset of begin 
+    /// offset of begin
     pub fn begin(&self) -> usize {
         self.offset as usize
     }
-    /// offset of end 
+    /// offset of end
     pub fn end(&self) -> usize {
         self.offset as usize + self.size() as usize
     }

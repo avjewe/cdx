@@ -6,12 +6,18 @@ mod cdxmain;
 mod cut_main;
 mod sort_main;
 mod uniq_main;
+mod cgrep_main;
+mod join_main;
+mod tooltest_main;
 
 fn main() {
     match inner_main(env::args().collect()) {
         Err(e) => {
             if e.suppress() {
                 std::process::exit(0);
+            }
+            if e.silent() {
+                std::process::exit(1);
             }
             eprintln!("Error\t{}", e);
             eprint!("Command\t");
@@ -29,7 +35,17 @@ fn main() {
 
 fn inner_main(mut args: Vec<String>) -> Result<()> {
     if args.len() < 2 {
-        return err!("USAGE : cdx <command> [options...]");
+	eprintln!("USAGE : cdx <command> [options...]");
+	eprintln!("Type 'cdx help' for more details");
+        return Err(Error::Silent)
+    }
+    if args[1] == "help" || args[1] == "--help" {
+	println!("USAGE : cdx <command> [options...]");
+	println!("Commands are :");
+	for x in cdxmain::MAINLIST {
+	    println!("{} :\t{}", x.name, x.help);
+	}
+	return Ok(());
     }
     for x in cdxmain::MAINLIST {
         if args[1] == x.name {
@@ -39,5 +55,5 @@ fn inner_main(mut args: Vec<String>) -> Result<()> {
             return (x.proc)(&args);
         }
     }
-    err!("Subcommands are 'cut' and 'uniq'")
+    err!("Subcommands are 'cut' and 'uniqqq'")
 }

@@ -18,7 +18,7 @@ use std::{fmt, str};
 /// # Examples
 ///
 /// ```
-///    use cdx::ColumnSet;
+///    use cdxlib::column::ColumnSet;
 ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
 ///
 ///    let mut s = ColumnSet::new();
@@ -121,7 +121,7 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdx::ColumnSet;
+    ///    use cdxlib::column::ColumnSet;
     ///    assert_eq!(ColumnSet::lookup_col(&[b"zero", b"one", b"two"], "one").unwrap(), 1);
     /// ```
     pub fn lookup_col(fieldnames: &[&[u8]], colname: &str) -> Result<usize> {
@@ -146,7 +146,7 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdx::ColumnSet;
+    ///    use cdxlib::column::ColumnSet;
     ///    assert_eq!(ColumnSet::single(&[b"zero", b"one", b"two"], "+1").unwrap(), 2);
     /// ```
     pub fn single(fieldnames: &[&[u8]], colname: &str) -> Result<usize> {
@@ -288,7 +288,7 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdx::ColumnSet;
+    ///    use cdxlib::column::ColumnSet;
     ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
     ///    let mut s = ColumnSet::new();
     ///    s.add_no("two");
@@ -330,7 +330,7 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdx::ColumnSet;
+    ///    use cdxlib::column::ColumnSet;
     ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
     ///    let mut s = ColumnSet::new();
     ///    s.add_no("two");
@@ -438,7 +438,7 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdx::ColumnSet;
+    ///    use cdxlib::column::ColumnSet;
     ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
     ///    let mut s = ColumnSet::new();
     ///    s.add_no("two");
@@ -482,7 +482,7 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdx::ColumnSet;
+    ///    use cdxlib::column::ColumnSet;
     ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
     ///    assert_eq!(ColumnSet::lookup_cols("~2-3", &header).unwrap(), &[0,3,4]);
     /// ```
@@ -498,7 +498,7 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdx::ColumnSet;
+    ///    use cdxlib::column::ColumnSet;
     ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
     ///    assert_eq!(ColumnSet::lookup1("three", &header).unwrap(), 3);
     /// ```

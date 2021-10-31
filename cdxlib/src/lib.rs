@@ -1,25 +1,26 @@
 //! Tools for text file manipulation
 
-#![warn(missing_copy_implementations,
-        absolute_paths_not_starting_with_crate,
-        explicit_outlives_requirements,
-        keyword_idents,
-        noop_method_call,
-        rust_2021_incompatible_closure_captures,
-        rust_2021_incompatible_or_patterns,
-        rust_2021_prefixes_incompatible_syntax,
-        rust_2021_prelude_collisions,
-        missing_debug_implementations,
-	missing_docs,
-        rust_2018_idioms,
-        trivial_numeric_casts,
-        trivial_casts,
-        unreachable_pub,
-        unsafe_code,
-        unused_lifetimes,
-        unused_extern_crates,
-        unused_import_braces,
-        unused_qualifications)]
+#![warn(
+    missing_copy_implementations,
+    absolute_paths_not_starting_with_crate,
+    explicit_outlives_requirements,
+    keyword_idents,
+    noop_method_call,
+    rust_2021_incompatible_closure_captures,
+    rust_2021_incompatible_or_patterns,
+    rust_2021_prefixes_incompatible_syntax,
+    rust_2021_prelude_collisions,
+    missing_debug_implementations,
+    missing_docs,
+    rust_2018_idioms,
+    trivial_numeric_casts,
+    trivial_casts,
+    unreachable_pub,
+    unsafe_code,
+    unused_lifetimes,
+    unused_extern_crates,
+    unused_qualifications
+)]
 
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
@@ -29,6 +30,9 @@ use std::{fmt, str};
 pub mod column;
 pub mod comp;
 pub mod sort;
+pub mod expr;
+pub mod linespec;
+pub mod tooltest;
 
 /// Shorthand for returning an error Result
 #[macro_export]
@@ -50,6 +54,8 @@ pub enum Error {
     IoError(std::io::Error),
     /// common error with long default string
     NeedLookup,
+    /// be an error, but don't report anything
+    Silent,
 }
 /// Result type for cdxlib
 pub type Result<T> = core::result::Result<T, Error>;
@@ -63,11 +69,21 @@ impl Error {
             _ => false,
         }
     }
+    /// return true if this error should be treated as an error, bu silently
+    pub fn silent(&self) -> bool {
+	matches!(self, Error::Silent)
+    }
 }
 
 impl From<std::io::Error> for Error {
     fn from(kind: std::io::Error) -> Error {
         Error::IoError(kind)
+    }
+}
+
+impl From<std::num::ParseIntError> for Error {
+    fn from(kind: std::num::ParseIntError) -> Error {
+        Error::ParseIntError(kind)
     }
 }
 
@@ -81,6 +97,7 @@ impl fmt::Display for Error {
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
             )?,
+            Error::Silent => write!(f, "Silent")?,
         }
         Ok(())
     }
@@ -93,18 +110,18 @@ pub struct FakeSlice {
     end: u32,
 }
 
-/// A line of a text file, broken into columns.
+/// A line of a text file, broken into fields.
 /// Access to the `lines` and `parts` is allowed, but should seldom be necessary
-/// `line` does not include the trailing newline
-/// An empty line contains one empty column
+/// `line` includes the trailing newline, but no field contains the newline
+/// An empty line contains one empty field
 ///```
 /// use std::io::BufRead;
 /// let mut data = b"one\ttwo\tthree\n";
 /// let mut dp = &data[..];
-/// let mut line = cdx::TextLine::new();
+/// let mut line = cdxlib::TextLine::new();
 /// let eof = line.read(&mut dp).unwrap();
 /// assert_eq!(eof, false);
-/// assert_eq!(line.strlen(), 13);
+/// assert_eq!(line.strlen(), 14);
 /// line.split(b'\t');
 /// assert_eq!(line.len(), 3);
 /// assert_eq!(line.get(1), b"two");
@@ -172,8 +189,8 @@ impl TextLine {
         if sz == 0 {
             Ok(true)
         } else {
-            if self.line.last() == Some(&b'\n') {
-                self.line.pop();
+            if self.line.last() != Some(&b'\n') {
+                self.line.push(b'\n');
             }
             Ok(false)
         }
@@ -192,7 +209,9 @@ impl TextLine {
             }
             end += 1;
         }
-        self.parts.push(FakeSlice { begin, end });
+	if begin != end {
+            self.parts.push(FakeSlice { begin, end:end-1 });
+	}
     }
     /// return all parts as a vector
     pub fn vec(&self) -> Vec<&[u8]> {
@@ -245,6 +264,7 @@ pub struct Infile {
     pub f: io::BufReader<Box<dyn Read>>,
 }
 
+// Should deref to f
 impl Infile {
     /// create a new input file
     pub fn new(f: io::BufReader<Box<dyn Read>>) -> Self {
@@ -345,6 +365,7 @@ impl InfileContext {
             let mut fake_head = head_str.as_bytes();
             self.header.read(&mut fake_head)?;
             self.header.split(self.delim);
+	    self.header.line.clear();
         }
         Ok(())
     }
@@ -395,12 +416,17 @@ impl Reader {
         self.cont.read_header(&mut self.file, &mut self.line)
     }
     /// was the file zero bytes?
-    pub fn empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.cont.is_empty
     }
     /// have we read all the lines?
-    pub fn done(&self) -> bool {
+    pub fn is_done(&self) -> bool {
         self.cont.is_done
+    }
+    /// write the current text line with newline
+    pub fn write(&self, w: &mut impl Write) -> Result<()> {
+        w.write_all(&self.line.line)?;
+        Ok(())
     }
     /// get the next line of text. Return true if no more data available.
     pub fn getline(&mut self) -> Result<bool> {
@@ -499,13 +525,11 @@ impl LookbackReader {
     /// write the current text line with newline
     pub fn write_curr(&self, w: &mut impl Write) -> Result<()> {
         w.write_all(&self.curr_line().line)?;
-        w.write_all(&[b'\n'])?;
         Ok(())
     }
     /// write header
     pub fn write_header(&self, w: &mut impl Write) -> Result<()> {
         w.write_all(&self.cont.header.line)?;
-        w.write_all(&[b'\n'])?;
         Ok(())
     }
 }

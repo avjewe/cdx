@@ -1,0 +1,3 @@
+#!/bin/bash
+
+cargo run tooltest -b target/debug cdx/cdxtest/*.test

@@ -1,0 +1,11 @@
+#command cdx sort -k2r
+#stdin
+ CDX	one	two	three
+stuff	junk	things
+this	that	whatever
+111	222	333
+#stdout
+ CDX	one	two	three
+this	that	whatever
+stuff	junk	things
+111	222	333

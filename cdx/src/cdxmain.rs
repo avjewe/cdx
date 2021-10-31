@@ -25,7 +25,10 @@ macro_rules! proc {
 }
 
 pub const MAINLIST: &[OneMain] = &[
+    proc! {"cgrep",  "cgrep stuff",  cgrep_main::main},
     proc! {"cut",  "cut stuff",  cut_main::main},
+    proc! {"join",  "join stuff",  join_main::main},
     proc! {"sort", "sort stuff", sort_main::main},
+    proc! {"tooltest", "test tools", tooltest_main::main},
     proc! {"uniq", "uniq stuff", uniq_main::main},
 ];

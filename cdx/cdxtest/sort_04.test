@@ -1,0 +1,11 @@
+#command cdx sort --key 2g
+#stdin
+ CDX	one	two	three
+aaa	27.5	ccc
+zzz	-32	lll
+fff	abc	kkk
+#stdout
+ CDX	one	two	three
+zzz	-32	lll
+fff	abc	kkk
+aaa	27.5	ccc

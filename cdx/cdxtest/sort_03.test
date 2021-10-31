@@ -1,0 +1,5 @@
+#command cdx sort
+#stdin
+ CDX	one	two	three
+#stdout
+ CDX	one	two	three

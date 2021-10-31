@@ -77,6 +77,7 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
     for x in spec {
         let mut b = clap::Arg::with_name(x.name)
             .short(x.short)
+            .long(x.name)
             .help(x.help)
             .multiple(true);
         if x.value.is_empty() {
