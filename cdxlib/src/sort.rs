@@ -23,7 +23,7 @@ impl BlockReader {
         Self {
             file: Infile::new(io::BufReader::new(Box::new(io::empty()))),
             cont: InfileContext::new(),
-	    first: TextLine::new(),
+            first: TextLine::new(),
         }
     }
     /// open the file
@@ -35,16 +35,15 @@ impl BlockReader {
     /// read from file, append to 'data' to a maximum mof 'max' total size
     /// return bytes read.
     pub fn read(&mut self, data: &mut Vec<u8>, offset: usize) -> Result<usize> {
-	if self.first.line.is_empty() {
+        if self.first.line.is_empty() {
             let sz = self.file.f.read(&mut data[offset..])?;
             Ok(sz)
-	}
-	else {
-	    let len = self.first.line.len();
-	    data[0..len].copy_from_slice(&self.first.line[0..len]);
-	    self.first.line.clear();
-	    Ok(len)
-	}
+        } else {
+            let len = self.first.line.len();
+            data[0..len].copy_from_slice(&self.first.line[0..len]);
+            self.first.line.clear();
+            Ok(len)
+        }
     }
 }
 
@@ -108,27 +107,29 @@ impl<'a> Sorter<'a> {
     }
     /// Populate 'ptrs' from 'data'
     fn calc(&mut self) {
-	self.ptrs.clear();
+        self.ptrs.clear();
         let mut item = Item::new();
         let mut off: usize = 0;
-	for iter in self.data.iter().enumerate() {
-	    if iter.1 == &b'\n' {
-		item.offset = off as u32;
-		item.size_plus = (iter.0 - off + 1) as u32;
-		off = iter.0 + 1;
-		self.cmp.comp.fill_cache_item(self.cmp, &mut item, &self.data);
-		self.ptrs.push(item);
-	    }
+        for iter in self.data.iter().enumerate() {
+            if iter.1 == &b'\n' {
+                item.offset = off as u32;
+                item.size_plus = (iter.0 - off + 1) as u32;
+                off = iter.0 + 1;
+                self.cmp
+                    .comp
+                    .fill_cache_item(self.cmp, &mut item, &self.data);
+                self.ptrs.push(item);
+            }
         }
-	self.data_unused = self.data.len() - off;
+        self.data_unused = self.data.len() - off;
     }
     /// All files have been added, write final results
     pub fn finalize(&mut self, w: &mut dyn Write) -> Result<()> {
         self.ptrs
             .sort_by(|a, b| self.cmp.comp.comp_items(self.cmp, &self.data, a, b));
-	for &x in &self.ptrs {
-	    w.write_all(x.get(&self.data))?;
-	}
+        for &x in &self.ptrs {
+            w.write_all(x.get(&self.data))?;
+        }
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 use crate::arg;
 use crate::args;
-use cdxlib::{comp, err, Error, get_writer, Reader, Result};
+use cdxlib::{comp, err, get_writer, Error, Reader, Result};
 use std::cmp::Ordering;
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -18,7 +18,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     }
 
     if files.len() != 2 {
-	return err!("{} files specified, exactly two required", files.len());
+        return err!("{} files specified, exactly two required", files.len());
     }
 
     let mut f1 = Reader::new();
@@ -32,29 +32,27 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut w = get_writer("-")?;
     // FIXME header
 
-    // FIXME need separate columns for left and right
-    // maybe separate compN type
     let mut comp = comp::make_comp(&key)?;
     comp.lookup(&f1.names())?;
 
     loop {
-	if f1.is_done() || f2.is_done() {
-	    break;
-	}
-	match comp.comp_cols(f1.curr(), f2.curr()) {
-	    Ordering::Equal => {
-		// print
-		f1.write(&mut w)?;
-		f1.getline()?;
-		f2.getline()?;
-	    },
-	    Ordering::Less => {
-		f1.getline()?;
-	    },
-	    Ordering::Greater => {
-		f2.getline()?;
-	    }
-	}
+        if f1.is_done() || f2.is_done() {
+            break;
+        }
+        match comp.comp_cols(f1.curr(), f2.curr()) {
+            Ordering::Equal => {
+                // print
+                f1.write(&mut w)?;
+                f1.getline()?;
+                f2.getline()?;
+            }
+            Ordering::Less => {
+                f1.getline()?;
+            }
+            Ordering::Greater => {
+                f2.getline()?;
+            }
+        }
     }
     // drain f1 or f2 as needed
     Ok(())

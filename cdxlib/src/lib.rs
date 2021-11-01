@@ -27,11 +27,12 @@ use fs_err as fs;
 use std::error;
 use std::io::{self, BufRead, Read, Write};
 use std::{fmt, str};
+
+pub mod check;
 pub mod column;
 pub mod comp;
-pub mod sort;
 pub mod expr;
-pub mod linespec;
+pub mod sort;
 pub mod tooltest;
 
 /// Shorthand for returning an error Result
@@ -52,6 +53,8 @@ pub enum Error {
     ParseIntError(std::num::ParseIntError),
     /// pass through io::Error
     IoError(std::io::Error),
+    /// pass through regex::Error
+    RegexError(regex::Error),
     /// common error with long default string
     NeedLookup,
     /// be an error, but don't report anything
@@ -71,7 +74,13 @@ impl Error {
     }
     /// return true if this error should be treated as an error, bu silently
     pub fn silent(&self) -> bool {
-	matches!(self, Error::Silent)
+        matches!(self, Error::Silent)
+    }
+}
+
+impl From<regex::Error> for Error {
+    fn from(kind: regex::Error) -> Error {
+        Error::RegexError(kind)
     }
 }
 
@@ -93,6 +102,7 @@ impl fmt::Display for Error {
             Error::Error(s) => write!(f, "Cdx Error : {}", s)?,
             Error::ParseIntError(s) => write!(f, "ParseIntError : {}", s)?,
             Error::IoError(s) => write!(f, "IoError : {}", s)?,
+            Error::RegexError(s) => write!(f, "RegexError : {}", s)?,
             Error::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
@@ -209,9 +219,12 @@ impl TextLine {
             }
             end += 1;
         }
-	if begin != end {
-            self.parts.push(FakeSlice { begin, end:end-1 });
-	}
+        if begin != end {
+            self.parts.push(FakeSlice {
+                begin,
+                end: end - 1,
+            });
+        }
     }
     /// return all parts as a vector
     pub fn vec(&self) -> Vec<&[u8]> {
@@ -365,7 +378,7 @@ impl InfileContext {
             let mut fake_head = head_str.as_bytes();
             self.header.read(&mut fake_head)?;
             self.header.split(self.delim);
-	    self.header.line.clear();
+            self.header.line.clear();
         }
         Ok(())
     }
@@ -538,4 +551,12 @@ impl Default for LookbackReader {
     fn default() -> Self {
         Self::new(1)
     }
+}
+
+fn prerr(data: &[&[u8]]) -> Result<()> {
+    for x in data {
+        std::io::stderr().write_all(x)?;
+    }
+    std::io::stderr().write_all(b"\n")?;
+    Ok(())
 }

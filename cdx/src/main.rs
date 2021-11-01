@@ -1,14 +1,14 @@
-use cdxlib::{err, Error, Result};
+use cdxlib::{Error, Result};
 use std::env;
 
 mod args;
 mod cdxmain;
-mod cut_main;
-mod sort_main;
-mod uniq_main;
 mod cgrep_main;
+mod cut_main;
 mod join_main;
+mod sort_main;
 mod tooltest_main;
+mod uniq_main;
 
 fn main() {
     match inner_main(env::args().collect()) {
@@ -35,17 +35,17 @@ fn main() {
 
 fn inner_main(mut args: Vec<String>) -> Result<()> {
     if args.len() < 2 {
-	eprintln!("USAGE : cdx <command> [options...]");
-	eprintln!("Type 'cdx help' for more details");
-        return Err(Error::Silent)
+        eprintln!("USAGE : cdx <command> [options...]");
+        eprintln!("Type 'cdx help' for more details");
+        return Err(Error::Silent);
     }
     if args[1] == "help" || args[1] == "--help" {
-	println!("USAGE : cdx <command> [options...]");
-	println!("Commands are :");
-	for x in cdxmain::MAINLIST {
-	    println!("{} :\t{}", x.name, x.help);
-	}
-	return Ok(());
+        println!("USAGE : cdx <command> [options...]");
+        println!("Commands are :");
+        for x in cdxmain::MAINLIST {
+            println!("{} :\t{}", x.name, x.help);
+        }
+        return Ok(());
     }
     for x in cdxmain::MAINLIST {
         if args[1] == x.name {
@@ -55,5 +55,9 @@ fn inner_main(mut args: Vec<String>) -> Result<()> {
             return (x.proc)(&args);
         }
     }
-    err!("Subcommands are 'cut' and 'uniqqq'")
+    eprintln!("Valid subcommands are :");
+    for x in cdxmain::MAINLIST {
+        eprintln!("{} :\t{}", x.name, x.help);
+    }
+    Err(Error::Silent)
 }

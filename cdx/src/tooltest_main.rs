@@ -1,4 +1,4 @@
-use crate::{arg,args};
+use crate::{arg, args};
 use cdxlib::tooltest::*;
 use cdxlib::Result;
 
@@ -8,14 +8,14 @@ pub fn main(argv: &[String]) -> Result<()> {
     let (args, files) = args::parse(&prog, &a, argv);
     let mut config = Config::new();
     for x in args {
-	if x.name == "bin" {
-	    config.bin(&x.value);
+        if x.name == "bin" {
+            config.bin(&x.value);
         } else {
             unreachable!();
         }
     }
     for x in &files {
-	config.run(x)?;
+        config.run(x)?;
     }
     config.report()
 }

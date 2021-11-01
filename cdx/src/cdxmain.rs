@@ -25,10 +25,10 @@ macro_rules! proc {
 }
 
 pub const MAINLIST: &[OneMain] = &[
-    proc! {"cgrep",  "cgrep stuff",  cgrep_main::main},
-    proc! {"cut",  "cut stuff",  cut_main::main},
-    proc! {"join",  "join stuff",  join_main::main},
-    proc! {"sort", "sort stuff", sort_main::main},
-    proc! {"tooltest", "test tools", tooltest_main::main},
-    proc! {"uniq", "uniq stuff", uniq_main::main},
+    proc! {"cgrep",  "Select lines.",  cgrep_main::main},
+    proc! {"cut",  "Select colums.",  cut_main::main},
+    proc! {"join",  "Join files on a matching column",  join_main::main},
+    proc! {"sort", "Sort lines of files.", sort_main::main},
+    proc! {"tooltest", "Test command line tools.", tooltest_main::main},
+    proc! {"uniq", "Remove duplicate lines.", uniq_main::main},
 ];

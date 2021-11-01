@@ -9,21 +9,20 @@ pub trait Expr {
 }
 
 struct Var {
-    var: usize
+    var: usize,
 }
 
 impl Var {
     fn new(var: usize) -> Self {
-	Self {var}
+        Self { var }
     }
 }
 
 impl Expr for Var {
     fn get(&self, vars: &[f64]) -> f64 {
-	vars[self.var]
+        vars[self.var]
     }
 }
-
 
 struct Const {
     val: f64,
@@ -31,16 +30,15 @@ struct Const {
 
 impl Const {
     fn new(val: f64) -> Self {
-	Self {val}
+        Self { val }
     }
 }
 
 impl Expr for Const {
     fn get(&self, _vars: &[f64]) -> f64 {
-	self.val
+        self.val
     }
 }
-
 
 macro_rules! Binary {
     ($name: ident, $op:tt) => {
@@ -48,13 +46,13 @@ macro_rules! Binary {
 	    left: Box<dyn Expr>,
 	    right: Box<dyn Expr>,
 	}
-	
+
 	impl $name {
 	    fn new(left: Box<dyn Expr>, right: Box<dyn Expr>) ->Self {
 		Self {left, right}
 	    }
 	}
-	
+
 	impl Expr for $name {
 	    fn get(&self, vars: &[f64]) -> f64 {
 		self.left.get(vars) $op self.right.get(vars)
@@ -68,10 +66,9 @@ fn make_bool(val: f64) -> bool {
 }
 fn make_f64(val: bool) -> f64 {
     if val {
-	1.0
-    }
-    else {
-	0.0
+        1.0
+    } else {
+        0.0
     }
 }
 
@@ -81,13 +78,13 @@ macro_rules! BinaryCmp {
 	    left: Box<dyn Expr>,
 	    right: Box<dyn Expr>,
 	}
-	
+
 	impl $name {
 	    fn new(left: Box<dyn Expr>, right: Box<dyn Expr>) ->Self {
 		Self {left, right}
 	    }
 	}
-	
+
 	impl Expr for $name {
 	    fn get(&self, vars: &[f64]) -> f64 {
 		make_f64(self.left.get(vars) $op self.right.get(vars))
@@ -102,13 +99,13 @@ macro_rules! BinaryJoin {
 	    left: Box<dyn Expr>,
 	    right: Box<dyn Expr>,
 	}
-	
+
 	impl $name {
 	    fn new(left: Box<dyn Expr>, right: Box<dyn Expr>) ->Self {
 		Self {left, right}
 	    }
 	}
-	
+
 	impl Expr for $name {
 	    fn get(&self, vars: &[f64]) -> f64 {
 		make_f64(make_bool(self.left.get(vars)) $op make_bool(self.right.get(vars)))
@@ -136,31 +133,31 @@ mod tests {
 
     #[test]
     fn check_plus() {
-	let mut vars : Vec<f64> = Vec::new();
-	vars.push(1.0);
-	vars.push(2.0);
-	let left = Box::new(Var::new(0));
-	let right = Box::new(Const::new(5.0));
-	let left2 = Box::new(Const::new(4.0));
-	let right2 = Box::new(Var::new(1));
-	let plus = Box::new(Plus::new(left, right));
-	let minus = Box::new(Minus::new(left2, right2));
-	let mult = Box::new(Mult::new(plus, minus));
-	assert_eq!(12.0, mult.get(&vars));
+        let mut vars: Vec<f64> = Vec::new();
+        vars.push(1.0);
+        vars.push(2.0);
+        let left = Box::new(Var::new(0));
+        let right = Box::new(Const::new(5.0));
+        let left2 = Box::new(Const::new(4.0));
+        let right2 = Box::new(Var::new(1));
+        let plus = Box::new(Plus::new(left, right));
+        let minus = Box::new(Minus::new(left2, right2));
+        let mult = Box::new(Mult::new(plus, minus));
+        assert_eq!(12.0, mult.get(&vars));
     }
 
     #[test]
     fn check_comp() {
-	let mut vars : Vec<f64> = Vec::new();
-	vars.push(1.0);
-	vars.push(2.0);
-	let left = Box::new(Var::new(0));
-	let right = Box::new(Const::new(5.0));
-	let left2 = Box::new(Const::new(4.0));
-	let right2 = Box::new(Var::new(1));
-	let less = Box::new(LT::new(left, right));
-	let equal = Box::new(Equal::new(left2, right2));
-	assert_eq!(1.0, less.get(&vars));
-	assert_eq!(0.0, equal.get(&vars));
+        let mut vars: Vec<f64> = Vec::new();
+        vars.push(1.0);
+        vars.push(2.0);
+        let left = Box::new(Var::new(0));
+        let right = Box::new(Const::new(5.0));
+        let left2 = Box::new(Const::new(4.0));
+        let right2 = Box::new(Var::new(1));
+        let less = Box::new(LT::new(left, right));
+        let equal = Box::new(Equal::new(left2, right2));
+        assert_eq!(1.0, less.get(&vars));
+        assert_eq!(0.0, equal.get(&vars));
     }
 }

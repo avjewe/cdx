@@ -1,17 +1,19 @@
 use crate::arg;
 use crate::args;
-use cdxlib::{get_writer, LookbackReader, Result, Error};
-use cdxlib::linespec::*;
+use cdxlib::check::*;
+use cdxlib::{get_writer, Error, LookbackReader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);
-    let a = vec![arg! {"key", "k", "Spec", "How to compare adjacent lines"}];
+    let a = vec![
+        arg! {"pattern", "p", "Col,Regex", "Select line where this col matches this pattern."},
+    ];
     let (args, files) = args::parse(&prog, &a, argv);
 
-    let mut _key = "".to_string();
+    let mut list = CheckList::new();
     for x in args {
-        if x.name == "key" {
-            _key = x.value;
+        if x.name == "pattern" {
+            list.push(Box::new(CheckRegex::new(&x.value)?));
         } else {
             unreachable!();
         }
@@ -24,7 +26,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     if f.is_empty() {
         return Ok(());
     }
-
+    list.lookup(&f.names())?;
     let mut w = get_writer("-")?;
     f.write_header(&mut w)?;
 
@@ -33,39 +35,36 @@ pub fn main(argv: &[String]) -> Result<()> {
     }
     let grep_mode = true;
     let reverse = false;
-    let list = CheckList::new();
     let max_fails = 5;
-    
+
     if grep_mode {
-	loop {
-	    if list.ok(f.curr_line()) ^ reverse {
-		// write previous lines if necessary
-		f.write_curr(&mut w)?;
-	    }
-	    else {
-		// write more lines of context if necessary
-	    }
-	    if f.getline()? {
-		break;
-	    }
-	}
-    }
-    else {
-	let mut fails = 0;
-	loop {
-	    if !list.ok_verbose(f.curr_line()) {
-		fails += 1;
-		if fails >= max_fails {
-		    break;
-		}
-	    }
-            if f.getline()? {
-		break;
+        loop {
+            if list.ok(f.curr_line()) ^ reverse {
+                // write previous lines if necessary
+                f.write_curr(&mut w)?;
+            } else {
+                // write more lines of context if necessary
             }
-	}
-	if fails > 0 {
-	    return Err(Error::Silent);
-	}
+            if f.getline()? {
+                break;
+            }
+        }
+    } else {
+        let mut fails = 0;
+        loop {
+            if !list.ok_verbose(f.curr_line()) {
+                fails += 1;
+                if fails >= max_fails {
+                    break;
+                }
+            }
+            if f.getline()? {
+                break;
+            }
+        }
+        if fails > 0 {
+            return Err(Error::Silent);
+        }
     }
     Ok(())
 }
