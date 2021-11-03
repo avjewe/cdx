@@ -26,6 +26,7 @@ use flate2::read::MultiGzDecoder;
 use fs_err as fs;
 use std::error;
 use std::io::{self, BufRead, Read, Write};
+use std::ops::{Deref, DerefMut};
 use std::{fmt, str};
 
 pub mod check;
@@ -114,7 +115,7 @@ impl fmt::Display for Error {
 }
 
 /// pointers into a vector, simulating a slice without the ownership issues
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct FakeSlice {
     begin: u32,
     end: u32,
@@ -136,7 +137,7 @@ pub struct FakeSlice {
 /// assert_eq!(line.len(), 3);
 /// assert_eq!(line.get(1), b"two");
 ///```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TextLine {
     /// The whole input line, without newline
     pub line: Vec<u8>,
@@ -232,12 +233,6 @@ impl TextLine {
     }
 }
 
-impl Default for TextLine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<'a> IntoIterator for &'a TextLine {
     type Item = &'a [u8];
     type IntoIter = TextLineIter<'a>;
@@ -277,7 +272,6 @@ pub struct Infile {
     pub f: io::BufReader<Box<dyn Read>>,
 }
 
-// Should deref to f
 impl Infile {
     /// create a new input file
     pub fn new(f: io::BufReader<Box<dyn Read>>) -> Self {
@@ -285,9 +279,29 @@ impl Infile {
     }
 }
 
+impl Default for Infile {
+    fn default() -> Self {
+        Self::new(io::BufReader::new(Box::new(io::empty())))
+    }
+}
+
 impl fmt::Debug for Infile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Infile")
+    }
+}
+
+impl Deref for Infile {
+    type Target = io::BufReader<Box<dyn Read>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.f
+    }
+}
+
+impl DerefMut for Infile {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.f
     }
 }
 
@@ -326,7 +340,7 @@ pub fn get_reader(name: &str) -> Result<Infile> {
     Ok(Infile::new(outer))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct InfileContext {
     header: TextLine,
     delim: u8,
@@ -384,13 +398,7 @@ impl InfileContext {
     }
 }
 
-impl Default for InfileContext {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// File reader for text file broken into lines with columns
 pub struct Reader {
     file: Infile,
@@ -405,7 +413,7 @@ impl Reader {
     /// make a new Reader
     pub fn new() -> Self {
         Self {
-            file: Infile::new(io::BufReader::new(Box::new(io::empty()))),
+            file: Infile::default(),
             line: TextLine::new(),
             cont: InfileContext::new(),
             do_split: true,
@@ -454,13 +462,7 @@ impl Reader {
     }
 }
 
-impl Default for Reader {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// File reader for text file broken into lines with columns
 /// previous N lines are stil available
 pub struct LookbackReader {
@@ -478,7 +480,7 @@ impl LookbackReader {
         let mut lines: Vec<TextLine> = Vec::new();
         lines.resize(lookback + 1, TextLine::new());
         Self {
-            file: Infile::new(io::BufReader::new(Box::new(io::empty()))),
+            file: Infile::default(),
             lines,
             cont: InfileContext::new(),
             do_split: true,
@@ -547,16 +549,214 @@ impl LookbackReader {
     }
 }
 
-impl Default for LookbackReader {
-    fn default() -> Self {
-        Self::new(1)
-    }
-}
-
 fn prerr(data: &[&[u8]]) -> Result<()> {
     for x in data {
         std::io::stderr().write_all(x)?;
     }
     std::io::stderr().write_all(b"\n")?;
     Ok(())
+}
+
+fn bytes_equal(c1: u8, c2: u8, ic: bool) -> bool {
+    if c1 == c2 {
+        return true;
+    }
+    if c1 == b'?' {
+        return true;
+    }
+    if !ic {
+        return false;
+    }
+    c1.to_ascii_lowercase() == c2.to_ascii_lowercase()
+}
+
+fn chars_equal(c1: char, c2: char, ic: bool) -> bool {
+    if c1 == c2 {
+        return true;
+    }
+    if c1 == '?' {
+        return true;
+    }
+    if !ic {
+        return false;
+    }
+    c1.to_lowercase().eq(c2.to_lowercase())
+}
+
+/// match in glob format
+pub fn uglob(mut wild: &[u8], mut buff: &[u8], ic: bool) -> bool {
+    while !buff.is_empty() && !wild.is_empty() && (wild[0] != b'*') {
+        if !bytes_equal(wild[0], buff[0], ic) {
+            return false;
+        }
+        wild = &wild[1..];
+        buff = &buff[1..];
+    }
+    if wild.is_empty() && !buff.is_empty() {
+        return false;
+    }
+
+    let mut cp: &[u8] = &[];
+    let mut mp: &[u8] = &[];
+
+    while !buff.is_empty() {
+        if !wild.is_empty() && (wild[0] == b'*') {
+            wild = &wild[1..];
+            if wild.is_empty() {
+                return true;
+            }
+            mp = wild;
+            cp = &buff[1..];
+        } else if !wild.is_empty() && bytes_equal(wild[0], buff[0], ic) {
+            wild = &wild[1..];
+            buff = &buff[1..];
+        } else {
+            wild = mp;
+            cp = &cp[1..];
+            buff = cp;
+        }
+    }
+
+    while !wild.is_empty() && (wild[0] == b'*') {
+        wild = &wild[1..];
+    }
+    wild.is_empty()
+}
+
+fn first(s: &str) -> char {
+    s.chars().next().unwrap()
+}
+
+//fn first_len(s : &str) -> usize {
+//    s.chars().next().unwrap().len_utf8()
+//}
+
+fn skip_first(s: &str) -> &str {
+    &s[s.chars().next().unwrap().len_utf8()..]
+}
+
+/// match in glob format
+pub fn sglob(mut wild: &str, mut buff: &str, ic: bool) -> bool {
+    while !buff.is_empty() && !wild.is_empty() && (first(wild) != '*') {
+        if !chars_equal(first(wild), first(buff), ic) {
+            return false;
+        }
+        wild = skip_first(wild);
+        buff = skip_first(buff);
+    }
+    if wild.is_empty() && !buff.is_empty() {
+        return false;
+    }
+
+    let mut cp: &str = "";
+    let mut mp: &str = "";
+
+    while !buff.is_empty() {
+        if !wild.is_empty() && (first(wild) == '*') {
+            wild = &wild[1..];
+            if wild.is_empty() {
+                return true;
+            }
+            mp = wild;
+            cp = skip_first(buff);
+        } else if !wild.is_empty() && chars_equal(first(wild), first(buff), ic) {
+            wild = skip_first(wild);
+            buff = skip_first(buff);
+        } else {
+            wild = mp;
+            cp = skip_first(cp);
+            buff = cp;
+        }
+    }
+
+    while !wild.is_empty() && (first(wild) == '*') {
+        wild = skip_first(wild);
+    }
+    wild.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uwild() {
+        assert!(uglob(b"", b"", false));
+        assert!(!uglob(b"", b"foo", false));
+        assert!(!uglob(b"foo", b"", false));
+        assert!(uglob(b"*", b"foo", false));
+        assert!(uglob(b"*", b"", false));
+
+        assert!(uglob(b"foo", b"foo", false));
+        assert!(!uglob(b"bar", b"foo", false));
+        assert!(uglob(b"foo", b"FoO", true));
+        assert!(!uglob(b"bar", b"FoO", false));
+
+        assert!(!uglob(b"*.txt", b"foo.txtt", false));
+        assert!(uglob(b"*.txt", b"foo.txt", false));
+        assert!(uglob(b"foo*.txt", b"foo.txt", false));
+        assert!(!uglob(b"foo*.txt", b"foo.txtt", false));
+        assert!(uglob(b"foo?txt", b"foo.txt", false));
+        assert!(!uglob(b"foo?txt", b"foo..txt", false));
+
+        assert!(uglob(b"*.txt", b"foO.txt", true));
+        assert!(!uglob(b"*.txt", b"foO.txtt", true));
+        assert!(uglob(b"foo*.txt", b"foO.txt", true));
+        assert!(!uglob(b"foo*.txt", b"foO.txtt", true));
+        assert!(uglob(b"foo?txt", b"foO.txt", true));
+        assert!(!uglob(b"foo?txt", b"foO..txt", true));
+
+        assert!(uglob(b"a?b", b"anb", false));
+        assert!(!uglob(b"a?b", "añb".as_bytes(), false));
+
+        assert!(uglob(
+	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/*/add_hour_*",
+	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
+        assert!(uglob(
+	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/???/add_hour_*",
+	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
+    }
+    // ñ
+    #[test]
+    fn swild() {
+        assert!(sglob("", "", false));
+        assert!(!sglob("", "foo", false));
+        assert!(!sglob("foo", "", false));
+        assert!(sglob("*", "foo", false));
+        assert!(sglob("*", "", false));
+
+        assert!(sglob("foo", "foo", false));
+        assert!(!sglob("bar", "foo", false));
+        assert!(sglob("foo", "FoO", true));
+        assert!(!sglob("bar", "FoO", false));
+
+        assert!(!sglob("*.txt", "foo.txtt", false));
+        assert!(sglob("*.txt", "foo.txt", false));
+        assert!(sglob("foo*.txt", "foo.txt", false));
+        assert!(!sglob("foo*.txt", "foo.txtt", false));
+        assert!(sglob("foo?txt", "foo.txt", false));
+        assert!(!sglob("foo?txt", "foo..txt", false));
+
+        assert!(sglob("*.txt", "foO.txt", true));
+        assert!(!sglob("*.txt", "foO.txtt", true));
+        assert!(sglob("foo*.txt", "foO.txt", true));
+        assert!(!sglob("foo*.txt", "foO.txtt", true));
+        assert!(sglob("foo?txt", "foO.txt", true));
+        assert!(!sglob("foo?txt", "foO..txt", true));
+
+        assert!(sglob("a?b", "anb", false));
+        assert!(sglob("a?b", "añb", false));
+
+        assert!(!sglob("añb", "aÑb", false));
+        assert!(!sglob("aÑb", "añb", false));
+        assert!(sglob("añb", "aÑb", true));
+        assert!(sglob("aÑb", "añb", true));
+
+        assert!(sglob(
+	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/*/add_hour_*",
+	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
+        assert!(sglob(
+	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/???/add_hour_*",
+	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
+    }
 }
