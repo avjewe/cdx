@@ -1,4 +1,4 @@
-#command cdx cgrep -p two,foo
+#command cdx cgrep -p two,,foo
 #stdin
  CDX	one	two	three
 aaa	bbb	ccc

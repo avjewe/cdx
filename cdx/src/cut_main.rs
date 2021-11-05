@@ -36,10 +36,16 @@ pub fn main(argv: &[String]) -> Result<()> {
     for x in files {
         let mut f = Reader::new();
         f.open(&x)?;
+        if f.is_empty() {
+            continue;
+        }
         v.lookup(&f.names())?;
         let mut w = get_writer("-")?;
 
         v.write_names(&mut w, f.header())?;
+        if f.is_done() {
+            continue;
+        }
         loop {
             v.write(&mut w, f.curr())?;
             if f.getline()? {

@@ -1,7 +1,7 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
-use crate::{err, Error, Result, TextLine};
+use crate::{err, first, skip_first, take_first, Error, Result, TextLine};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp::Ordering;
@@ -50,12 +50,161 @@ use std::{fmt, str};
 ///    s.lookup(&header);
 ///    assert_eq!(s.get_cols(), &[2,3]);
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ColumnSet {
     pos: Vec<String>,
     neg: Vec<String>,
     columns: Vec<usize>,
     did_lookup: bool,
+}
+
+/// A ColumnSet with associated string
+#[derive(Debug, Clone, Default)]
+pub struct ScopedValue {
+    cols: ColumnSet,
+    value: String,
+}
+
+impl ScopedValue {
+    /// one string
+    pub fn new(spec: &str, del: char) -> Self {
+        let mut s = ScopedValue::default();
+        if spec.is_empty() {
+            return s;
+        }
+        let mut spec = spec;
+        let ch = first(spec);
+        if ch == del {
+            skip_first(spec);
+            if spec.is_empty() {
+                s.value.push(del);
+                return s;
+            }
+            let ch = first(spec);
+            if ch == del {
+                s.value.push(del);
+            }
+        }
+        while !spec.is_empty() {
+            let ch = take_first(&mut spec);
+            if ch == del {
+                s.cols.add_yes(spec);
+                return s;
+            }
+            s.value.push(ch);
+        }
+        s
+    }
+    /// two strings
+    pub fn new2(value: &str, cols: &str) -> Self {
+        let mut s = ScopedValue::default();
+        s.cols.add_yes(cols);
+        s.value = value.to_string();
+        s
+    }
+    /// resolve named columns
+    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+        self.cols.lookup(fieldnames)
+    }
+}
+
+/// A per-column value
+#[derive(Debug, Clone, Default)]
+pub struct ScopedValues {
+    default: String,
+    data: Vec<ScopedValue>,
+
+    has_value: Vec<bool>,
+    strings: Vec<String>,
+    ints: Vec<i64>,
+    floats: Vec<f64>,
+}
+
+impl ScopedValues {
+    /// new
+    pub fn new() -> Self {
+        ScopedValues::default()
+    }
+    /// value for column not otherwise assigned a value
+    pub fn set_default(&mut self, d: &str) {
+        self.default = d.to_string();
+    }
+    /// resolve named columns
+    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+        self.has_value.clear();
+        self.has_value.resize(fieldnames.len(), false);
+        self.strings.clear();
+        self.strings.resize(fieldnames.len(), self.default.clone());
+        for x in &mut self.data {
+            x.lookup(fieldnames)?;
+            for i in 0..x.cols.columns.len() {
+                self.strings[i] = x.value.clone();
+                self.has_value[i] = true;
+            }
+        }
+        Ok(())
+    }
+    /// do the work so that get_int() will work properly
+    pub fn make_ints(&mut self) -> Result<()> {
+        self.ints.clear();
+        for i in 0..self.strings.len() {
+            self.ints[i] = self.get(i).parse::<i64>()?;
+        }
+        Ok(())
+    }
+    /// do the work so that get_int() will work properly
+    pub fn make_floats(&mut self) -> Result<()> {
+        self.floats.clear();
+        for i in 0..self.strings.len() {
+            self.floats[i] = self.get(i).parse::<f64>()?;
+        }
+        Ok(())
+    }
+
+    /// add one ScopedValue
+    pub fn add(&mut self, spec: &str, del: char) {
+        self.data.push(ScopedValue::new(spec, del));
+    }
+    /// add one ScopedValue
+    pub fn add2(&mut self, value: &str, cols: &str) {
+        self.data.push(ScopedValue::new2(value, cols));
+    }
+    /// get appropriate value for the column
+    pub fn get(&self, col: usize) -> &str {
+        if col < self.strings.len() {
+            &self.strings[col]
+        } else {
+            self.strings.last().unwrap()
+        }
+    }
+    /// get appropriate int value for the column
+    pub fn get_int(&self, col: usize) -> i64 {
+        if col < self.ints.len() {
+            self.ints[col]
+        } else {
+            *self.ints.last().unwrap()
+        }
+    }
+    /// get appropriate int value for the column
+    pub fn get_float(&self, col: usize) -> f64 {
+        if col < self.floats.len() {
+            self.floats[col]
+        } else {
+            *self.floats.last().unwrap()
+        }
+    }
+    /// has this column been assigned a value?
+    pub fn has_value(&self, col: usize) -> bool {
+        if col < self.has_value.len() {
+            self.has_value[col]
+        } else {
+            false
+        }
+    }
+    /// Have any column been assigned values?
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
 }
 
 /// Write some output
@@ -77,12 +226,7 @@ impl fmt::Debug for dyn ColumnFun {
 impl ColumnSet {
     /// Create an empty column set, which selects all columns.
     pub fn new() -> Self {
-        Self {
-            pos: Vec::new(),
-            neg: Vec::new(),
-            columns: Vec::new(),
-            did_lookup: false,
-        }
+        ColumnSet::default()
     }
 
     /// Add some columns to be selected
@@ -517,11 +661,6 @@ impl ColumnSet {
     }
 }
 
-impl Default for ColumnSet {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 /*
 impl ColumnFun for ReaderFull<'_> {
     fn write(&self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()> {

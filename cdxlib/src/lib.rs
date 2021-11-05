@@ -1,5 +1,7 @@
 //! Tools for text file manipulation
 
+// column specs need globs, +=1 and -=1, meaning maybe they have to be signed
+
 #![warn(
     missing_copy_implementations,
     absolute_paths_not_starting_with_crate,
@@ -33,6 +35,7 @@ pub mod check;
 pub mod column;
 pub mod comp;
 pub mod expr;
+pub mod join;
 pub mod sort;
 pub mod tooltest;
 
@@ -52,6 +55,8 @@ pub enum Error {
     Error(String),
     /// pass through ParseIntError
     ParseIntError(std::num::ParseIntError),
+    /// pass through ParseIntError
+    ParseFloatError(std::num::ParseFloatError),
     /// pass through io::Error
     IoError(std::io::Error),
     /// pass through regex::Error
@@ -97,11 +102,18 @@ impl From<std::num::ParseIntError> for Error {
     }
 }
 
+impl From<std::num::ParseFloatError> for Error {
+    fn from(kind: std::num::ParseFloatError) -> Error {
+        Error::ParseFloatError(kind)
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Error(s) => write!(f, "Cdx Error : {}", s)?,
             Error::ParseIntError(s) => write!(f, "ParseIntError : {}", s)?,
+            Error::ParseFloatError(s) => write!(f, "ParseFloatError : {}", s)?,
             Error::IoError(s) => write!(f, "IoError : {}", s)?,
             Error::RegexError(s) => write!(f, "RegexError : {}", s)?,
             Error::NeedLookup => write!(
@@ -139,7 +151,7 @@ pub struct FakeSlice {
 ///```
 #[derive(Debug, Clone, Default)]
 pub struct TextLine {
-    /// The whole input line, without newline
+    /// The whole input line, with newline
     pub line: Vec<u8>,
     /// the individual columns
     pub parts: Vec<FakeSlice>,
@@ -584,7 +596,7 @@ fn chars_equal(c1: char, c2: char, ic: bool) -> bool {
 }
 
 /// match in glob format
-pub fn uglob(mut wild: &[u8], mut buff: &[u8], ic: bool) -> bool {
+pub fn bglob(mut wild: &[u8], mut buff: &[u8], ic: bool) -> bool {
     while !buff.is_empty() && !wild.is_empty() && (wild[0] != b'*') {
         if !bytes_equal(wild[0], buff[0], ic) {
             return false;
@@ -635,6 +647,12 @@ fn skip_first(s: &str) -> &str {
     &s[s.chars().next().unwrap().len_utf8()..]
 }
 
+fn take_first(slice: &mut &str) -> char {
+    let x = slice.chars().next().unwrap();
+    *slice = &slice[x.len_utf8()..];
+    x
+}
+
 /// match in glob format
 pub fn sglob(mut wild: &str, mut buff: &str, ic: bool) -> bool {
     while !buff.is_empty() && !wild.is_empty() && (first(wild) != '*') {
@@ -681,38 +699,38 @@ mod tests {
 
     #[test]
     fn uwild() {
-        assert!(uglob(b"", b"", false));
-        assert!(!uglob(b"", b"foo", false));
-        assert!(!uglob(b"foo", b"", false));
-        assert!(uglob(b"*", b"foo", false));
-        assert!(uglob(b"*", b"", false));
+        assert!(bglob(b"", b"", false));
+        assert!(!bglob(b"", b"foo", false));
+        assert!(!bglob(b"foo", b"", false));
+        assert!(bglob(b"*", b"foo", false));
+        assert!(bglob(b"*", b"", false));
 
-        assert!(uglob(b"foo", b"foo", false));
-        assert!(!uglob(b"bar", b"foo", false));
-        assert!(uglob(b"foo", b"FoO", true));
-        assert!(!uglob(b"bar", b"FoO", false));
+        assert!(bglob(b"foo", b"foo", false));
+        assert!(!bglob(b"bar", b"foo", false));
+        assert!(bglob(b"foo", b"FoO", true));
+        assert!(!bglob(b"bar", b"FoO", false));
 
-        assert!(!uglob(b"*.txt", b"foo.txtt", false));
-        assert!(uglob(b"*.txt", b"foo.txt", false));
-        assert!(uglob(b"foo*.txt", b"foo.txt", false));
-        assert!(!uglob(b"foo*.txt", b"foo.txtt", false));
-        assert!(uglob(b"foo?txt", b"foo.txt", false));
-        assert!(!uglob(b"foo?txt", b"foo..txt", false));
+        assert!(!bglob(b"*.txt", b"foo.txtt", false));
+        assert!(bglob(b"*.txt", b"foo.txt", false));
+        assert!(bglob(b"foo*.txt", b"foo.txt", false));
+        assert!(!bglob(b"foo*.txt", b"foo.txtt", false));
+        assert!(bglob(b"foo?txt", b"foo.txt", false));
+        assert!(!bglob(b"foo?txt", b"foo..txt", false));
 
-        assert!(uglob(b"*.txt", b"foO.txt", true));
-        assert!(!uglob(b"*.txt", b"foO.txtt", true));
-        assert!(uglob(b"foo*.txt", b"foO.txt", true));
-        assert!(!uglob(b"foo*.txt", b"foO.txtt", true));
-        assert!(uglob(b"foo?txt", b"foO.txt", true));
-        assert!(!uglob(b"foo?txt", b"foO..txt", true));
+        assert!(bglob(b"*.txt", b"foO.txt", true));
+        assert!(!bglob(b"*.txt", b"foO.txtt", true));
+        assert!(bglob(b"foo*.txt", b"foO.txt", true));
+        assert!(!bglob(b"foo*.txt", b"foO.txtt", true));
+        assert!(bglob(b"foo?txt", b"foO.txt", true));
+        assert!(!bglob(b"foo?txt", b"foO..txt", true));
 
-        assert!(uglob(b"a?b", b"anb", false));
-        assert!(!uglob(b"a?b", "añb".as_bytes(), false));
+        assert!(bglob(b"a?b", b"anb", false));
+        assert!(!bglob(b"a?b", "añb".as_bytes(), false));
 
-        assert!(uglob(
+        assert!(bglob(
 	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/*/add_hour_*",
 	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
-        assert!(uglob(
+        assert!(bglob(
 	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/???/add_hour_*",
 	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
     }

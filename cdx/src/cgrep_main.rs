@@ -6,14 +6,14 @@ use cdxlib::{get_writer, Error, LookbackReader, Result};
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);
     let a = vec![
-        arg! {"pattern", "p", "Col,Regex", "Select line where this col matches this pattern."},
+        arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
     ];
     let (args, files) = args::parse(&prog, &a, argv);
 
     let mut list = CheckList::new();
     for x in args {
         if x.name == "pattern" {
-            list.push(Box::new(CheckRegex::new(&x.value)?));
+            list.push(Box::new(ColChecker::new(&x.value)?));
         } else {
             unreachable!();
         }

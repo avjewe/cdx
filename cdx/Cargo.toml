@@ -1,6 +1,6 @@
 [package]
 name = "cdx"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Andy Jewell <avjewe@gmail.com>"]
 edition = "2021"
 license = "BSD-3-Clause"
@@ -11,5 +11,5 @@ repository = "https://github.com/avjewe/cdx"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cdxlib = { version = "0.1", path = "../cdxlib" }
+cdxlib = { version = "0.1.3", path = "../cdxlib" }
 clap = "2"
