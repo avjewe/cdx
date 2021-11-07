@@ -1,0 +1,9 @@
+#command cdx cut -C stuff:abc^{two}def^{one}ghi
+#stdin
+ CDX	one	two	three
+aaa	bbb	ccc
+ddd	eee	fff
+#stdout
+ CDX	stuff
+abcbbbdefaaaghi
+abceeedefdddghi

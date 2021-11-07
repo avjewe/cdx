@@ -32,13 +32,24 @@ impl BlockReader {
         self.cont.read_header(&mut self.file, &mut self.first)?;
         Ok(())
     }
-    /// read from file, append to 'data' to a maximum mof 'max' total size
+    /// read from file, append to 'data' to a maximum of 'max' total size
     /// return bytes read.
     pub fn read(&mut self, data: &mut Vec<u8>, offset: usize) -> Result<usize> {
+        let mut nsize = offset + 16 * 1024;
+        if nsize > data.capacity() {
+            nsize = data.capacity();
+        }
+        if data.len() < nsize {
+            data.resize(nsize, 0);
+        }
+        if offset >= data.len() {
+            return Ok(0);
+        }
         if self.first.line.is_empty() {
             let sz = self.file.f.read(&mut data[offset..])?;
             Ok(sz)
         } else {
+            debug_assert!(offset == 0);
             let len = self.first.line.len();
             data[0..len].copy_from_slice(&self.first.line[0..len]);
             self.first.line.clear();
@@ -77,13 +88,9 @@ impl<'a> Sorter<'a> {
             data_size = MAX_DATA;
         }
         let ptr_size = max_alloc / 2 / std::mem::size_of::<Item>();
-        let mut data = Vec::new();
-        data.resize(data_size, 0);
-        let mut ptrs = Vec::new();
-        ptrs.reserve(ptr_size);
         Self {
-            ptrs,
-            data,
+            ptrs: Vec::with_capacity(ptr_size),
+            data: Vec::with_capacity(data_size),
             cmp,
             data_used: 0,
             data_unused: 0,

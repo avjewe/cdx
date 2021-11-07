@@ -1,6 +1,6 @@
 use crate::arg;
 use crate::args;
-use cdxlib::column::{ColumnClump, ColumnSet, ReaderColumns, Writer};
+use cdxlib::column::{ColumnClump, ColumnSet, CompositeColumn, ReaderColumns, Writer};
 use cdxlib::{get_writer, Error, Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -8,6 +8,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     let a = vec![
         arg! {"columns", "c", "Columns", "the columns"},
         arg! {"group", "g", "Columns", "the columns in a bunch"},
+        arg! {"composite", "C", "Spec", "new value made from parts"},
     ];
     let (args, files) = args::parse(&prog, &a, argv);
 
@@ -22,6 +23,8 @@ pub fn main(argv: &[String]) -> Result<()> {
             g.add_yes(&x.value);
             let s = Box::new(ReaderColumns::new(g));
             v.push(Box::new(ColumnClump::new(s, b"group", b',')));
+        } else if x.name == "composite" {
+            v.push(Box::new(CompositeColumn::new(&x.value)?));
         } else {
             unreachable!();
         }

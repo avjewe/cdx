@@ -4,6 +4,7 @@ use crate::column::NamedCol;
 use crate::{bglob, err, sglob, Error, Reader, Result, TextLine};
 use itertools::EitherOrBoth::*;
 use itertools::Itertools;
+use memchr::memmem::find;
 use std::collections::HashSet;
 use std::fmt;
 
@@ -32,20 +33,6 @@ fn assign_lower(dst: &mut String, src : &str) {
     dst.extend(src.chars().flat_map(char::to_lowercase));
 }
  */
-
-// super slow strstr. WTF Rust?
-fn contains_slice(haystack: &[u8], needle: &[u8]) -> bool {
-    let len = needle.len();
-    if len == 0 {
-        return true;
-    }
-    if len > haystack.len() {
-        return false;
-    }
-    haystack
-        .windows(len)
-        .any(move |sub_slice| sub_slice == needle)
-}
 
 // self.len() == other.len() && iter::zip(self, other).all(|(a, b)| a.eq_ignore_ascii_case(b))
 
@@ -268,27 +255,27 @@ impl BufCheck for InfixCheckC {
         buff.to_lowercase().contains(&self.data) // PERF allocation
     }
     fn ucheck(&self, buff: &[u8]) -> bool {
-        contains_slice(&buff.to_ascii_lowercase(), self.data.as_bytes()) // PERF allocation
+        find(&buff.to_ascii_lowercase(), self.data.as_bytes()).is_some() // PERF allocation
     }
 }
 
 #[derive(Debug, Clone)]
 struct InfixCheck {
-    data: String,
+    needle: Vec<u8>,
 }
 impl InfixCheck {
     fn new(data: &str) -> Self {
         Self {
-            data: data.to_string(),
+            needle: data.as_bytes().to_vec(),
         }
     }
 }
 impl BufCheck for InfixCheck {
-    fn scheck(&self, buff: &str) -> bool {
-        buff.contains(&self.data)
+    fn scheck(&self, haystack: &str) -> bool {
+        find(haystack.as_bytes(), &self.needle).is_some()
     }
-    fn ucheck(&self, buff: &[u8]) -> bool {
-        contains_slice(buff, self.data.as_bytes())
+    fn ucheck(&self, haystack: &[u8]) -> bool {
+        find(haystack, &self.needle).is_some()
     }
 }
 
@@ -548,7 +535,8 @@ impl CheckSpec {
     fn new(spec: &str) -> Result<Self> {
         let mut c = CheckSpec::default();
         for x in spec.split('.') {
-            if x.eq_ignore_ascii_case("S") {
+            if x.eq_ignore_ascii_case("") {
+            } else if x.eq_ignore_ascii_case("S") {
                 c.string = true;
             } else if x.eq_ignore_ascii_case("N") {
                 c.negate = true;

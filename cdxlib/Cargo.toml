@@ -17,6 +17,7 @@ flate2 = "1"
 fs-err = "2"
 libm = "0"
 itertools = "0.10"
+memchr = "2"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]

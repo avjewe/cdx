@@ -832,6 +832,8 @@ pub struct NamedCol {
     pub name: Vec<u8>,
     /// the columnn number, either as originally set or after lookup
     pub num: usize,
+    /// if non-zero, input was "+2" so num should be calculated as (num_cols - from_end)
+    pub from_end: usize,
 }
 
 impl NamedCol {
@@ -840,23 +842,39 @@ impl NamedCol {
         Self {
             name: Vec::new(),
             num: 0,
+            from_end: 0,
         }
     }
     /// Resolve the column name
     pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
         if !self.name.is_empty() {
             self.num = ColumnSet::lookup_col2(fieldnames, &self.name)?
+        } else if self.from_end > 0 {
+            if self.from_end > fieldnames.len() {
+                return err!(
+                    "Requested column +{}, but there are only {} columns",
+                    self.from_end,
+                    fieldnames.len()
+                );
+            }
+            self.num = fieldnames.len() - self.from_end
         }
         Ok(())
     }
-    /// Extract a column name or number, return the unuse part of the slice
-    pub fn parse<'a>(&mut self, spec: &'a str) -> Result<&'a str> {
+    /// Extract a column name or number, return the unused part of the slice
+    pub fn parse<'a>(&mut self, orig_spec: &'a str) -> Result<&'a str> {
+        let mut spec = orig_spec;
         self.num = 0;
         self.name.clear();
         if spec.is_empty() {
             return Ok(spec);
         }
-        let ch = spec.chars().next().unwrap();
+        let mut ch = first(spec);
+        let was_plus = ch == '+';
+        if was_plus {
+            spec = skip_first(spec);
+            ch = first(spec);
+        }
         if ch.is_digit(10) {
             let mut pos: usize = 0;
             for x in spec.chars() {
@@ -867,9 +885,16 @@ impl NamedCol {
                     break;
                 }
             }
-            self.num -= 1;
+            if was_plus {
+                self.from_end = self.num;
+            } else {
+                self.num -= 1;
+            }
             Ok(&spec[pos..])
         } else if ch.is_alphabetic() {
+            if was_plus {
+                return err!("'+' must be follwed by a number : {}", orig_spec);
+            }
             let mut pos: usize = 0;
             let mut tmp_name = String::new();
             for x in spec.chars() {
@@ -891,6 +916,120 @@ impl NamedCol {
 impl Default for NamedCol {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct CompositeColumnPart {
+    prefix: String,
+    col: NamedCol,
+}
+
+impl CompositeColumnPart {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+        self.col.lookup(fieldnames)
+    }
+}
+
+/// Create a string from a bunch of static stings and column values
+#[derive(Debug, Clone, Default)]
+pub struct CompositeColumn {
+    parts: Vec<CompositeColumnPart>,
+    suffix: String,
+    name: String,
+}
+
+impl CompositeColumn {
+    /// new
+    pub fn new(s: &str) -> Result<Self> {
+        let mut c = CompositeColumn::default();
+        c.set(s)?;
+        Ok(c)
+    }
+    /// resolve named columns
+    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+        for x in &mut self.parts {
+            x.lookup(fieldnames)?;
+        }
+        Ok(())
+    }
+    /// contruct string from column values
+    pub fn get(&self, t: &mut Vec<u8>, fields: &[&[u8]]) {
+        t.clear();
+        for x in &self.parts {
+            t.extend(x.prefix.as_bytes());
+            t.extend(fields[x.col.num]);
+        }
+        t.extend(self.suffix.as_bytes());
+    }
+    /// configure from spec
+    pub fn set(&mut self, spec: &str) -> Result<()> {
+        let name = spec.split_once(':');
+        if name.is_none() {
+            return err!("Composite Column Spec must start with ColName: : {}", spec);
+        }
+        let name = name.unwrap();
+        self.name = name.0.to_string();
+        let mut curr = name.1;
+        self.suffix.clear();
+        self.parts.clear();
+        const TAG: char = '^';
+        while !curr.is_empty() {
+            let ch = take_first(&mut curr);
+            if ch == TAG {
+                if curr.is_empty() {
+                    self.suffix.push(TAG);
+                } else if first(curr) == TAG {
+                    self.suffix.push(TAG);
+                    curr = skip_first(curr);
+                } else {
+                    let mut p = CompositeColumnPart::new();
+                    std::mem::swap(&mut p.prefix, &mut self.suffix);
+                    if first(curr) == '{' {
+                        curr = skip_first(curr);
+                        curr = p.col.parse(curr)?;
+                        if curr.is_empty() || first(curr) != '}' {
+                            return err!("Closing bracket not found : {}", spec);
+                        }
+                        curr = skip_first(curr);
+                    } else {
+                        curr = p.col.parse(curr)?;
+                    }
+
+                    self.parts.push(p);
+                }
+            } else {
+                self.suffix.push(ch);
+            }
+        }
+        Ok(())
+    }
+}
+
+impl ColumnFun for CompositeColumn {
+    /// write the column names (called once)
+    fn write_names(&self, w: &mut dyn Write, _head: &TextLine, _delim: u8) -> Result<()> {
+        w.write_all(self.name.as_bytes())?;
+        Ok(())
+    }
+    /// write the column values (called many times)
+    fn write(&self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+        for x in &self.parts {
+            w.write_all(x.prefix.as_bytes())?;
+            w.write_all(line.get(x.col.num))?;
+        }
+        w.write_all(self.suffix.as_bytes())?;
+        Ok(())
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+        for x in &mut self.parts {
+            x.lookup(fieldnames)?;
+        }
+        Ok(())
     }
 }
 

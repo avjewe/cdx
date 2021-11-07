@@ -636,6 +636,7 @@ pub fn bglob(mut wild: &[u8], mut buff: &[u8], ic: bool) -> bool {
 }
 
 fn first(s: &str) -> char {
+    debug_assert!(!s.is_empty());
     s.chars().next().unwrap()
 }
 
@@ -644,12 +645,14 @@ fn first(s: &str) -> char {
 //}
 
 fn skip_first(s: &str) -> &str {
+    debug_assert!(!s.is_empty());
     &s[s.chars().next().unwrap().len_utf8()..]
 }
 
-fn take_first(slice: &mut &str) -> char {
-    let x = slice.chars().next().unwrap();
-    *slice = &slice[x.len_utf8()..];
+fn take_first(s: &mut &str) -> char {
+    debug_assert!(!s.is_empty());
+    let x = s.chars().next().unwrap();
+    *s = &s[x.len_utf8()..];
     x
 }
 
