@@ -1,6 +1,6 @@
 use crate::{arg, args};
-use cdxlib::tooltest::*;
-use cdxlib::Result;
+use cdx::tooltest::*;
+use cdx::Result;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);

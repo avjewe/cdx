@@ -1,4 +1,4 @@
-use cdxlib::{Error, Result};
+use cdx::{Error, Result};
 use std::env;
 
 mod args;

@@ -1,7 +1,7 @@
 use crate::arg;
 use crate::args;
-use cdxlib::column::{ColumnClump, ColumnSet, CompositeColumn, ReaderColumns, Writer};
-use cdxlib::{get_writer, Error, Reader, Result};
+use cdx::column::{ColumnClump, ColumnSet, CompositeColumn, ReaderColumns, Writer};
+use cdx::{get_writer, Error, Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);

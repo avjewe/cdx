@@ -1,7 +1,7 @@
 use crate::arg;
 use crate::args;
-use cdxlib::check::*;
-use cdxlib::{get_writer, Error, LookbackReader, Result};
+use cdx::check::*;
+use cdx::{get_writer, Error, LookbackReader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);

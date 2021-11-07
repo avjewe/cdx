@@ -1,6 +1,6 @@
 use crate::arg;
 use crate::args;
-use cdxlib::{comp, err, get_writer, Error, Reader, Result};
+use cdx::{comp, err, get_writer, Error, Reader, Result};
 use std::cmp::Ordering;
 
 pub fn main(argv: &[String]) -> Result<()> {
