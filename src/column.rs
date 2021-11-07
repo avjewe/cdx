@@ -1,7 +1,7 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
-use crate::{err, first, skip_first, take_first, Error, Result, TextLine};
+use crate::{err, first, skip_first, take_first, Error, Result, TextLine, sglob};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp::Ordering;
@@ -348,6 +348,16 @@ impl ColumnSet {
         Ok(Self::do_compare(name, key1, op1)? && Self::do_compare(name, key2, op2)?)
     }
 
+    /// Return all the fields that match the glob
+    fn glob_range(fieldnames: &[&[u8]], rng: &str) -> Result<Vec<usize>> {
+        let mut ret = Vec::new();
+        for f in fieldnames.iter().enumerate() {
+	    if sglob(rng, str::from_utf8(f.1)?, false) { // allow case insensitive?
+		ret.push(f.0);
+	    }
+	}
+	Ok(ret)
+    }
     /// Return all the field numbers that match a textual spec like <foo or <foo>bar """
     fn text_range(fieldnames: &[&[u8]], rng: &str) -> Result<Vec<usize>> {
         let mut ret = Vec::new();
@@ -396,6 +406,9 @@ impl ColumnSet {
         if ch == '<' || ch == '>' || ch == '=' {
             return Self::text_range(fieldnames, rng);
         }
+	if rng.contains('*') || rng.contains('?') {
+            return Self::glob_range(fieldnames, rng);
+	}
         let mut parts: Vec<&str> = rng.split('-').collect();
         if parts.len() > 2 {
             return err!("Malformed Range {}", rng);
@@ -444,11 +457,9 @@ impl ColumnSet {
         self.columns = Vec::new();
         let mut no_cols: HashSet<usize> = HashSet::new();
 
-        if !self.neg.is_empty() {
-            for s in &self.neg {
-                for x in Self::range(fieldnames, s)? {
-                    no_cols.insert(x);
-                }
+        for s in &self.neg {
+            for x in Self::range(fieldnames, s)? {
+                no_cols.insert(x);
             }
         }
 

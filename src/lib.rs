@@ -1,7 +1,5 @@
 //! Tools for text file manipulation
 
-// column specs need globs, +=1 and -=1, meaning maybe they have to be signed
-
 #![warn(
     missing_copy_implementations,
     absolute_paths_not_starting_with_crate,
@@ -47,6 +45,18 @@ macro_rules! err {
     ($($e:expr),+) => {Err(Error::Error(format!($($e),+)))}
 }
 
+/// Shorthand for returning an error Result
+#[macro_export]
+macro_rules! err_type {
+    ($x:path, $i:path) => {
+	impl From<$x> for Error {
+	    fn from(kind: $x) -> Error {
+		$i(kind)
+	    }
+	}
+    }
+}
+
 /// Various errors
 #[derive(Debug)]
 #[non_exhaustive]
@@ -61,6 +71,10 @@ pub enum Error {
     IoError(std::io::Error),
     /// pass through regex::Error
     RegexError(regex::Error),
+    /// pass through FromUtf8Error
+    FromUtf8Error(std::string::FromUtf8Error),
+    /// pass through Utf8Error
+    Utf8Error(std::str::Utf8Error),
     /// common error with long default string
     NeedLookup,
     /// be an error, but don't report anything
@@ -84,29 +98,12 @@ impl Error {
     }
 }
 
-impl From<regex::Error> for Error {
-    fn from(kind: regex::Error) -> Error {
-        Error::RegexError(kind)
-    }
-}
-
-impl From<std::io::Error> for Error {
-    fn from(kind: std::io::Error) -> Error {
-        Error::IoError(kind)
-    }
-}
-
-impl From<std::num::ParseIntError> for Error {
-    fn from(kind: std::num::ParseIntError) -> Error {
-        Error::ParseIntError(kind)
-    }
-}
-
-impl From<std::num::ParseFloatError> for Error {
-    fn from(kind: std::num::ParseFloatError) -> Error {
-        Error::ParseFloatError(kind)
-    }
-}
+err_type!(std::str::Utf8Error, Error::Utf8Error);
+err_type!(regex::Error, Error::RegexError);
+err_type!(std::string::FromUtf8Error, Error::FromUtf8Error);
+err_type!(std::io::Error, Error::IoError);
+err_type!(std::num::ParseIntError, Error::ParseIntError);
+err_type!(std::num::ParseFloatError, Error::ParseFloatError);
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -116,6 +113,8 @@ impl fmt::Display for Error {
             Error::ParseFloatError(s) => write!(f, "ParseFloatError : {}", s)?,
             Error::IoError(s) => write!(f, "IoError : {}", s)?,
             Error::RegexError(s) => write!(f, "RegexError : {}", s)?,
+            Error::FromUtf8Error(s) => write!(f, "FromUtf8Error : {}", s)?,
+            Error::Utf8Error(s) => write!(f, "Utf8Error : {}", s)?,
             Error::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
