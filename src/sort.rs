@@ -4,10 +4,12 @@ use crate::comp::{Comparator, Item};
 use crate::{err, get_reader, Error, Infile, InfileContext, Result, TextLine};
 use std::io::{self, Read, Write};
 
+/*
 /// convert u8 slice to string
 pub fn u2s(v: &[u8]) -> String {
     String::from_utf8_lossy(v).to_string()
 }
+ */
 
 /// Read a text file, but not line-by-line
 #[derive(Debug)]
@@ -46,7 +48,7 @@ impl BlockReader {
             return Ok(0);
         }
         if self.first.line.is_empty() {
-            let sz = self.file.f.read(&mut data[offset..])?;
+            let sz = self.file.read(&mut data[offset..])?;
             Ok(sz)
         } else {
             debug_assert!(offset == 0);
@@ -146,7 +148,7 @@ impl<'a> Sorter<'a> {
 pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write) -> Result<()> // maybe return some useful stats?
 {
     let mut s = Sorter::new(cmp, 10000000);
-    let mut header: Vec<u8> = Vec::new();
+    let mut header: String = String::new();
     let mut first_file = true;
 
     for f in files {
@@ -155,12 +157,12 @@ pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write) -> Result
         if first_file {
             first_file = false;
             header = b.cont.header.line.clone();
-            w.write_all(&header)?;
+            w.write_all(header.as_bytes())?;
         } else if b.cont.header.line != header {
             return err!(
                 "Header Mismatch : '{}' vs '{}'",
-                &u2s(&header),
-                &u2s(&b.cont.header.line)
+                &header,
+                &b.cont.header.line
             );
         }
         s.add(&mut b)?;

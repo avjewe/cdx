@@ -1,11 +1,12 @@
 use crate::arg;
 use crate::args;
+use crate::args::ArgSpec;
 use cdx::{comp, get_writer, sort, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
-    let a = vec![arg! {"key", "k", "Spec", "How to compare adjacent lines"}];
-    let (args, files) = args::parse(&prog, &a, argv);
+    const A: [ArgSpec; 1] = [arg! {"key", "k", "Spec", "How to compare adjacent lines"}];
+    let (args, files) = args::parse(&prog, &A, argv);
 
     let mut key = "".to_string();
     for x in args {

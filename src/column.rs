@@ -1,7 +1,7 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
-use crate::{err, first, skip_first, take_first, Error, Result, TextLine, sglob};
+use crate::{err, first, sglob, skip_first, take_first, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp::Ordering;
@@ -18,8 +18,8 @@ use std::{fmt, str};
 /// # Examples
 ///
 /// ```
-///    use cdxlib::column::ColumnSet;
-///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+///    use cdx::column::ColumnSet;
+///    let header: [&str; 5] = ["zero", "one", "two", "three", "four"];
 ///
 ///    let mut s = ColumnSet::new();
 ///    s.lookup(&header);
@@ -103,7 +103,7 @@ impl ScopedValue {
         s
     }
     /// resolve named columns
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.cols.lookup(fieldnames)
     }
 }
@@ -130,7 +130,7 @@ impl ScopedValues {
         self.default = d.to_string();
     }
     /// resolve named columns
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.has_value.clear();
         self.has_value.resize(fieldnames.len(), false);
         self.strings.clear();
@@ -210,11 +210,11 @@ impl ScopedValues {
 /// Write some output
 pub trait ColumnFun {
     /// write the column names (called once)
-    fn write_names(&self, w: &mut dyn Write, head: &TextLine, delim: u8) -> Result<()>;
+    fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()>;
     /// write the column values (called many times)
     fn write(&self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()>;
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()>;
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
 }
 
 impl fmt::Debug for dyn ColumnFun {
@@ -265,35 +265,37 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdxlib::column::ColumnSet;
-    ///    assert_eq!(ColumnSet::lookup_col(&[b"zero", b"one", b"two"], "one").unwrap(), 1);
+    ///    use cdx::column::ColumnSet;
+    ///    assert_eq!(ColumnSet::lookup_col(&["zero", "one", "two"], "one").unwrap(), 1);
     /// ```
-    pub fn lookup_col(fieldnames: &[&[u8]], colname: &str) -> Result<usize> {
+    pub fn lookup_col(fieldnames: &[&str], colname: &str) -> Result<usize> {
         for f in fieldnames.iter().enumerate() {
-            if str::from_utf8(f.1).unwrap() == colname {
+            if f.1 == &colname {
                 return Ok(f.0);
             }
         }
         err!("{} not found", colname)
     }
-    /// turn a u8 column name into a column number
-    pub fn lookup_col2(fieldnames: &[&[u8]], colname: &[u8]) -> Result<usize> {
-        for f in fieldnames.iter().enumerate() {
-            if *f.1 == colname {
-                return Ok(f.0);
+    /*
+        /// turn a u8 column name into a column number
+        pub fn lookup_col2(fieldnames: &[&str], colname: &[u8]) -> Result<usize> {
+        let name = str::from_utf8_lossy(colname);
+            for f in fieldnames.iter().enumerate() {
+                if *f.1 == name {
+                    return Ok(f.0);
+                }
             }
+            err!("{:?} not found", &colname)
         }
-        err!("{:?} not found", &colname)
-    }
-
+    */
     /// resolve a single name or number into a column number
     /// # Examples
     ///
     /// ```
-    ///    use cdxlib::column::ColumnSet;
-    ///    assert_eq!(ColumnSet::single(&[b"zero", b"one", b"two"], "+1").unwrap(), 2);
+    ///    use cdx::column::ColumnSet;
+    ///    assert_eq!(ColumnSet::single(&["zero", "one", "two"], "+1").unwrap(), 2);
     /// ```
-    pub fn single(fieldnames: &[&[u8]], colname: &str) -> Result<usize> {
+    pub fn single(fieldnames: &[&str], colname: &str) -> Result<usize> {
         if let Some(stripped) = colname.strip_prefix('+') {
             match stripped.parse::<usize>() {
                 Ok(n) => {
@@ -349,17 +351,18 @@ impl ColumnSet {
     }
 
     /// Return all the fields that match the glob
-    fn glob_range(fieldnames: &[&[u8]], rng: &str) -> Result<Vec<usize>> {
+    fn glob_range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
         let mut ret = Vec::new();
         for f in fieldnames.iter().enumerate() {
-	    if sglob(rng, str::from_utf8(f.1)?, false) { // allow case insensitive?
-		ret.push(f.0);
-	    }
-	}
-	Ok(ret)
+            if sglob(rng, f.1, false) {
+                // allow case insensitive?
+                ret.push(f.0);
+            }
+        }
+        Ok(ret)
     }
     /// Return all the field numbers that match a textual spec like <foo or <foo>bar """
-    fn text_range(fieldnames: &[&[u8]], rng: &str) -> Result<Vec<usize>> {
+    fn text_range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
         let mut ret = Vec::new();
         lazy_static! {
             static ref RE1: Regex = Regex::new("^([<>]=?)([^<>]+)$").unwrap();
@@ -369,7 +372,7 @@ impl ColumnSet {
         if let Some(caps) = RE1.captures(rng) {
             for f in fieldnames.iter().enumerate() {
                 if Self::do_compare(
-                    str::from_utf8(f.1).unwrap(),
+                    f.1,
                     caps.get(2).unwrap().as_str(),
                     caps.get(1).unwrap().as_str(),
                 )? {
@@ -382,7 +385,7 @@ impl ColumnSet {
         if let Some(caps) = RE2.captures(rng) {
             for f in fieldnames.iter().enumerate() {
                 if Self::do_compare2(
-                    str::from_utf8(f.1).unwrap(),
+                    f.1,
                     caps.get(2).unwrap().as_str(),
                     caps.get(1).unwrap().as_str(),
                     caps.get(4).unwrap().as_str(),
@@ -398,7 +401,7 @@ impl ColumnSet {
     }
 
     /// turn range into list of column numbers
-    fn range(fieldnames: &[&[u8]], rng: &str) -> Result<Vec<usize>> {
+    fn range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
         if rng.is_empty() {
             return err!("Empty Range {}", rng);
         }
@@ -406,9 +409,9 @@ impl ColumnSet {
         if ch == '<' || ch == '>' || ch == '=' {
             return Self::text_range(fieldnames, rng);
         }
-	if rng.contains('*') || rng.contains('?') {
+        if rng.contains('*') || rng.contains('?') {
             return Self::glob_range(fieldnames, rng);
-	}
+        }
         let mut parts: Vec<&str> = rng.split('-').collect();
         if parts.len() > 2 {
             return err!("Malformed Range {}", rng);
@@ -445,14 +448,14 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdxlib::column::ColumnSet;
-    ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+    ///    use cdx::column::ColumnSet;
+    ///    let header: [&str; 5] = ["zero", "one", "two", "three", "four"];
     ///    let mut s = ColumnSet::new();
     ///    s.add_no("two");
     ///    s.lookup(&header);
     ///    assert_eq!(s.get_cols(), &[0,1,3,4]);
     /// ```
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.did_lookup = true;
         self.columns = Vec::new();
         let mut no_cols: HashSet<usize> = HashSet::new();
@@ -485,8 +488,8 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdxlib::column::ColumnSet;
-    ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+    ///    use cdx::column::ColumnSet;
+    ///    let header: [&str; 5] = ["zero", "one", "two", "three", "four"];
     ///    let mut s = ColumnSet::new();
     ///    s.add_no("two");
     ///    s.lookup(&header);
@@ -574,6 +577,22 @@ impl ColumnSet {
     }
 
     /// write the appropriate selection from the given columns, but no trailing newline
+    pub fn write3s(&self, w: &mut dyn Write, cols: &StringLine, delim: u8) -> Result<()> {
+        if !self.did_lookup {
+            return Err(Error::NeedLookup);
+        }
+        let mut need_delim = false;
+        for x in &self.columns {
+            if need_delim {
+                w.write_all(&[delim])?;
+            }
+            need_delim = true;
+            w.write_all(cols.get(*x).as_bytes())?;
+        }
+        Ok(())
+    }
+
+    /// write the appropriate selection from the given columns, but no trailing newline
     /// trying to write a non-existant column writes the provided default value
     pub fn write_sloppy(&self, cols: &[&str], rest: &str, w: &mut dyn Write) -> Result<()> {
         if !self.did_lookup {
@@ -593,8 +612,8 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdxlib::column::ColumnSet;
-    ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+    ///    use cdx::column::ColumnSet;
+    ///    let header: [&str; 5] = ["zero", "one", "two", "three", "four"];
     ///    let mut s = ColumnSet::new();
     ///    s.add_no("two");
     ///    s.lookup(&header);
@@ -637,11 +656,11 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdxlib::column::ColumnSet;
-    ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+    ///    use cdx::column::ColumnSet;
+    ///    let header: [&str; 5] = ["zero", "one", "two", "three", "four"];
     ///    assert_eq!(ColumnSet::lookup_cols("~2-3", &header).unwrap(), &[0,3,4]);
     /// ```
-    pub fn lookup_cols(spec: &str, names: &[&[u8]]) -> Result<Vec<usize>> {
+    pub fn lookup_cols(spec: &str, names: &[&str]) -> Result<Vec<usize>> {
         let mut s = ColumnSet::new();
         s.add_yes(spec);
         s.lookup(names)?;
@@ -653,11 +672,11 @@ impl ColumnSet {
     /// # Examples
     ///
     /// ```
-    ///    use cdxlib::column::ColumnSet;
-    ///    let header: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+    ///    use cdx::column::ColumnSet;
+    ///    let header: [&str; 5] = ["zero", "one", "two", "three", "four"];
     ///    assert_eq!(ColumnSet::lookup1("three", &header).unwrap(), 3);
     /// ```
-    pub fn lookup1(spec: &str, names: &[&[u8]]) -> Result<usize> {
+    pub fn lookup1(spec: &str, names: &[&str]) -> Result<usize> {
         let mut s = ColumnSet::new();
         s.add_yes(spec);
         s.lookup(names)?;
@@ -686,7 +705,7 @@ impl ColumnFun for ReaderFull<'_> {
         Ok(())
     }
 
-    fn write_names(&self, w: &mut dyn Write, head: &TextLine, delim: u8) -> Result<()> {
+    fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()> {
         let mut need_delim = false;
         for x in head.iter() {
             if need_delim {
@@ -703,7 +722,7 @@ impl ColumnFun for ReaderFull<'_> {
 /// Write the columns with a custom delimiter
 pub struct ColumnClump<'a> {
     cols: Box<dyn ColumnFun + 'a>,
-    name: Vec<u8>,
+    name: String,
     delim: u8,
 }
 impl fmt::Debug for ColumnClump<'_> {
@@ -714,10 +733,10 @@ impl fmt::Debug for ColumnClump<'_> {
 
 impl<'a> ColumnClump<'a> {
     /// new ColumnClump
-    pub fn new(cols: Box<dyn ColumnFun + 'a>, name: &[u8], delim: u8) -> Self {
+    pub fn new(cols: Box<dyn ColumnFun + 'a>, name: &str, delim: u8) -> Self {
         Self {
             cols,
-            name: name.to_vec(),
+            name: name.to_string(),
             delim,
         }
     }
@@ -729,11 +748,11 @@ impl<'a> ColumnFun for ColumnClump<'a> {
         Ok(())
     }
 
-    fn write_names(&self, w: &mut dyn Write, _head: &TextLine, _delim: u8) -> Result<()> {
-        w.write_all(&self.name)?;
+    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
+        w.write_all(self.name.as_bytes())?;
         Ok(())
     }
-    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.cols.lookup(fieldnames)
     }
 }
@@ -757,11 +776,11 @@ impl ColumnFun for ReaderColumns {
         Ok(())
     }
 
-    fn write_names(&self, w: &mut dyn Write, head: &TextLine, delim: u8) -> Result<()> {
-        self.columns.write3(w, head, delim)?;
+    fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()> {
+        self.columns.write3s(w, head, delim)?;
         Ok(())
     }
-    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.columns.lookup(fieldnames)
     }
 }
@@ -790,7 +809,7 @@ impl<'a> Writer<'a> {
         self.v.is_empty()
     }
     /// resolve column names
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         for x in self.v.iter_mut() {
             x.lookup(fieldnames)?
         }
@@ -801,7 +820,7 @@ impl<'a> Writer<'a> {
         self.v.push(x);
     }
     /// Write the column names
-    pub fn write_names(&mut self, w: &mut dyn Write, head: &TextLine) -> Result<()> {
+    pub fn write_names(&mut self, w: &mut dyn Write, head: &StringLine) -> Result<()> {
         w.write_all(b" CDX")?;
         w.write_all(&[self.delim])?;
         let mut need_delim = false;
@@ -836,11 +855,20 @@ impl<'a> Default for Writer<'a> {
     }
 }
 
+/// named output columns
+#[derive(Debug, Clone, Default)]
+pub struct OutCol {
+    /// column number
+    pub num: usize,
+    /// column name, might be empty if no name available
+    pub name: String,
+}
+
 /// a column, by name or number
 #[derive(Debug, Clone)]
 pub struct NamedCol {
     /// the column name. Empty if using column by number
-    pub name: Vec<u8>,
+    pub name: String,
     /// the columnn number, either as originally set or after lookup
     pub num: usize,
     /// if non-zero, input was "+2" so num should be calculated as (num_cols - from_end)
@@ -851,15 +879,15 @@ impl NamedCol {
     /// new named column
     pub fn new() -> Self {
         Self {
-            name: Vec::new(),
+            name: String::new(),
             num: 0,
             from_end: 0,
         }
     }
     /// Resolve the column name
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         if !self.name.is_empty() {
-            self.num = ColumnSet::lookup_col2(fieldnames, &self.name)?
+            self.num = ColumnSet::lookup_col(fieldnames, &self.name)?
         } else if self.from_end > 0 {
             if self.from_end > fieldnames.len() {
                 return err!(
@@ -907,16 +935,15 @@ impl NamedCol {
                 return err!("'+' must be follwed by a number : {}", orig_spec);
             }
             let mut pos: usize = 0;
-            let mut tmp_name = String::new();
+            self.name.clear();
             for x in spec.chars() {
                 if x.is_alphanumeric() || x == '_' {
-                    tmp_name.push(x);
+                    self.name.push(x);
                     pos += 1;
                 } else {
                     break;
                 }
             }
-            self.name = tmp_name.as_bytes().to_vec();
             Ok(&spec[pos..])
         } else {
             err!("Bad parse of compare spec for {}", spec)
@@ -940,7 +967,7 @@ impl CompositeColumnPart {
     fn new() -> Self {
         Self::default()
     }
-    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.col.lookup(fieldnames)
     }
 }
@@ -961,7 +988,7 @@ impl CompositeColumn {
         Ok(c)
     }
     /// resolve named columns
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         for x in &mut self.parts {
             x.lookup(fieldnames)?;
         }
@@ -1022,7 +1049,7 @@ impl CompositeColumn {
 
 impl ColumnFun for CompositeColumn {
     /// write the column names (called once)
-    fn write_names(&self, w: &mut dyn Write, _head: &TextLine, _delim: u8) -> Result<()> {
+    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
         w.write_all(self.name.as_bytes())?;
         Ok(())
     }
@@ -1036,11 +1063,8 @@ impl ColumnFun for CompositeColumn {
         Ok(())
     }
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
-        for x in &mut self.parts {
-            x.lookup(fieldnames)?;
-        }
-        Ok(())
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+	CompositeColumn::lookup(self, fieldnames)
     }
 }
 
@@ -1059,7 +1083,7 @@ mod tests {
 
     #[test]
     fn range() -> Result<()> {
-        let f: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+        let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
         assert_eq!(ColumnSet::range(&f, "<p")?, [1, 4]);
         assert_eq!(ColumnSet::range(&f, "2-+2")?, [1, 2, 3]);
         assert_eq!(ColumnSet::range(&f, "-")?, [0, 1, 2, 3, 4]);
@@ -1071,7 +1095,7 @@ mod tests {
 
     #[test]
     fn text_range() -> Result<()> {
-        let f: [&[u8]; 5] = [b"zero", b"one", b"two", b"three", b"four"];
+        let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
         assert_eq!(ColumnSet::text_range(&f, "<p")?, [1, 4]);
         assert_eq!(ColumnSet::text_range(&f, "<p>g")?, [1]);
         assert_eq!(ColumnSet::text_range(&f, ">=g<=p")?, [1]);

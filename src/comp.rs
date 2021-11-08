@@ -66,7 +66,7 @@ pub fn str_to_d2(n: &str) -> f64 {
 
 /// turn text into f64, return unused portion of text
 ///```
-/// use cdxlib::comp::str_to_d;
+/// use cdx::comp::str_to_d;
 /// let (x, y) = str_to_d(b"123.456xyz");
 /// assert_eq!(x, 123.456);
 /// assert_eq!(y, b"xyz");
@@ -238,7 +238,7 @@ impl CompareSettings {
         }
     }
     /// Resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.left_col.lookup(fieldnames)?;
         self.right_col.lookup(fieldnames)
     }
@@ -276,7 +276,7 @@ impl Comparator {
         self.comp.comp_cols(self, left, right)
     }
     /// resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.mode.lookup(fieldnames)
     }
     /// Does comparison require line split into columns

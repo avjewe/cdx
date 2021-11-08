@@ -1,16 +1,17 @@
 use crate::arg;
 use crate::args;
+use crate::args::ArgSpec;
 use cdx::column::{ColumnClump, ColumnSet, CompositeColumn, ReaderColumns, Writer};
 use cdx::{get_writer, Error, Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
-    let a = vec![
+    const A: [ArgSpec; 3] = [
         arg! {"columns", "c", "Columns", "the columns"},
         arg! {"group", "g", "Columns", "the columns in a bunch"},
         arg! {"composite", "C", "Spec", "new value made from parts"},
     ];
-    let (args, files) = args::parse(&prog, &a, argv);
+    let (args, files) = args::parse(&prog, &A, argv);
 
     let mut v = Writer::new(b'\t');
     for x in args {
@@ -22,7 +23,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             let mut g = ColumnSet::new();
             g.add_yes(&x.value);
             let s = Box::new(ReaderColumns::new(g));
-            v.push(Box::new(ColumnClump::new(s, b"group", b',')));
+            v.push(Box::new(ColumnClump::new(s, "group", b',')));
         } else if x.name == "composite" {
             v.push(Box::new(CompositeColumn::new(&x.value)?));
         } else {

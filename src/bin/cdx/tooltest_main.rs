@@ -1,11 +1,12 @@
+use crate::args::ArgSpec;
 use crate::{arg, args};
 use cdx::tooltest::*;
 use cdx::Result;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    let a = vec![arg! {"bin", "b", "Dir", "Location of executables to test"}];
-    let (args, files) = args::parse(&prog, &a, argv);
+    const A: [ArgSpec; 1] = [arg! {"bin", "b", "Dir", "Location of executables to test"}];
+    let (args, files) = args::parse(&prog, &A, argv);
     let mut config = Config::new();
     for x in args {
         if x.name == "bin" {

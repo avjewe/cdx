@@ -1,14 +1,15 @@
 use crate::arg;
 use crate::args;
+use crate::args::ArgSpec;
 use cdx::check::*;
 use cdx::{get_writer, Error, LookbackReader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);
-    let a = vec![
+    const A: [ArgSpec; 1] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
     ];
-    let (args, files) = args::parse(&prog, &a, argv);
+    let (args, files) = args::parse(&prog, &A, argv);
 
     let mut list = CheckList::new();
     for x in args {

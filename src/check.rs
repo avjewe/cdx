@@ -41,7 +41,7 @@ pub trait LineCheck {
     /// is the line ok?
     fn check(&self, line: &TextLine) -> bool;
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()>;
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
 }
 
 /// Match against buffer
@@ -706,7 +706,7 @@ impl LineCheck for ColChecker {
             }
     }
 
-    fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.col.lookup(fieldnames)
     }
 }
@@ -732,7 +732,7 @@ impl CheckList {
         self.checks.push(item)
     }
     /// lookup
-    pub fn lookup(&mut self, fieldnames: &[&[u8]]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         for x in self.checks.iter_mut() {
             x.lookup(fieldnames)?;
         }

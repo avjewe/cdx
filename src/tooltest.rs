@@ -65,7 +65,7 @@ fn grab(
         }
         loop {
             line.clear();
-            let sz = reader.f.read_until(b'\n', line)?;
+            let sz = reader.read_until(b'\n', line)?;
             if sz == 0 {
                 break;
             }
@@ -100,7 +100,7 @@ impl Test {
         let mut reader = get_reader(file)?;
         let mut line: Vec<u8> = Vec::new();
         // empty files always ignored
-        let sz = reader.f.read_until(b'\n', &mut line)?;
+        let sz = reader.read_until(b'\n', &mut line)?;
         if sz == 0 {
             return Ok(());
         }
@@ -141,7 +141,7 @@ impl Test {
             }
             if need_read {
                 line.clear();
-                let sz = reader.f.read_until(b'\n', &mut line)?;
+                let sz = reader.read_until(b'\n', &mut line)?;
                 if sz == 0 {
                     break;
                 }

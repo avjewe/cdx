@@ -28,10 +28,10 @@ pub enum DupColHandling {
     Fail,
     /// Drop all but the leftmost of the columns
     LeftMost,
-    /// Drop all but the rightmost of the columns
-    RightMost,
     /// Allow duplicate columns names
     Allowed,
+    /// if "foo" is taken, try "foo1", then "foo2" until it's new
+    Numeric,
     /// Any would-be duplicate names are change based on this spec
     /// spec is comma delimited list, first applies to first file, second to the second, ...
     /// last also applies to all following files.

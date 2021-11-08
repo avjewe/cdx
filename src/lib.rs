@@ -68,19 +68,19 @@ macro_rules! err {
 #[macro_export]
 macro_rules! err_type {
     ($x:path, $i:path) => {
-	impl From<$x> for Error {
-	    fn from(kind: $x) -> Error {
-		$i(kind)
-	    }
-	}
-    }
+        impl From<$x> for Error {
+            fn from(kind: $x) -> Error {
+                $i(kind)
+            }
+        }
+    };
 }
 
 /// Various errors
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {
-    /// Custom cdxlib error
+    /// Custom cdx error
     Error(String),
     /// pass through ParseIntError
     ParseIntError(std::num::ParseIntError),
@@ -99,7 +99,7 @@ pub enum Error {
     /// be an error, but don't report anything
     Silent,
 }
-/// Result type for cdxlib
+/// Result type for cdx
 pub type Result<T> = core::result::Result<T, Error>;
 impl error::Error for Error {}
 
@@ -159,7 +159,7 @@ pub struct FakeSlice {
 /// use std::io::BufRead;
 /// let mut data = b"one\ttwo\tthree\n";
 /// let mut dp = &data[..];
-/// let mut line = cdxlib::TextLine::new();
+/// let mut line = cdx::TextLine::new();
 /// let eof = line.read(&mut dp).unwrap();
 /// assert_eq!(eof, false);
 /// assert_eq!(line.strlen(), 14);
@@ -175,12 +175,44 @@ pub struct TextLine {
     pub parts: Vec<FakeSlice>,
 }
 
+/// as TextLine, but String rather than Vec<u8>
+#[derive(Debug, Clone, Default)]
+pub struct StringLine {
+    /// The whole input line, with newline
+    pub line: String,
+    /// the individual columns
+    pub parts: Vec<FakeSlice>,
+}
+
 impl fmt::Display for TextLine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for i in self {
             write!(f, "{} ", str::from_utf8(i).unwrap())?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for StringLine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for i in self {
+            write!(f, "{} ", i)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::ops::Index<usize> for TextLine {
+    type Output = [u8];
+    fn index(&self, pos : usize) -> &Self::Output {
+	self.get(pos)
+    }
+}
+
+impl std::ops::Index<usize> for StringLine {
+    type Output = str;
+    fn index(&self, pos : usize) -> &Self::Output {
+	self.get(pos)
     }
 }
 
@@ -263,12 +295,103 @@ impl TextLine {
     }
 }
 
+impl StringLine {
+    /// make a new StringLine
+    pub fn new() -> Self {
+        Self {
+            line: String::new(),
+            parts: Vec::new(),
+        }
+    }
+    /// Iterator over columns in the line
+    pub fn iter(&self) -> StringLineIter<'_> {
+        StringLineIter {
+            line: self,
+            index: 0,
+        }
+    }
+    fn clear(&mut self) {
+        self.parts.clear();
+        self.line.clear();
+    }
+    /// How many column in the line
+    pub fn len(&self) -> usize {
+        self.parts.len()
+    }
+    /// How many bytes in the line
+    pub fn strlen(&self) -> usize {
+        self.line.len()
+    }
+    /// should always be false, but required by clippy
+    pub fn is_empty(&self) -> bool {
+        self.parts.is_empty()
+    }
+    /// Get one column. Return an empty column if index is too big.
+    pub fn get(&self, index: usize) -> &str {
+        if index >= self.parts.len() {
+            &self.line[0..0]
+        } else {
+            &self.line[self.parts[index].begin as usize..self.parts[index].end as usize]
+        }
+    }
+    /// Read a new line from a file, should generally be followed by `split`
+    pub fn read<T: BufRead>(&mut self, f: &mut T) -> Result<bool> {
+        self.clear();
+        let sz = f.read_line(&mut self.line)?;
+        if sz == 0 {
+            Ok(true)
+        } else {
+            if self.line.as_bytes().last() != Some(&b'\n') {
+                self.line.push('\n');
+            }
+            Ok(false)
+        }
+    }
+    /// split the line into columns
+    /// hypothetically you could split on one delimiter, do some work, then split on a different delimiter.
+    pub fn split(&mut self, delim: u8) {
+        self.parts.clear();
+        let mut begin: u32 = 0;
+        let mut end: u32 = 0;
+        #[allow(clippy::explicit_counter_loop)] // I need the counter to be u32
+        for ch in self.line.as_bytes() {
+            if *ch == delim {
+                self.parts.push(FakeSlice { begin, end });
+                begin = end + 1;
+            }
+            end += 1;
+        }
+        if begin != end {
+            self.parts.push(FakeSlice {
+                begin,
+                end: end - 1,
+            });
+        }
+    }
+    /// return all parts as a vector
+    pub fn vec(&self) -> Vec<&str> {
+        self.iter().collect()
+    }
+}
+
 impl<'a> IntoIterator for &'a TextLine {
     type Item = &'a [u8];
     type IntoIter = TextLineIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
         TextLineIter {
+            line: self,
+            index: 0,
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a StringLine {
+    type Item = &'a str;
+    type IntoIter = StringLineIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        StringLineIter {
             line: self,
             index: 0,
         }
@@ -282,6 +405,13 @@ pub struct TextLineIter<'a> {
     index: usize,
 }
 
+/// Iterator over the columns in a StringLine
+#[derive(Debug, Clone)]
+pub struct StringLineIter<'a> {
+    line: &'a StringLine,
+    index: usize,
+}
+
 impl<'a> Iterator for TextLineIter<'a> {
     // we will be counting with usize
     type Item = &'a [u8];
@@ -291,21 +421,35 @@ impl<'a> Iterator for TextLineIter<'a> {
             None
         } else {
             self.index += 1;
-            Some(self.line.get(self.index - 1))
+            Some(&self.line[self.index - 1])
+        }
+    }
+}
+
+impl<'a> Iterator for StringLineIter<'a> {
+    // we will be counting with usize
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.line.len() {
+            None
+        } else {
+            self.index += 1;
+            Some(&self.line[self.index - 1])
         }
     }
 }
 
 /// Input file. Wrapped in a type so I can 'impl Debug'
-pub struct Infile {
+pub struct Infile (
     /// The file being read
-    pub f: io::BufReader<Box<dyn Read>>,
-}
+    io::BufReader<Box<dyn Read>>
+);
 
 impl Infile {
     /// create a new input file
     pub fn new(f: io::BufReader<Box<dyn Read>>) -> Self {
-        Self { f }
+        Self ( f )
     }
 }
 
@@ -325,13 +469,13 @@ impl Deref for Infile {
     type Target = io::BufReader<Box<dyn Read>>;
 
     fn deref(&self) -> &Self::Target {
-        &self.f
+        &self.0
     }
 }
 
 impl DerefMut for Infile {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.f
+        &mut self.0
     }
 }
 
@@ -372,7 +516,7 @@ pub fn get_reader(name: &str) -> Result<Infile> {
 
 #[derive(Debug, Default)]
 struct InfileContext {
-    header: TextLine,
+    header: StringLine,
     delim: u8,
     is_done: bool,
     is_empty: bool,
@@ -384,32 +528,32 @@ struct InfileContext {
 impl InfileContext {
     fn new() -> Self {
         Self {
-            header: TextLine::new(),
+            header: StringLine::new(),
             delim: b'\t',
             is_done: true,
             is_empty: true,
         }
     }
     fn read_header(&mut self, file: &mut Infile, line: &mut TextLine) -> Result<()> {
-        if self.header.read(&mut file.f)? {
+        if self.header.read(&mut **file)? {
             self.is_done = true;
             self.is_empty = true;
             return Ok(());
         }
         self.is_done = false;
         self.is_empty = false;
-        if self.header.line.starts_with(b" CDX") {
-            self.delim = self.header.line[4];
+        if self.header.line.starts_with(" CDX") {
+            self.delim = self.header.line.as_bytes()[4];
             self.header.split(self.delim);
             self.header.parts.remove(0);
-            if line.read(&mut file.f)? {
+            if line.read(&mut **file)? {
                 self.is_done = true;
                 return Ok(());
             }
             line.split(self.delim);
         } else {
             self.delim = b'\t';
-            *line = self.header.clone();
+            line.line = self.header.line.as_bytes().to_vec();
             line.split(self.delim);
             let mut head_str = String::new();
             for i in 1..=line.len() {
@@ -454,11 +598,11 @@ impl Reader {
         &self.line
     }
     /// get header
-    pub fn header(&self) -> &TextLine {
+    pub fn header(&self) -> &StringLine {
         &self.cont.header
     }
     /// get column names
-    pub fn names(&self) -> Vec<&[u8]> {
+    pub fn names(&self) -> Vec<&str> {
         self.cont.header.vec()
     }
     /// open file for reading
@@ -482,7 +626,7 @@ impl Reader {
     /// get the next line of text. Return true if no more data available.
     pub fn getline(&mut self) -> Result<bool> {
         if !self.cont.is_done {
-            if self.line.read(&mut self.file.f)? {
+            if self.line.read(&mut *self.file)? {
                 self.cont.is_done = true;
             } else if self.do_split {
                 self.line.split(self.cont.delim);
@@ -518,7 +662,7 @@ impl LookbackReader {
         }
     }
     /// get column names
-    pub fn names(&self) -> Vec<&[u8]> {
+    pub fn names(&self) -> Vec<&str> {
         self.cont.header.vec()
     }
     /// open file for reading
@@ -527,7 +671,7 @@ impl LookbackReader {
         self.cont.read_header(&mut self.file, &mut self.lines[0])
     }
     /// The full text of the header, without the trailing newline
-    pub fn header(&self) -> &Vec<u8> {
+    pub fn header(&self) -> &String {
         &self.cont.header.line
     }
     /// was file zero bytes?
@@ -547,7 +691,7 @@ impl LookbackReader {
     /// get next line of text
     pub fn getline(&mut self) -> Result<bool> {
         self.incr();
-        if self.lines[self.curr].read(&mut self.file.f)? {
+        if self.lines[self.curr].read(&mut *self.file)? {
             self.cont.is_done = true;
         } else if self.do_split {
             self.lines[self.curr].split(self.cont.delim);
@@ -574,7 +718,7 @@ impl LookbackReader {
     }
     /// write header
     pub fn write_header(&self, w: &mut impl Write) -> Result<()> {
-        w.write_all(&self.cont.header.line)?;
+        w.write_all(self.cont.header.line.as_bytes())?;
         Ok(())
     }
 }
