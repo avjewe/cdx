@@ -2,31 +2,37 @@
 
 use crate::column::NamedCol;
 use crate::{bglob, err, sglob, Error, Reader, Result, TextLine};
-use itertools::EitherOrBoth::*;
-use itertools::Itertools;
 use memchr::memmem::find;
 use std::collections::HashSet;
 use std::fmt;
 
-/// compare for equality, ignoring case
+/// compare for equality, ignoring case.
 fn equal_nocase(a: &str, b: &str) -> bool {
     for ch in a
         .chars()
         .flat_map(char::to_lowercase)
-        .zip_longest(b.chars().flat_map(char::to_lowercase))
+        .zip(b.chars().flat_map(char::to_lowercase))
     {
-        match ch {
-            Left(_) => return false,
-            Right(_) => return false,
-            Both(a, b) => {
-                if a != b {
-                    return false;
-                }
-            }
+        if ch.0 != ch.1 {
+            return false;
         }
     }
-    true
+    a.len() == b.len()
 }
+/*
+/// compare for equality, ignoring case, 'a' is already lowercase
+fn equal_nocase_a(a: &str, b: &str) -> bool {
+    for ch in a
+        .chars()
+        .zip(b.chars().flat_map(char::to_lowercase))
+    {
+    if ch.0 != ch.1 {
+        return false;
+    }
+    }
+    a.len() == b.len()
+}
+*/
 /*
 fn assign_lower(dst: &mut String, src : &str) {
     dst.clear();
@@ -446,6 +452,7 @@ impl BufCheck for GlobCheck {
 struct ExactCheckC {
     data: String,
 }
+// PERF - should lowercase data in constructor, use simpler comparitor
 impl ExactCheckC {
     fn new(data: &str) -> Self {
         Self {

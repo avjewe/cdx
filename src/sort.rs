@@ -31,7 +31,7 @@ impl BlockReader {
     /// open the file
     pub fn open(&mut self, name: &str) -> Result<()> {
         self.file = get_reader(name)?;
-        self.cont.read_header(&mut self.file, &mut self.first)?;
+        self.cont.read_header(&mut *self.file, &mut self.first)?;
         Ok(())
     }
     /// read from file, append to 'data' to a maximum of 'max' total size
@@ -107,7 +107,7 @@ impl<'a> Sorter<'a> {
                 break;
             }
             self.data_used += nbytes;
-            if self.data_used >= self.data.len() {
+            if self.data_used >= self.data.capacity() {
                 break;
             }
         }
@@ -147,7 +147,7 @@ impl<'a> Sorter<'a> {
 /// will have to use a temp directory somehow
 pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write) -> Result<()> // maybe return some useful stats?
 {
-    let mut s = Sorter::new(cmp, 10000000);
+    let mut s = Sorter::new(cmp, 1000000000);
     let mut header: String = String::new();
     let mut first_file = true;
 

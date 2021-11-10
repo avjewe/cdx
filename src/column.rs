@@ -228,6 +228,12 @@ impl ColumnSet {
     pub fn new() -> Self {
         ColumnSet::default()
     }
+    /// Create an column set from a spec, e.g. "1-3"
+    pub fn from_spec(spec: &str) -> Self {
+        let mut s = ColumnSet::default();
+        s.add_yes(spec);
+        s
+    }
 
     /// Add some columns to be selected
     pub fn add_yes(&mut self, spec: &str) {
@@ -310,7 +316,7 @@ impl ColumnSet {
             }
         } else {
             let ch = colname.chars().next().unwrap();
-            if ch.is_digit(10) {
+            if ch.is_ascii_digit() {
                 match colname.parse::<usize>() {
                     Ok(n) => {
                         if n < 1 {
@@ -523,23 +529,27 @@ impl ColumnSet {
         if !self.did_lookup {
             return Err(Error::NeedLookup);
         }
-        let mut need_delim = false;
-        for x in &self.columns {
-            if *x < cols.len() {
-                if need_delim {
+        let mut iter = self.columns.iter();
+        match iter.next() {
+            None => {}
+            Some(first) => {
+                w.write_all(cols[*first].as_bytes())?;
+
+                for x in iter {
                     w.write_all(delim.as_bytes())?;
+                    if *x < cols.len() {
+                        w.write_all(cols[*x].as_bytes())?;
+                    } else {
+                        return err!(
+                            "Line has only {} columns, but column {} was requested.",
+                            cols.len(),
+                            *x + 1
+                        );
+                    }
                 }
-                w.write_all(cols[*x].as_bytes())?;
-                need_delim = true;
-            } else {
-                return err!(
-                    "Line has only {} columns, but column {} was requested.",
-                    cols.len(),
-                    *x + 1
-                );
             }
-        }
-        w.write_all("\n".as_bytes())?;
+        };
+        w.write_all(&[b'\n'])?;
         Ok(())
     }
 
@@ -548,14 +558,17 @@ impl ColumnSet {
         if !self.did_lookup {
             return Err(Error::NeedLookup);
         }
-        let mut need_delim = false;
-        for x in &self.columns {
-            if need_delim {
-                w.write_all(&[delim])?;
+        let mut iter = self.columns.iter();
+        match iter.next() {
+            None => {}
+            Some(first) => {
+                w.write_all(&cols[*first])?;
+                for x in iter {
+                    w.write_all(&[delim])?;
+                    w.write_all(cols.get(*x))?;
+                }
             }
-            need_delim = true;
-            w.write_all(cols.get(*x))?;
-        }
+        };
         w.write_all(&[b'\n'])?;
         Ok(())
     }
@@ -565,14 +578,17 @@ impl ColumnSet {
         if !self.did_lookup {
             return Err(Error::NeedLookup);
         }
-        let mut need_delim = false;
-        for x in &self.columns {
-            if need_delim {
-                w.write_all(&[delim])?;
+        let mut iter = self.columns.iter();
+        match iter.next() {
+            None => {}
+            Some(first) => {
+                w.write_all(cols.get(*first))?;
+                for x in iter {
+                    w.write_all(&[delim])?;
+                    w.write_all(cols.get(*x))?;
+                }
             }
-            need_delim = true;
-            w.write_all(cols.get(*x))?;
-        }
+        };
         Ok(())
     }
 
@@ -581,14 +597,17 @@ impl ColumnSet {
         if !self.did_lookup {
             return Err(Error::NeedLookup);
         }
-        let mut need_delim = false;
-        for x in &self.columns {
-            if need_delim {
-                w.write_all(&[delim])?;
+        let mut iter = self.columns.iter();
+        match iter.next() {
+            None => {}
+            Some(first) => {
+                w.write_all(cols.get(*first).as_bytes())?;
+                for x in iter {
+                    w.write_all(&[delim])?;
+                    w.write_all(cols.get(*x).as_bytes())?;
+                }
             }
-            need_delim = true;
-            w.write_all(cols.get(*x).as_bytes())?;
-        }
+        };
         Ok(())
     }
 
@@ -732,13 +751,41 @@ impl fmt::Debug for ColumnClump<'_> {
 }
 
 impl<'a> ColumnClump<'a> {
-    /// new ColumnClump
+    /// new ColumnClump from parts
     pub fn new(cols: Box<dyn ColumnFun + 'a>, name: &str, delim: u8) -> Self {
         Self {
             cols,
             name: name.to_string(),
             delim,
         }
+    }
+    /// new ColumnClump from spec : DelimOutcol:Columns
+    /// e.g. ,group:1-3
+    pub fn from_spec(orig_spec: &str) -> Result<Self> {
+        let mut spec = orig_spec;
+        if spec.is_empty() {
+            return err!("Can't construct a group from an empty string");
+        }
+        let delim = take_first(&mut spec);
+        if delim.len_utf8() != 1 {
+            return err!("Delimiter must be a plain ascii character : {}", orig_spec);
+        }
+        let parts = spec.split_once(':');
+        if parts.is_none() {
+            return err!(
+                "No colon found. Group format is DelimOutname:Columns : {}",
+                orig_spec
+            );
+        }
+        let parts = parts.unwrap();
+        let mut g = ColumnSet::new();
+        g.add_yes(parts.1);
+        let cols = Box::new(ReaderColumns::new(g));
+        Ok(Self {
+            cols,
+            name: parts.0.to_string(),
+            delim: delim as u8,
+        })
     }
 }
 
@@ -820,30 +867,28 @@ impl<'a> Writer<'a> {
         self.v.push(x);
     }
     /// Write the column names
-    pub fn write_names(&mut self, w: &mut dyn Write, head: &StringLine) -> Result<()> {
+    pub fn write_names(&self, w: &mut dyn Write, head: &StringLine) -> Result<()> {
         w.write_all(b" CDX")?;
-        w.write_all(&[self.delim])?;
-        let mut need_delim = false;
-        for x in self.v.iter_mut() {
-            if need_delim {
-                w.write_all(&[self.delim])?;
-            }
-            need_delim = true;
+        for x in self.v.iter() {
+            w.write_all(&[self.delim])?;
             x.write_names(w, head, self.delim)?;
         }
         w.write_all(&[b'\n'])?;
         Ok(())
     }
     /// Write the column values
-    pub fn write(&mut self, w: &mut dyn Write, line: &TextLine) -> Result<()> {
-        let mut need_delim = false;
-        for x in self.v.iter_mut() {
-            if need_delim {
-                w.write_all(&[self.delim])?;
+    pub fn write(&self, w: &mut dyn Write, line: &TextLine) -> Result<()> {
+        let mut iter = self.v.iter();
+        match iter.next() {
+            None => {}
+            Some(first) => {
+                first.write(w, line, self.delim)?;
+                for x in iter {
+                    w.write_all(&[self.delim])?;
+                    x.write(w, line, self.delim)?;
+                }
             }
-            need_delim = true;
-            x.write(w, line, self.delim)?;
-        }
+        };
         w.write_all(&[b'\n'])?;
         Ok(())
     }
@@ -914,10 +959,10 @@ impl NamedCol {
             spec = skip_first(spec);
             ch = first(spec);
         }
-        if ch.is_digit(10) {
+        if ch.is_ascii_digit() {
             let mut pos: usize = 0;
             for x in spec.chars() {
-                if x.is_digit(10) {
+                if x.is_ascii_digit() {
                     self.num = self.num * 10 + (x as usize) - ('0' as usize);
                     pos += 1;
                 } else {
@@ -1064,7 +1109,7 @@ impl ColumnFun for CompositeColumn {
     }
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-	CompositeColumn::lookup(self, fieldnames)
+        CompositeColumn::lookup(self, fieldnames)
     }
 }
 

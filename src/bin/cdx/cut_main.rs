@@ -8,22 +8,17 @@ pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
     const A: [ArgSpec; 3] = [
         arg! {"columns", "c", "Columns", "the columns"},
-        arg! {"group", "g", "Columns", "the columns in a bunch"},
-        arg! {"composite", "C", "Spec", "new value made from parts"},
+        arg! {"group", "g", "Columns", "the columns in a bunch, e.g. '.group:1-3'"},
+        arg! {"composite", "C", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
     let mut v = Writer::new(b'\t');
     for x in args {
         if x.name == "columns" {
-            let mut s = ColumnSet::new();
-            s.add_yes(&x.value);
-            v.push(Box::new(ReaderColumns::new(s)));
+            v.push(Box::new(ReaderColumns::new(ColumnSet::from_spec(&x.value))));
         } else if x.name == "group" {
-            let mut g = ColumnSet::new();
-            g.add_yes(&x.value);
-            let s = Box::new(ReaderColumns::new(g));
-            v.push(Box::new(ColumnClump::new(s, "group", b',')));
+            v.push(Box::new(ColumnClump::from_spec(&x.value)?));
         } else if x.name == "composite" {
             v.push(Box::new(CompositeColumn::new(&x.value)?));
         } else {

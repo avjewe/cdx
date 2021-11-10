@@ -1,0 +1,5 @@
+#command cdx cut -c 1 <<\sCDX\tone\ttwo\naaa\tbbb\nccc\tddd\n
+#stdout
+ CDX	one
+aaa
+ccc

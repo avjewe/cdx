@@ -35,7 +35,6 @@
     trivial_numeric_casts,
     trivial_casts,
     unreachable_pub,
-    unsafe_code,
     unused_lifetimes,
     unused_extern_crates,
     unused_qualifications
@@ -43,6 +42,7 @@
 
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
+//use std::os::unix::io::FromRawFd;
 use std::error;
 use std::io::{self, BufRead, Read, Write};
 use std::ops::{Deref, DerefMut};
@@ -204,15 +204,15 @@ impl fmt::Display for StringLine {
 
 impl std::ops::Index<usize> for TextLine {
     type Output = [u8];
-    fn index(&self, pos : usize) -> &Self::Output {
-	self.get(pos)
+    fn index(&self, pos: usize) -> &Self::Output {
+        self.get(pos)
     }
 }
 
 impl std::ops::Index<usize> for StringLine {
     type Output = str;
-    fn index(&self, pos : usize) -> &Self::Output {
-	self.get(pos)
+    fn index(&self, pos: usize) -> &Self::Output {
+        self.get(pos)
     }
 }
 
@@ -354,8 +354,8 @@ impl StringLine {
         let mut begin: u32 = 0;
         let mut end: u32 = 0;
         #[allow(clippy::explicit_counter_loop)] // I need the counter to be u32
-        for ch in self.line.as_bytes() {
-            if *ch == delim {
+        for ch in self.line.bytes() {
+            if ch == delim {
                 self.parts.push(FakeSlice { begin, end });
                 begin = end + 1;
             }
@@ -441,15 +441,15 @@ impl<'a> Iterator for StringLineIter<'a> {
 }
 
 /// Input file. Wrapped in a type so I can 'impl Debug'
-pub struct Infile (
+pub struct Infile(
     /// The file being read
-    io::BufReader<Box<dyn Read>>
+    io::BufReader<Box<dyn Read>>,
 );
 
 impl Infile {
     /// create a new input file
     pub fn new(f: io::BufReader<Box<dyn Read>>) -> Self {
-        Self ( f )
+        Self(f)
     }
 }
 
@@ -495,13 +495,40 @@ pub fn get_writer(name: &str) -> Result<Outfile> {
     Ok(io::BufWriter::new(inner))
 }
 
+fn unescape_vec(data: &[u8]) -> Vec<u8> {
+    let mut ret: Vec<u8> = Vec::with_capacity(data.len());
+    let mut last_was_slash = false;
+    for x in data {
+        if last_was_slash {
+            ret.push(match x {
+                b'n' => b'\n',
+                b't' => b'\t',
+                b's' => b' ',
+                ch => *ch,
+            });
+            last_was_slash = false;
+        } else if x == &b'\\' {
+            last_was_slash = true;
+        } else {
+            ret.push(*x);
+        }
+    }
+    if last_was_slash {
+        ret.push(b'\\');
+    }
+    ret
+}
+
 /// Make an Infile from a file name
 pub fn get_reader(name: &str) -> Result<Infile> {
     let inner: Box<dyn Read> = {
         if name == "-" {
+            //	    unsafe { Box::new(std::fs::File::from_raw_fd(1)) }
             Box::new(io::stdin())
             //            } else if name.starts_with("s3://") {
             //                Box::new(open_s3_file(name)?)
+        } else if let Some(stripped) = name.strip_prefix("<<") {
+            Box::new(std::io::Cursor::new(unescape_vec(stripped.as_bytes())))
         } else {
             Box::new(fs::File::open(name)?)
         }
@@ -534,8 +561,8 @@ impl InfileContext {
             is_empty: true,
         }
     }
-    fn read_header(&mut self, file: &mut Infile, line: &mut TextLine) -> Result<()> {
-        if self.header.read(&mut **file)? {
+    fn read_header(&mut self, file: &mut impl BufRead, line: &mut TextLine) -> Result<()> {
+        if self.header.read(file)? {
             self.is_done = true;
             self.is_empty = true;
             return Ok(());
@@ -546,7 +573,7 @@ impl InfileContext {
             self.delim = self.header.line.as_bytes()[4];
             self.header.split(self.delim);
             self.header.parts.remove(0);
-            if line.read(&mut **file)? {
+            if line.read(file)? {
                 self.is_done = true;
                 return Ok(());
             }
@@ -608,7 +635,7 @@ impl Reader {
     /// open file for reading
     pub fn open(&mut self, name: &str) -> Result<()> {
         self.file = get_reader(name)?;
-        self.cont.read_header(&mut self.file, &mut self.line)
+        self.cont.read_header(&mut *self.file, &mut self.line)
     }
     /// was the file zero bytes?
     pub fn is_empty(&self) -> bool {
@@ -668,7 +695,7 @@ impl LookbackReader {
     /// open file for reading
     pub fn open(&mut self, name: &str) -> Result<()> {
         self.file = get_reader(name)?;
-        self.cont.read_header(&mut self.file, &mut self.lines[0])
+        self.cont.read_header(&mut *self.file, &mut self.lines[0])
     }
     /// The full text of the header, without the trailing newline
     pub fn header(&self) -> &String {
