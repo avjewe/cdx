@@ -82,6 +82,91 @@ pub fn str_to_d_q(num: &[u8]) -> f64 {
     x
 }
 
+/// Convert bytes to integer, return unused portion
+pub fn str_to_i(num: &[u8]) -> Result<(i64, &[u8])> {
+    let mut neg: i64 = 1;
+    let mut curr = skip_leading_white(num);
+    if !curr.is_empty() {
+        if curr[0] == b'+' {
+            curr = &curr[1..];
+        } else if curr[0] == b'-' {
+            curr = &curr[1..];
+            neg = -1;
+        }
+    }
+    let mut ret: i64 = 0;
+    if curr.is_empty() || !curr[0].is_ascii_digit() {
+        return err!("Malformed Integer {}", String::from_utf8_lossy(num));
+    }
+    while !curr.is_empty() && curr[0].is_ascii_digit() {
+        ret *= 10;
+        ret += (curr[0] - b'0') as i64;
+        curr = &curr[1..];
+    }
+    ret *= neg;
+    Ok((ret, curr))
+}
+
+/// Convert bytes to integer, return unused portion
+pub fn str_to_u(num: &[u8]) -> Result<(u64, &[u8])> {
+    let mut curr = skip_leading_white(num);
+    if !curr.is_empty() && curr[0] == b'+' {
+        curr = &curr[1..];
+    }
+    let mut ret: u64 = 0;
+    if curr.is_empty() || !curr[0].is_ascii_digit() {
+        return err!("Malformed Integer {}", String::from_utf8_lossy(num));
+    }
+    while !curr.is_empty() && curr[0].is_ascii_digit() {
+        ret *= 10;
+        ret += (curr[0] - b'0') as u64;
+        curr = &curr[1..];
+    }
+    Ok((ret, curr))
+}
+
+/// Convert bytes to integer, fail if unused bytes
+pub fn str_to_u_whole(num: &[u8]) -> Result<u64> {
+    let x = str_to_u(num)?;
+    if !x.1.is_empty() {
+        return err!(
+            "Extra stuff after number : {}",
+            String::from_utf8_lossy(num)
+        );
+    }
+    Ok(x.0)
+}
+
+/// Convert bytes to integer, fail if unused bytes
+pub fn str_to_i_whole(num: &[u8]) -> Result<i64> {
+    let x = str_to_i(num)?;
+    if !x.1.is_empty() {
+        return err!(
+            "Extra stuff after number : {}",
+            String::from_utf8_lossy(num)
+        );
+    }
+    Ok(x.0)
+}
+
+/// Convert bytes to integer, ignore unused bytes and errors
+pub fn str_to_u_lossy(num: &[u8]) -> u64 {
+    let x = str_to_u(num);
+    if x.is_err() {
+        return 0;
+    }
+    x.unwrap().0
+}
+
+/// Convert bytes to integer, ignore unused bytes and errors
+pub fn str_to_i_lossy(num: &[u8]) -> i64 {
+    let x = str_to_i(num);
+    if x.is_err() {
+        return 0;
+    }
+    x.unwrap().0
+}
+
 /// Convert slice to float, return unused portion
 pub fn str_to_d(num: &[u8]) -> (f64, &[u8]) {
     let mut neg: f64 = 1.0;

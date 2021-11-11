@@ -1,6 +1,7 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
+use crate::comp::str_to_u_whole;
 use crate::{err, first, sglob, skip_first, take_first, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -23,39 +24,65 @@ use std::{fmt, str};
 ///
 ///    let mut s = ColumnSet::new();
 ///    s.lookup(&header);
-///    assert_eq!(s.get_cols(), &[0,1,2,3,4]);
+///    assert_eq!(s.get_cols_num(), &[0,1,2,3,4]);
 ///
 ///    let mut s = ColumnSet::new();
 ///    s.add_yes("-");
 ///    s.lookup(&header);
-///    assert_eq!(s.get_cols(), &[0,1,2,3,4]);
+///    assert_eq!(s.get_cols_num(), &[0,1,2,3,4]);
 ///
 ///    let mut s = ColumnSet::new();
 ///    s.add_yes("one-three");
 ///    s.lookup(&header);
-///    assert_eq!(s.get_cols(), &[1,2,3]);
+///    assert_eq!(s.get_cols_num(), &[1,2,3]);
 ///
 ///    let mut s = ColumnSet::new();
 ///    s.add_no("three,one");
 ///    s.lookup(&header);
-///    assert_eq!(s.get_cols(), &[0,2,4]);
+///    assert_eq!(s.get_cols_num(), &[0,2,4]);
 ///
 ///    let mut s = ColumnSet::new();
 ///    s.add_no("+4-+2");
 ///    s.lookup(&header);
-///    assert_eq!(s.get_cols(), &[0,4]);
+///    assert_eq!(s.get_cols_num(), &[0,4]);
 ///
 ///    let mut s = ColumnSet::new();
 ///    s.add_yes(">s<=two");
 ///    s.lookup(&header);
-///    assert_eq!(s.get_cols(), &[2,3]);
+///    assert_eq!(s.get_cols_num(), &[2,3]);
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct ColumnSet {
     pos: Vec<String>,
     neg: Vec<String>,
-    columns: Vec<usize>,
+    columns: Vec<OutCol>,
     did_lookup: bool,
+}
+
+/// named output columns
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutCol {
+    /// column number
+    pub num: usize,
+    /// column name, might be empty if no name available
+    pub name: String,
+}
+
+impl OutCol {
+    /// new
+    pub fn new(num: usize, name: &str) -> Self {
+        Self {
+            num,
+            name: name.to_string(),
+        }
+    }
+    /// new with empty name
+    pub fn from_num(num: usize) -> Self {
+        Self {
+            num,
+            name: String::new(),
+        }
+    }
 }
 
 /// A ColumnSet with associated string
@@ -303,29 +330,21 @@ impl ColumnSet {
     /// ```
     pub fn single(fieldnames: &[&str], colname: &str) -> Result<usize> {
         if let Some(stripped) = colname.strip_prefix('+') {
-            match stripped.parse::<usize>() {
-                Ok(n) => {
-                    let len = fieldnames.len();
-                    if n > len {
-                        err!("Column {} out of bounds", colname)
-                    } else {
-                        Ok(len - n)
-                    }
-                }
-                Err(e) => Err(Error::ParseIntError(e)),
+            let n = str_to_u_whole(stripped.as_bytes())? as usize;
+            let len = fieldnames.len();
+            if n > len {
+                err!("Column {} out of bounds", colname)
+            } else {
+                Ok(len - n)
             }
         } else {
             let ch = colname.chars().next().unwrap();
             if ch.is_ascii_digit() {
-                match colname.parse::<usize>() {
-                    Ok(n) => {
-                        if n < 1 {
-                            err!("Column {} out of bounds", colname)
-                        } else {
-                            Ok(n - 1)
-                        }
-                    }
-                    Err(e) => Err(Error::ParseIntError(e)),
+                let n = str_to_u_whole(colname.as_bytes())? as usize;
+                if n < 1 {
+                    err!("Column {} out of bounds", colname)
+                } else {
+                    Ok(n - 1)
                 }
             } else {
                 Self::lookup_col(fieldnames, colname)
@@ -406,19 +425,46 @@ impl ColumnSet {
         err!("Malformed Range {}", rng)
     }
 
+    fn to_outcols(data: &[usize], name: &str) -> Vec<OutCol> {
+        let mut ret = Vec::with_capacity(data.len());
+        for x in data {
+            ret.push(OutCol::new(*x, name));
+        }
+        ret
+    }
+
+    /// turn comma delimited list of ranges into list of possibly named column numbers
+    pub fn ranges(fieldnames: &[&str], rng: &str) -> Result<Vec<OutCol>> {
+        let mut c = ColumnSet::new();
+        c.add_yes(rng);
+        c.lookup(fieldnames)?;
+        Ok(c.get_cols_full())
+    }
     /// turn range into list of column numbers
-    fn range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
+    fn range(fieldnames: &[&str], rng: &str) -> Result<Vec<OutCol>> {
         if rng.is_empty() {
             return err!("Empty Range {}", rng);
         }
-        let ch = rng.chars().next().unwrap();
+        let (name, range) = match rng.split_once(':') {
+            None => ("", rng),
+            Some(x) => x,
+        };
+
+        let ch = range.chars().next().unwrap();
         if ch == '<' || ch == '>' || ch == '=' {
-            return Self::text_range(fieldnames, rng);
+            return Ok(Self::to_outcols(
+                &Self::text_range(fieldnames, range)?,
+                name,
+            ));
         }
-        if rng.contains('*') || rng.contains('?') {
-            return Self::glob_range(fieldnames, rng);
+        if range.contains('*') || rng.contains('?') {
+            return Ok(Self::to_outcols(
+                &Self::glob_range(fieldnames, range)?,
+                name,
+            ));
         }
-        let mut parts: Vec<&str> = rng.split('-').collect();
+
+        let mut parts: Vec<&str> = range.split('-').collect();
         if parts.len() > 2 {
             return err!("Malformed Range {}", rng);
         }
@@ -445,7 +491,7 @@ impl ColumnSet {
         }
         let mut res = Vec::new();
         for i in start..=end {
-            res.push(i);
+            res.push(OutCol::new(i, name));
         }
         Ok(res)
     }
@@ -459,7 +505,7 @@ impl ColumnSet {
     ///    let mut s = ColumnSet::new();
     ///    s.add_no("two");
     ///    s.lookup(&header);
-    ///    assert_eq!(s.get_cols(), &[0,1,3,4]);
+    ///    assert_eq!(s.get_cols_num(), &[0,1,3,4]);
     /// ```
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.did_lookup = true;
@@ -468,20 +514,20 @@ impl ColumnSet {
 
         for s in &self.neg {
             for x in Self::range(fieldnames, s)? {
-                no_cols.insert(x);
+                no_cols.insert(x.num);
             }
         }
 
         if self.pos.is_empty() {
             for x in 0..fieldnames.len() {
                 if !no_cols.contains(&x) {
-                    self.columns.push(x);
+                    self.columns.push(OutCol::from_num(x));
                 }
             }
         } else {
             for s in &self.pos {
                 for x in Self::range(fieldnames, s)? {
-                    if !no_cols.contains(&x) {
+                    if !no_cols.contains(&x.num) {
                         self.columns.push(x);
                     }
                 }
@@ -510,13 +556,13 @@ impl ColumnSet {
         }
         result.clear();
         for x in &self.columns {
-            if *x < cols.len() {
-                result.push(cols[*x].clone());
+            if x.num < cols.len() {
+                result.push(cols[x.num].clone());
             } else {
                 return err!(
                     "Line has only {} columns, but column {} was requested.",
                     cols.len(),
-                    *x + 1
+                    x.num + 1
                 );
             }
         }
@@ -533,17 +579,17 @@ impl ColumnSet {
         match iter.next() {
             None => {}
             Some(first) => {
-                w.write_all(cols[*first].as_bytes())?;
+                w.write_all(cols[first.num].as_bytes())?;
 
                 for x in iter {
                     w.write_all(delim.as_bytes())?;
-                    if *x < cols.len() {
-                        w.write_all(cols[*x].as_bytes())?;
+                    if x.num < cols.len() {
+                        w.write_all(cols[x.num].as_bytes())?;
                     } else {
                         return err!(
                             "Line has only {} columns, but column {} was requested.",
                             cols.len(),
-                            *x + 1
+                            x.num + 1
                         );
                     }
                 }
@@ -562,10 +608,10 @@ impl ColumnSet {
         match iter.next() {
             None => {}
             Some(first) => {
-                w.write_all(&cols[*first])?;
+                w.write_all(&cols[first.num])?;
                 for x in iter {
                     w.write_all(&[delim])?;
-                    w.write_all(cols.get(*x))?;
+                    w.write_all(cols.get(x.num))?;
                 }
             }
         };
@@ -582,10 +628,10 @@ impl ColumnSet {
         match iter.next() {
             None => {}
             Some(first) => {
-                w.write_all(cols.get(*first))?;
+                w.write_all(cols.get(first.num))?;
                 for x in iter {
                     w.write_all(&[delim])?;
-                    w.write_all(cols.get(*x))?;
+                    w.write_all(cols.get(x.num))?;
                 }
             }
         };
@@ -601,10 +647,10 @@ impl ColumnSet {
         match iter.next() {
             None => {}
             Some(first) => {
-                w.write_all(cols.get(*first).as_bytes())?;
+                w.write_all(cols.get(first.num).as_bytes())?;
                 for x in iter {
                     w.write_all(&[delim])?;
-                    w.write_all(cols.get(*x).as_bytes())?;
+                    w.write_all(cols.get(x.num).as_bytes())?;
                 }
             }
         };
@@ -618,8 +664,8 @@ impl ColumnSet {
             return Err(Error::NeedLookup);
         }
         for x in &self.columns {
-            if *x < cols.len() {
-                w.write_all(cols[*x].as_bytes())?;
+            if x.num < cols.len() {
+                w.write_all(cols[x.num].as_bytes())?;
             } else {
                 w.write_all(rest.as_bytes())?;
             }
@@ -652,8 +698,8 @@ impl ColumnSet {
         }
         result.clear();
         for x in &self.columns {
-            if *x < cols.len() {
-                result.push(cols[*x].clone());
+            if x.num < cols.len() {
+                result.push(cols[x.num].clone());
             } else {
                 result.push(restval.clone());
             }
@@ -662,13 +708,22 @@ impl ColumnSet {
     }
 
     /// return owned columns by const reference
-    pub fn get_cols(&self) -> &Vec<usize> {
+    pub fn get_cols(&self) -> &Vec<OutCol> {
         &self.columns
     }
 
     /// steal owned columns by value
-    pub fn get_cols_full(self) -> Vec<usize> {
+    pub fn get_cols_full(self) -> Vec<OutCol> {
         self.columns
+    }
+
+    /// get owned column numbers
+    pub fn get_cols_num(&self) -> Vec<usize> {
+        let mut v = Vec::with_capacity(self.columns.len());
+        for x in &self.columns {
+            v.push(x.num);
+        }
+        v
     }
 
     /// Shorthand to look up some columns
@@ -680,6 +735,14 @@ impl ColumnSet {
     ///    assert_eq!(ColumnSet::lookup_cols("~2-3", &header).unwrap(), &[0,3,4]);
     /// ```
     pub fn lookup_cols(spec: &str, names: &[&str]) -> Result<Vec<usize>> {
+        let mut s = ColumnSet::new();
+        s.add_yes(spec);
+        s.lookup(names)?;
+        Ok(s.get_cols_num())
+    }
+
+    /// Shorthand to look up some columns, with names
+    pub fn lookup_cols_full(spec: &str, names: &[&str]) -> Result<Vec<OutCol>> {
         let mut s = ColumnSet::new();
         s.add_yes(spec);
         s.lookup(names)?;
@@ -706,7 +769,7 @@ impl ColumnSet {
                 s.get_cols().len()
             );
         }
-        Ok(s.get_cols()[0])
+        Ok(s.get_cols_num()[0])
     }
 }
 
@@ -898,15 +961,6 @@ impl<'a> Default for Writer<'a> {
     fn default() -> Self {
         Self::new(b'\t')
     }
-}
-
-/// named output columns
-#[derive(Debug, Clone, Default)]
-pub struct OutCol {
-    /// column number
-    pub num: usize,
-    /// column name, might be empty if no name available
-    pub name: String,
 }
 
 /// a column, by name or number
@@ -1129,12 +1183,37 @@ mod tests {
     #[test]
     fn range() -> Result<()> {
         let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
-        assert_eq!(ColumnSet::range(&f, "<p")?, [1, 4]);
-        assert_eq!(ColumnSet::range(&f, "2-+2")?, [1, 2, 3]);
-        assert_eq!(ColumnSet::range(&f, "-")?, [0, 1, 2, 3, 4]);
-        assert_eq!(ColumnSet::range(&f, "2-")?, [1, 2, 3, 4]);
-        assert_eq!(ColumnSet::range(&f, "-2")?, [0, 1]);
+        let res: [OutCol; 5] = [
+            OutCol::from_num(0),
+            OutCol::from_num(1),
+            OutCol::from_num(2),
+            OutCol::from_num(3),
+            OutCol::from_num(4),
+        ];
+        assert_eq!(
+            ColumnSet::range(&f, "<p")?,
+            [OutCol::from_num(1), OutCol::from_num(4)]
+        );
+        assert_eq!(ColumnSet::range(&f, "2-+2")?, res[1..=3]);
+        assert_eq!(ColumnSet::range(&f, "-")?, res);
+        assert_eq!(ColumnSet::range(&f, "2-")?, res[1..]);
+        assert_eq!(ColumnSet::range(&f, "-2")?, res[..2]);
         assert_err!(ColumnSet::range(&f, "1-2-3"), Err(Error::Error(_)));
+        return Ok(());
+    }
+
+    #[test]
+    fn named_range() -> Result<()> {
+        let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
+        let res: [OutCol; 5] = [
+            OutCol::new(0, "stuff"),
+            OutCol::new(1, "junk"),
+            OutCol::new(2, "this"),
+            OutCol::new(3, "that"),
+            OutCol::new(4, "other"),
+        ];
+        assert_eq!(ColumnSet::range(&f, "stuff:1")?, res[0..1]);
+        assert_eq!(ColumnSet::ranges(&f, "stuff:1,junk:2")?, res[0..2]);
         return Ok(());
     }
 
