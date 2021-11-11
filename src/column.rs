@@ -880,6 +880,17 @@ impl ReaderColumns {
     }
 }
 
+/// Write column name : col.name if non empty, else head[col.num]
+pub fn write_colname(w: &mut dyn Write, col : &OutCol, head: &StringLine) -> Result<()> {
+    if col.name.is_empty() {
+        w.write_all(head.get(col.num).as_bytes())?;
+    }
+    else {
+        w.write_all(col.name.as_bytes())?;
+    }
+    Ok(())
+}
+
 impl ColumnFun for ReaderColumns {
     fn write(&self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()> {
         self.columns.write3(w, line, delim)?;
@@ -887,7 +898,18 @@ impl ColumnFun for ReaderColumns {
     }
 
     fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()> {
-        self.columns.write3s(w, head, delim)?;
+	let mut iter = self.columns.get_cols().iter();
+	match iter.next() {
+	    None => {}
+	    Some(first) => {
+		write_colname(w, first, head)?;
+		for x in iter {
+		    w.write_all(&[delim])?;
+		    write_colname(w, x, head)?;
+		}
+	    }
+	}
+//        self.columns.write3s(w, head, delim)?;
         Ok(())
     }
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {

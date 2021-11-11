@@ -1,0 +1,9 @@
+#command cdx cut -c stuff:1,junk:two,three:3-
+#stdin
+ CDX	one	two	three
+aaa	bbb	ccc
+ddd	eee	fff
+#stdout
+ CDX	stuff	junk	three
+aaa	bbb	ccc
+ddd	eee	fff
