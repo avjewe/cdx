@@ -1,14 +1,21 @@
 //! parse and run tooltest files
-use crate::comp::skip_leading_white;
+use crate::comp::{skip_leading_white, str_to_i_whole};
 use crate::prerr;
-use crate::{err, get_reader, Error, Infile, Result};
+use crate::{err, get_reader, Error, Infile, Result, get_writer};
 use std::ffi::OsStr;
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
+use fs_err as fs;
+
+#[derive(Debug, Clone, Default)]
+struct OneFile {
+    name: String,
+    content : Vec<u8>,
+}
 
 /// One test to be run
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Test {
     name: String,
     cmd: Vec<u8>,
@@ -16,41 +23,13 @@ pub struct Test {
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     code: i32,
+    in_files : Vec<OneFile>,
+    out_files : Vec<OneFile>,
 }
 
-fn u8toi64(mut buf: &[u8]) -> i64 {
-    if buf.is_empty() {
-        return 0;
-    }
-    let mut neg: i64 = 1;
-    if buf[1] == b'-' {
-        buf = &buf[1..];
-        neg = -1;
-    }
-    let mut x: i64 = 0;
-
-    for ch in buf {
-        if !ch.is_ascii_digit() {
-            break;
-        }
-        x = (x * 10) + (ch - b'0') as i64;
-    }
-    x * neg
-}
-
-#[allow(dead_code)]
-fn u8tou64(buf: &[u8]) -> u64 {
-    let mut x: u64 = 0;
-
-    for ch in buf {
-        if !ch.is_ascii_digit() {
-            break;
-        }
-        x = (x * 10) + (ch - b'0') as u64;
-    }
-    x
-}
-
+/// if line doesn't start with tag, return false
+/// read following lines into buff, until another # line is seen
+/// set need_read to false if line ends up with unexamined data
 fn grab(
     tag: &[u8],
     buff: &mut Vec<u8>,
@@ -70,7 +49,14 @@ fn grab(
                 break;
             }
             if line.starts_with(b"#") {
-                *need_read = false;
+		if line.starts_with(b"#nonewline") {
+		    if !buff.is_empty() {
+			buff.pop();
+		    }
+		}
+		else {
+                    *need_read = false;
+		}
                 break;
             } else {
                 buff.extend(&*line);
@@ -85,14 +71,7 @@ fn grab(
 impl Test {
     /// new
     pub fn new() -> Self {
-        Self {
-            name: String::new(),
-            cmd: Vec::new(),
-            stdin: Vec::new(),
-            stdout: Vec::new(),
-            stderr: Vec::new(),
-            code: 0,
-        }
+	Self::default()
     }
     /// parse the file
     pub fn open(&mut self, file: &str) -> Result<()> {
@@ -133,7 +112,19 @@ impl Test {
             )? {
             } else if let Some(x) = line.strip_prefix(b"#status") {
                 let y = skip_leading_white(x);
-                self.code = u8toi64(y) as i32;
+                self.code = str_to_i_whole(y)? as i32;
+            } else if let Some(x) = line.strip_prefix(b"#infile") {
+                let y = skip_leading_white(x);
+		let mut f = OneFile { name: String::from_utf8(y.to_vec())?, ..Default::default() };
+		line.clear();
+		grab(b"", &mut f.content, &mut line, &mut reader, &mut need_read)?;
+		self.in_files.push(f);
+            } else if let Some(x) = line.strip_prefix(b"#outfile") {
+                let y = skip_leading_white(x);
+		let mut f = OneFile { name: String::from_utf8(y.to_vec())?, ..Default::default() };
+		line.clear();
+		grab(b"", &mut f.content, &mut line, &mut reader, &mut need_read)?;
+		self.out_files.push(f);
             } else if line.starts_with(b"# ") {
                 // comment
             } else {
@@ -153,16 +144,28 @@ impl Test {
     /// run the test
     pub fn run(&mut self, config: &Config) -> Result<bool> {
         let mut tmp = std::env::temp_dir();
-        tmp.push("stdin");
+	tmp.push("toottest");
+	let _ = fs::remove_dir_all(&tmp);
+	fs::create_dir(&tmp)?;
+	for x in &self.in_files {
+            let mut fname = tmp.clone();
+	    fname.push(&x.name);
+	    let mut w = get_writer(&fname.to_string_lossy())?;
+	    w.write_all(&x.content)?;
+	}
+	#[allow(clippy::redundant_clone)]
+	let mut tmp_stdin = tmp.clone();
+        tmp_stdin.push("stdin");
         {
             let mut w = std::fs::OpenOptions::new()
                 .write(true)
                 .create(true)
-                .open(&tmp.as_os_str())?;
+                .open(&tmp_stdin.as_os_str())?;
             w.write_all(&self.stdin)?;
         }
-        //	prerr(&[b"About to run ", &self.cmd])?;
-        let cmd: Vec<&[u8]> = self.cmd.split(|num| num <= &b' ').collect();
+	let ncmd = String::from_utf8_lossy(&self.cmd).replace("$TMP", &tmp.as_path().display().to_string()).as_bytes().to_vec();
+//        prerr(&[b"About to run ", &ncmd])?;
+        let cmd: Vec<&[u8]> = ncmd.split(|num| num <= &b' ').collect();
         if cmd.is_empty() {
             return err!("command is empty");
         }
@@ -173,7 +176,7 @@ impl Test {
             //	    prerr(&[b"with arg ", x])?;
             tmp_cmd.arg(OsStr::from_bytes(x));
         }
-        let res = tmp_cmd.stdin(std::fs::File::open(&tmp).unwrap()).output();
+        let res = tmp_cmd.stdin(std::fs::File::open(&tmp_stdin).unwrap()).output();
         let output;
         match res {
             Err(x) => {
@@ -184,7 +187,7 @@ impl Test {
                 output = x;
             }
         }
-        std::fs::remove_file(&tmp)?;
+        std::fs::remove_file(&tmp_stdin)?;
         let mut failed = false;
         match output.status.code() {
             Some(code) => {
@@ -222,12 +225,6 @@ impl Test {
             prerr(&[b"Test ", self.name.as_bytes(), b" failed ", &self.cmd])?;
         }
         Ok(!failed)
-    }
-}
-
-impl Default for Test {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

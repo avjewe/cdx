@@ -7,15 +7,15 @@ use cdx::{get_writer, Error, Reader, Result};
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
     const A: [ArgSpec; 3] = [
-        arg! {"columns", "c", "Columns", "the columns"},
+        arg! {"fields", "f", "Columns", "the columns to select."},
         arg! {"group", "g", "Columns", "the columns in a bunch, e.g. '.group:1-3'"},
-        arg! {"composite", "C", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
+        arg! {"composite", "c", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
     let mut v = Writer::new(b'\t');
     for x in args {
-        if x.name == "columns" {
+        if x.name == "fields" {
             v.push(Box::new(ReaderColumns::new(ColumnSet::from_spec(&x.value))));
         } else if x.name == "group" {
             v.push(Box::new(ColumnClump::from_spec(&x.value)?));

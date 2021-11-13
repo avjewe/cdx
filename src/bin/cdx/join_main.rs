@@ -5,6 +5,10 @@ use cdx::{comp, err, get_writer, Error, Reader, Result};
 use std::cmp::Ordering;
 
 pub fn main(argv: &[String]) -> Result<()> {
+    if true {
+	eprintln!("The management regrets to inform youn that join s not yet ready");
+	return Ok(());
+    }
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
     const A: [ArgSpec; 1] = [arg! {"key", "k", "Spec", "How to compare adjacent lines"}];
     let (args, files) = args::parse(&prog, &A, argv);

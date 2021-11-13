@@ -1,1 +1,1 @@
-#command cdx cut -c 2
+#command cdx cut -f 2

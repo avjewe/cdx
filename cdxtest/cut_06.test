@@ -1,4 +1,4 @@
-#command cdx cut -C stuff:abc^{two}def^{one}ghi
+#command cdx cut -c stuff:abc^{two}def^{one}ghi
 #stdin
  CDX	one	two	three
 aaa	bbb	ccc

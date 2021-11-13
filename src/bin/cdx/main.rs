@@ -2,6 +2,7 @@ use cdx::{Error, Result};
 use std::env;
 
 mod args;
+mod cat_main;
 mod cdxmain;
 mod cgrep_main;
 mod cut_main;

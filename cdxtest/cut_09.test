@@ -1,4 +1,4 @@
-#command cdx cut -c stuff:1,junk:two,three:3-
+#command cdx cut -f stuff:1,junk:two,three:3-
 #stdin
  CDX	one	two	three
 aaa	bbb	ccc

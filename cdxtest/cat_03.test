@@ -1,0 +1,10 @@
+#command cdx cat $TMP/one.txt $TMP/two.txt
+#infile one.txt
+aaa
+#nonewline
+#infile two.txt
+bbb
+#nonewline
+#stdout
+aaa
+bbb

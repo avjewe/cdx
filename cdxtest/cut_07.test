@@ -1,4 +1,4 @@
-#command cdx cut -c t*
+#command cdx cut -f t*
 #stdin
  CDX	one	two	three
 aaa	bbb	ccc

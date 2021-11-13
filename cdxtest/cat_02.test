@@ -1,0 +1,15 @@
+#command cdx cat $TMP/aaa $TMP/bbb
+#infile aaa
+ CDX	one
+aaa
+bbb
+#infile bbb
+ CDX	one
+ccc
+ddd
+#stdout
+ CDX	one
+aaa
+bbb
+ccc
+ddd

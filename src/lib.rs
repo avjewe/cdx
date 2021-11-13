@@ -1,24 +1,7 @@
 //! The command line tool `cdx` is a set of tools for text file manipulation
 //! and command line data mining.
 //! It is hoped that the associated library will be useful for theid party tools.
-//!
-//! # Tools :
-//! - cgrep : select lines of text from a file
-//! - cut : rearrange columns within lines of text
-//! - join : combine text files by macthing column values
-//! - sort : rearrange lines within files
-//! - tooltest : test command line programs
-//! - uniq : remove duplicate lines
-//!
-//! # Modules
-//! - lib : file i/o Error and Result, basic types
-//! - check : Does a line match a pattern
-//! - column : working with named columns, and groups thereof
-//! - comp : How do two lines compare to each other
-//! - expr : floating point expressions, optimized to re-evaluate many times
-//! - join : combine text files by macthing column values
-//! - sort : sort files
-//! - tooltest : test command line programs
+
 #![warn(
     missing_copy_implementations,
     absolute_paths_not_starting_with_crate,
@@ -883,6 +866,192 @@ pub fn sglob(mut wild: &str, mut buff: &str, ic: bool) -> bool {
         wild = skip_first(wild);
     }
     wild.is_empty()
+}
+
+/// How to combine headers from multiple sources
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum HeaderMode {
+    /// First can be anything, others must match
+    Match,
+    /// First must be CDX, others must match
+    Require,
+    /// Any CDX are removed
+    Strip,
+    /// No CDX allowed
+    None,
+    /// First can be anything, others blindly accepted
+    Trust,
+    /// Ignore CDX is present
+    Ignore,
+}
+/// strings associated with HeaderMode
+pub const HEADER_MODE : [&str; 6] = ["Match","Require","Strip","None","Trust","Ignore"];
+
+impl str::FromStr for HeaderMode {
+    type Err = Error;
+    fn from_str(spec: &str) -> Result<Self> {
+	if spec.to_ascii_lowercase() == "match" {
+	    Ok(HeaderMode::Match)
+	}
+	else if spec.to_ascii_lowercase() == "require" {
+	    Ok(HeaderMode::Require)
+	}
+	else if spec.to_ascii_lowercase() == "strip" {
+	    Ok(HeaderMode::Strip)
+	}
+	else if spec.to_ascii_lowercase() == "none" {
+	    Ok(HeaderMode::None)
+	}
+	else if spec.to_ascii_lowercase() == "trust" {
+	    Ok(HeaderMode::Trust)
+	}
+	else if spec.to_ascii_lowercase() == "ignore" {
+	    Ok(HeaderMode::Ignore)
+	}
+	else {
+	    err!("Input Header Mode must be one of Match, Require, Strip, None or Trust : {}", spec)
+	}
+    }
+}
+
+impl Default for HeaderMode {
+    fn default() -> Self {
+        HeaderMode::Match
+    }
+}
+
+/// Object to enforce HeaderMode
+#[derive(Debug, Default)]
+pub struct HeaderChecker {
+    /// the mode to enforce
+    pub mode: HeaderMode,
+    /// the first header seen
+    head: Vec<u8>,
+    /// true after first header has been processed
+    saw_one: bool,
+}
+
+#[allow(dead_code)]
+fn is_cdx(data: &[u8]) -> bool {
+    data.starts_with(b" CDX")
+    // check for more validity?
+}
+
+fn is_valid_cdx(data_in: &[u8], mode : HeaderMode, fname: &str) -> Result<bool> {
+    if mode == HeaderMode::Ignore {
+	return Ok(false);	
+    }
+    if !data_in.starts_with(b" CDX") {
+	return Ok(false);
+    }
+    if mode == HeaderMode::Strip || mode == HeaderMode::None {
+	return Ok(true);
+    }
+    let mut data = data_in;
+    if data.last().unwrap() == &b'\n' {
+	data = &data[..data.len()-1];
+    }
+    if data.len() < 6 {
+	return err!("File {} has an oddly truncated header line", fname);
+    }
+    let delim = data[4];
+    if delim == b'\n' || delim.is_ascii_alphanumeric() || delim > 127 {
+	return err!("Header for file {} has an invalid column delimiter", fname);
+    }
+    let data = str::from_utf8(&data[5..])?;
+    let delim = char::from_u32(delim as u32).unwrap();
+    for x in data.split(|ch| ch == delim) {
+	if x.is_empty() {
+	    return err!("File {} has an empty column name", fname);
+	}
+	if !first(x).is_alphabetic() {
+	    return err!("Header for file {} has column name {} which does not start with an alphabetic character.", fname, x);
+	}
+	for ch in x.chars() {
+	    if !ch.is_alphanumeric() && ch != '_' {
+		return err!("Header for file {} has column name {} which contains something other than alphnumeric and underscore.", fname, x);
+	    }
+	}
+    }
+    Ok(true)
+}
+
+impl HeaderChecker {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// new with mode
+    pub fn from_mode(mode: HeaderMode) -> Self {
+        Self {
+            mode,
+            ..Self::default()
+        }
+    }
+    /// call for the first line of every input file
+    /// return true if the line should be part of the output
+    pub fn check(&mut self, first_line: &[u8], fname: &str) -> Result<bool> {
+	// FIXME - if is_cdx, make sure is also a valid header
+        let cdx = is_valid_cdx(first_line, self.mode, fname)?;
+        if first_line.is_empty() {
+            Ok(false)
+        } else if first_line.last().unwrap() != &b'\n' && cdx {
+            err!("Malformed Header line in file {}", &fname)
+        } else if self.saw_one {
+            match self.mode {
+                HeaderMode::Match => {
+                    if cdx {
+			if self.head.is_empty() {
+                            return err!("CDX Header found in {}, but first file had none.", fname);
+			}
+                        if first_line != self.head {
+                            return err!(
+                                "Header Mismatch. First was {}, File {} has {}",
+                                String::from_utf8_lossy(&self.head),
+                                fname,
+                                String::from_utf8_lossy(first_line)
+                            );
+                        } 
+			Ok(false)
+                    } else {
+                        if !self.head.is_empty() {
+                            return err!("No CDX Header found in {}, but first file had one.", fname);
+                        }
+			Ok(true)
+                    }
+		}
+                HeaderMode::Require => {
+                    if !cdx {
+                        return err!("No CDX Header found in {} where one was required.", fname);
+                    }
+                    Ok(false)
+                }
+                HeaderMode::Strip => Ok(!cdx),
+                HeaderMode::Ignore => Ok(true),
+                HeaderMode::None => {
+                    if cdx {
+                        return err!("CDX Header found in {} where one was forbidden.", fname);
+                    }
+                    Ok(true)
+                }
+                HeaderMode::Trust => Ok(!cdx),
+            }
+        } else {
+            self.saw_one = true;
+            if cdx && self.mode == HeaderMode::Strip {
+                return err!("Found CDX header in {} where one was forbidden", fname);
+            } else if !cdx && self.mode == HeaderMode::Require {
+                return err!("Found no CDX header in {} where one was required", fname);
+            }
+            if cdx && (self.mode == HeaderMode::Strip) {
+                return Ok(false);
+            }
+            if cdx {
+                self.head = first_line.to_vec();
+            }
+            Ok(true)
+        }
+    }
 }
 
 #[cfg(test)]

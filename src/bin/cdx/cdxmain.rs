@@ -25,6 +25,7 @@ macro_rules! proc {
 }
 
 pub const MAINLIST: &[OneMain] = &[
+    proc! {"cat",  "Concatenate Files.",  cat_main::main},
     proc! {"cgrep",  "Select lines.",  cgrep_main::main},
     proc! {"cut",  "Select colums.",  cut_main::main},
     proc! {"join",  "Join files on a matching column",  join_main::main},

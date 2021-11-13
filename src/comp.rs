@@ -60,26 +60,32 @@ pub fn skip_leading_white(num: &[u8]) -> &[u8] {
 
 /// https://doc.rust-lang.org/std/primitive.f64.html
 /// Standard Rust parsing with str_to_d interface
-pub fn str_to_d2(n: &str) -> f64 {
+pub fn str_to_d_native(n: &str) -> f64 {
     n.parse().unwrap()
 }
 
-/// turn text into f64, return unused portion of text
-///```
-/// use cdx::comp::str_to_d;
-/// let (x, y) = str_to_d(b"123.456xyz");
-/// assert_eq!(x, 123.456);
-/// assert_eq!(y, b"xyz");
-/// let (x, y) = str_to_d(b"123e2");
-/// assert_eq!(y, b"");
-/// assert_eq!(x, 123e2);
-/// let (x, y) = str_to_d(b"123e-27");
-/// assert_eq!(y, b"");
-/// assert_eq!(x, 123e-27);
-///```
-pub fn str_to_d_q(num: &[u8]) -> f64 {
-    let (x, _y) = str_to_d(num);
-    x
+/// str_to_d, but always return best guess
+pub fn str_to_d_lossy(num: &[u8]) -> f64 {
+    match str_to_d(num) {
+        Err(_x) => 0.0,
+        Ok((x, _y)) => x,
+    }
+}
+
+/// str_to_d, but fail if any text remains
+pub fn str_to_d_whole(num: &[u8]) -> Result<f64> {
+    match str_to_d(num) {
+        Err(x) => Err(x),
+        Ok((x, y)) => {
+            if !y.is_empty() {
+                return err!(
+                    "Extra stuff after number : {}",
+                    String::from_utf8_lossy(num)
+                );
+            }
+            Ok(x)
+        }
+    }
 }
 
 /// Convert bytes to integer, return unused portion
@@ -167,20 +173,38 @@ pub fn str_to_i_lossy(num: &[u8]) -> i64 {
     x.unwrap().0
 }
 
-/// Convert slice to float, return unused portion
-pub fn str_to_d(num: &[u8]) -> (f64, &[u8]) {
+/// turn text into f64, return unused portion of text
+///```
+/// use cdx::comp::str_to_d;
+/// let (x, y) = str_to_d(b"123.456xyz");
+/// assert_eq!(x, 123.456);
+/// assert_eq!(y, b"xyz");
+/// let (x, y) = str_to_d(b"123e2");
+/// assert_eq!(y, b"");
+/// assert_eq!(x, 123e2);
+/// let (x, y) = str_to_d(b"123e-27");
+/// assert_eq!(y, b"");
+/// assert_eq!(x, 123e-27);
+///```
+pub fn str_to_d(num: &[u8]) -> Result<(f64, &[u8])> {
     let mut neg: f64 = 1.0;
     let mut curr = skip_leading_white(num);
-    if !curr.is_empty() {
-        if curr[0] == b'+' {
-            curr = &curr[1..];
-        } else if curr[0] == b'-' {
-            curr = &curr[1..];
-            neg = -1.0;
-        }
+    if curr.is_empty() {
+        return err!(
+            "Can't convert empty string to floating point {}",
+            String::from_utf8_lossy(num)
+        );
     }
+    if curr[0] == b'+' {
+        curr = &curr[1..];
+    } else if curr[0] == b'-' {
+        curr = &curr[1..];
+        neg = -1.0;
+    }
+    let mut saw_digit = false;
     let mut ret: f64 = 0.0;
     while !curr.is_empty() && curr[0].is_ascii_digit() {
+        saw_digit = true;
         ret *= 10.0;
         ret += (curr[0] - b'0') as f64;
         curr = &curr[1..];
@@ -189,6 +213,7 @@ pub fn str_to_d(num: &[u8]) -> (f64, &[u8]) {
         curr = &curr[1..];
         let mut place = 0.1;
         while !curr.is_empty() && curr[0].is_ascii_digit() {
+            saw_digit = true;
             ret += place * (curr[0] - b'0') as f64;
             place *= 0.1;
             curr = &curr[1..];
@@ -207,6 +232,7 @@ pub fn str_to_d(num: &[u8]) -> (f64, &[u8]) {
         }
         let mut exponent: i32 = 0;
         while !curr.is_empty() && curr[0].is_ascii_digit() {
+            saw_digit = true;
             exponent *= 10;
             exponent += (curr[0] - b'0') as i32;
             curr = &curr[1..];
@@ -237,7 +263,13 @@ pub fn str_to_d(num: &[u8]) -> (f64, &[u8]) {
             }
         }
     }
-    (neg * ret, curr)
+    if !saw_digit {
+        return err!(
+            "Malformed floating point number {}",
+            String::from_utf8_lossy(num)
+        );
+    }
+    Ok((neg * ret, curr))
 }
 
 /// One line in a buffer of text
@@ -626,23 +658,23 @@ fn ulp_to_ulong(d: f64) -> u64 {
 
 impl Compare for Comparef64 {
     fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
-        fcmp(str_to_d_q(left), str_to_d_q(right))
+        fcmp(str_to_d_lossy(left), str_to_d_lossy(right))
     }
     fn equal(&self, left: &[u8], right: &[u8]) -> bool {
-        str_to_d_q(left) == str_to_d_q(right)
+        str_to_d_lossy(left) == str_to_d_lossy(right)
     }
     fn fill_cache(&self, item: &mut Item, value: &[u8]) {
-        item.cache = ulp_to_ulong(str_to_d_q(value));
+        item.cache = ulp_to_ulong(str_to_d_lossy(value));
         item.set_complete();
     }
     fn set(&mut self, value: &[u8]) {
-        self.value = str_to_d_q(value);
+        self.value = str_to_d_lossy(value);
     }
     fn comp_self(&self, right: &[u8]) -> Ordering {
-        fcmp(self.value, str_to_d_q(right))
+        fcmp(self.value, str_to_d_lossy(right))
     }
     fn equal_self(&self, right: &[u8]) -> bool {
-        self.value == str_to_d_q(right)
+        self.value == str_to_d_lossy(right)
     }
 }
 

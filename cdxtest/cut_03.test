@@ -1,4 +1,4 @@
-#command cdx cut -c 2
+#command cdx cut -f 2
 #stdin
  CDX	one	two	three
 #stdout
