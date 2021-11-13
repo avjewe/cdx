@@ -175,13 +175,13 @@ pub fn str_to_i_lossy(num: &[u8]) -> i64 {
 /// turn text into f64, return unused portion of text
 ///```
 /// use cdx::comp::str_to_d;
-/// let (x, y) = str_to_d(b"123.456xyz");
+/// let (x, y) = str_to_d(b"123.456xyz").unwrap();
 /// assert_eq!(x, 123.456);
 /// assert_eq!(y, b"xyz");
-/// let (x, y) = str_to_d(b"123e2");
+/// let (x, y) = str_to_d(b"123e2").unwrap();
 /// assert_eq!(y, b"");
 /// assert_eq!(x, 123e2);
-/// let (x, y) = str_to_d(b"123e-27");
+/// let (x, y) = str_to_d(b"123e-27").unwrap();
 /// assert_eq!(y, b"");
 /// assert_eq!(x, 123e-27);
 ///```
