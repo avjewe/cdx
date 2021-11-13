@@ -885,32 +885,29 @@ pub enum HeaderMode {
     Ignore,
 }
 /// strings associated with HeaderMode
-pub const HEADER_MODE : [&str; 6] = ["Match","Require","Strip","None","Trust","Ignore"];
+pub const HEADER_MODE: [&str; 6] = ["Match", "Require", "Strip", "None", "Trust", "Ignore"];
 
 impl str::FromStr for HeaderMode {
     type Err = Error;
     fn from_str(spec: &str) -> Result<Self> {
-	if spec.to_ascii_lowercase() == "match" {
-	    Ok(HeaderMode::Match)
-	}
-	else if spec.to_ascii_lowercase() == "require" {
-	    Ok(HeaderMode::Require)
-	}
-	else if spec.to_ascii_lowercase() == "strip" {
-	    Ok(HeaderMode::Strip)
-	}
-	else if spec.to_ascii_lowercase() == "none" {
-	    Ok(HeaderMode::None)
-	}
-	else if spec.to_ascii_lowercase() == "trust" {
-	    Ok(HeaderMode::Trust)
-	}
-	else if spec.to_ascii_lowercase() == "ignore" {
-	    Ok(HeaderMode::Ignore)
-	}
-	else {
-	    err!("Input Header Mode must be one of Match, Require, Strip, None or Trust : {}", spec)
-	}
+        if spec.to_ascii_lowercase() == "match" {
+            Ok(HeaderMode::Match)
+        } else if spec.to_ascii_lowercase() == "require" {
+            Ok(HeaderMode::Require)
+        } else if spec.to_ascii_lowercase() == "strip" {
+            Ok(HeaderMode::Strip)
+        } else if spec.to_ascii_lowercase() == "none" {
+            Ok(HeaderMode::None)
+        } else if spec.to_ascii_lowercase() == "trust" {
+            Ok(HeaderMode::Trust)
+        } else if spec.to_ascii_lowercase() == "ignore" {
+            Ok(HeaderMode::Ignore)
+        } else {
+            err!(
+                "Input Header Mode must be one of Match, Require, Strip, None or Trust : {}",
+                spec
+            )
+        }
     }
 }
 
@@ -937,41 +934,41 @@ fn is_cdx(data: &[u8]) -> bool {
     // check for more validity?
 }
 
-fn is_valid_cdx(data_in: &[u8], mode : HeaderMode, fname: &str) -> Result<bool> {
+fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {
     if mode == HeaderMode::Ignore {
-	return Ok(false);	
+        return Ok(false);
     }
     if !data_in.starts_with(b" CDX") {
-	return Ok(false);
+        return Ok(false);
     }
     if mode == HeaderMode::Strip || mode == HeaderMode::None {
-	return Ok(true);
+        return Ok(true);
     }
     let mut data = data_in;
     if data.last().unwrap() == &b'\n' {
-	data = &data[..data.len()-1];
+        data = &data[..data.len() - 1];
     }
     if data.len() < 6 {
-	return err!("File {} has an oddly truncated header line", fname);
+        return err!("File {} has an oddly truncated header line", fname);
     }
     let delim = data[4];
     if delim == b'\n' || delim.is_ascii_alphanumeric() || delim > 127 {
-	return err!("Header for file {} has an invalid column delimiter", fname);
+        return err!("Header for file {} has an invalid column delimiter", fname);
     }
     let data = str::from_utf8(&data[5..])?;
     let delim = char::from_u32(delim as u32).unwrap();
     for x in data.split(|ch| ch == delim) {
-	if x.is_empty() {
-	    return err!("File {} has an empty column name", fname);
-	}
-	if !first(x).is_alphabetic() {
-	    return err!("Header for file {} has column name {} which does not start with an alphabetic character.", fname, x);
-	}
-	for ch in x.chars() {
-	    if !ch.is_alphanumeric() && ch != '_' {
-		return err!("Header for file {} has column name {} which contains something other than alphnumeric and underscore.", fname, x);
-	    }
-	}
+        if x.is_empty() {
+            return err!("File {} has an empty column name", fname);
+        }
+        if !first(x).is_alphabetic() {
+            return err!("Header for file {} has column name {} which does not start with an alphabetic character.", fname, x);
+        }
+        for ch in x.chars() {
+            if !ch.is_alphanumeric() && ch != '_' {
+                return err!("Header for file {} has column name {} which contains something other than alphnumeric and underscore.", fname, x);
+            }
+        }
     }
     Ok(true)
 }
@@ -991,7 +988,7 @@ impl HeaderChecker {
     /// call for the first line of every input file
     /// return true if the line should be part of the output
     pub fn check(&mut self, first_line: &[u8], fname: &str) -> Result<bool> {
-	// FIXME - if is_cdx, make sure is also a valid header
+        // FIXME - if is_cdx, make sure is also a valid header
         let cdx = is_valid_cdx(first_line, self.mode, fname)?;
         if first_line.is_empty() {
             Ok(false)
@@ -1001,9 +998,9 @@ impl HeaderChecker {
             match self.mode {
                 HeaderMode::Match => {
                     if cdx {
-			if self.head.is_empty() {
+                        if self.head.is_empty() {
                             return err!("CDX Header found in {}, but first file had none.", fname);
-			}
+                        }
                         if first_line != self.head {
                             return err!(
                                 "Header Mismatch. First was {}, File {} has {}",
@@ -1011,15 +1008,18 @@ impl HeaderChecker {
                                 fname,
                                 String::from_utf8_lossy(first_line)
                             );
-                        } 
-			Ok(false)
+                        }
+                        Ok(false)
                     } else {
                         if !self.head.is_empty() {
-                            return err!("No CDX Header found in {}, but first file had one.", fname);
+                            return err!(
+                                "No CDX Header found in {}, but first file had one.",
+                                fname
+                            );
                         }
-			Ok(true)
+                        Ok(true)
                     }
-		}
+                }
                 HeaderMode::Require => {
                     if !cdx {
                         return err!("No CDX Header found in {} where one was required.", fname);

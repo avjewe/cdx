@@ -6,7 +6,7 @@ macro_rules! arg {
             short: $b,
             value: $c,
             help: $d,
-	    values: &[],
+            values: &[],
         }
     };
 }
@@ -19,7 +19,7 @@ macro_rules! arg_enum {
             short: $b,
             value: $c,
             help: $d,
-	    values: $e,
+            values: $e,
         }
     };
 }
@@ -98,9 +98,9 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
         if !x.value.is_empty() {
             b = b.value_name(x.value).number_of_values(1).takes_value(true);
         }
-	if !x.values.is_empty() {
-	    b = b.possible_values(x.values).case_insensitive(true);
-	}
+        if !x.values.is_empty() {
+            b = b.possible_values(x.values).case_insensitive(true);
+        }
         a = a.arg(b);
     }
     match prog.files {
@@ -121,17 +121,16 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
     for x in spec {
         if let Some(arg) = m.values_of_lossy(x.name) {
             let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
-	    if arg.is_empty() {
-		for i in ind {
+            if arg.is_empty() {
+                for i in ind {
                     v.push(ArgValue::new(x.name, "", i));
-		}
-	    }
-	    else {
-		assert_eq!(ind.len(), arg.len());
-		for i in 0..ind.len() {
+                }
+            } else {
+                assert_eq!(ind.len(), arg.len());
+                for i in 0..ind.len() {
                     v.push(ArgValue::new(x.name, &arg[i], ind[i]));
-		}
-	    }
+                }
+            }
         }
     }
 

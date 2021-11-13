@@ -1,6 +1,6 @@
-use crate::{args, arg_enum};
 use crate::args::ArgSpec;
-use cdx::{get_reader, get_writer, Result, HeaderChecker, HeaderMode, HEADER_MODE};
+use crate::{arg_enum, args};
+use cdx::{get_reader, get_writer, HeaderChecker, HeaderMode, Result, HEADER_MODE};
 use std::io::{BufRead, Read, Write};
 use std::str::FromStr;
 
@@ -8,7 +8,7 @@ use std::str::FromStr;
 enum PadMode {
     None,
     All,
-    End
+    End,
 }
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -23,32 +23,29 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut pad = PadMode::All;
 
     for x in args {
-	if x.name == "header" {
-	    checker.mode = HeaderMode::from_str(&x.value)?;
+        if x.name == "header" {
+            checker.mode = HeaderMode::from_str(&x.value)?;
         } else if x.name == "pad" {
-	    if x.value.to_ascii_lowercase() == "yes" {
-		pad = PadMode::All;
-	    }
-	    else if x.value.to_ascii_lowercase() == "no" {
-		pad = PadMode::None;
-	    }
-	    else if x.value.to_ascii_lowercase() == "end" {
-		pad = PadMode::End;
-	    }
-	    else {
-		unreachable!();
-	    }
+            if x.value.to_ascii_lowercase() == "yes" {
+                pad = PadMode::All;
+            } else if x.value.to_ascii_lowercase() == "no" {
+                pad = PadMode::None;
+            } else if x.value.to_ascii_lowercase() == "end" {
+                pad = PadMode::End;
+            } else {
+                unreachable!();
+            }
         } else {
             unreachable!();
         }
     }
-    
+
     let mut w = get_writer("-")?;
     const SIZE: usize = 16 * 1024;
     let mut buffer = [0u8; SIZE];
     let mut first_line = Vec::new();
     let mut last_was_cr = true;
-    
+
     for x in files {
         let mut f = get_reader(&x)?;
         first_line.clear();
@@ -56,22 +53,22 @@ pub fn main(argv: &[String]) -> Result<()> {
         if n == 0 {
             continue;
         }
-	if checker.check(&first_line, &x)? {
+        if checker.check(&first_line, &x)? {
             w.write_all(&first_line)?;
-	    last_was_cr = first_line.last().unwrap() == &b'\n';
-	}
+            last_was_cr = first_line.last().unwrap() == &b'\n';
+        }
         loop {
             let n = f.read(&mut buffer[..])?;
             if n == 0 {
                 break;
             }
             w.write_all(&buffer[..n])?;
-	    last_was_cr = first_line.last().unwrap() == &b'\n';
+            last_was_cr = first_line.last().unwrap() == &b'\n';
         }
-	if pad == PadMode::All && !last_was_cr {
+        if pad == PadMode::All && !last_was_cr {
             w.write_all(b"\n")?;
-	    last_was_cr = true;
-	}
+            last_was_cr = true;
+        }
     }
     if pad == PadMode::End && !last_was_cr {
         w.write_all(b"\n")?;

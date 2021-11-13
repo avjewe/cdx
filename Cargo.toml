@@ -4,8 +4,8 @@ version = "0.1.4"
 authors = ["Andy Jewell <avjewe@gmail.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "Library and application for text file manipulation, a little like the gnu textutils"
-homepage = "https://github.com/avjewe/cdx"
+description = "Library and application for text file manipulation and command line data mining, a little like the gnu textutils"
+homepage = "https://avjewe.github.io/cdxdoc/"
 repository = "https://github.com/avjewe/cdx"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -3,7 +3,6 @@
 //! Compare -- a trait. Roughly one impl per Comparison
 //! CompareSettings -- a Comparison, plus a column and other context
 //! Comparator -- a CompareSettings, plus an instance of Compare matching the Comparison
-#![allow(dead_code)]
 #![allow(clippy::float_cmp)]
 use crate::column::NamedCol;
 use crate::{err, Error, Result, TextLine};
@@ -706,7 +705,7 @@ pub fn make_comp(spec: &str) -> Result<Comparator> {
     if spec.is_empty() {
         c.kind = Comparison::Whole;
     } else {
-        // FIXME - need left vs right
+        // FIXME - need 'column from left file' vs 'column from right file'
         let mut rest = c.left_col.parse(spec)?.as_bytes();
         c.right_col = c.left_col.clone();
         if !rest.is_empty() && (rest[0] == b':') {
