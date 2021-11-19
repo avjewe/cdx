@@ -1,7 +1,10 @@
 clean:
 	rm -f *~ */*~ */*/*~ */*/*/*~
 
-publish:
-	cargo test
+check:
+	cargo clippy
+	cargo test -q
 	./run_tests
+
+publish: check
 	cargo publish

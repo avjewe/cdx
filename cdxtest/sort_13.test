@@ -1,0 +1,13 @@
+#command cdx sort -m $TMP/aaa
+#infile aaa
+ CDX	foo
+aaa
+ccc
+eee
+ggg
+#stdout
+ CDX	foo
+aaa
+ccc
+eee
+ggg

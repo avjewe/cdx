@@ -44,8 +44,12 @@ fn inner_main(mut args: Vec<String>) -> Result<()> {
         println!("USAGE : cdx <command> [options...]");
         println!("Commands are :");
         for x in cdxmain::MAINLIST {
-            println!("{} :\t{}", x.name, x.help);
+            println!("{:8} : {}", x.name, x.help);
         }
+        return Ok(());
+    }
+    if args[1] == "version" || args[1] == "--version" {
+        println!("cdx version {}", args::version());
         return Ok(());
     }
     for x in cdxmain::MAINLIST {
@@ -58,7 +62,7 @@ fn inner_main(mut args: Vec<String>) -> Result<()> {
     }
     eprintln!("Valid subcommands are :");
     for x in cdxmain::MAINLIST {
-        eprintln!("{} :\t{}", x.name, x.help);
+        eprintln!("{:8} : {}", x.name, x.help);
     }
     Err(Error::Silent)
 }

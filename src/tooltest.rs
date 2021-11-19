@@ -2,11 +2,12 @@
 use crate::comp::{skip_leading_white, str_to_i_whole};
 use crate::prerr;
 use crate::{err, get_reader, get_writer, Error, Infile, Result};
-use fs_err as fs;
+//use fs_err as fs;
 use std::ffi::OsStr;
 use std::io::{BufRead, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::process::Command;
+use tempdir::TempDir;
 
 #[derive(Debug, Clone, Default)]
 struct OneFile {
@@ -148,18 +149,15 @@ impl Test {
 
     /// run the test
     pub fn run(&mut self, config: &Config) -> Result<bool> {
-        let mut tmp = std::env::temp_dir();
-        tmp.push("toottest");
-        let _ = fs::remove_dir_all(&tmp);
-        fs::create_dir(&tmp)?;
+        let tmp = TempDir::new("tooltest")?;
         for x in &self.in_files {
-            let mut fname = tmp.clone();
+            let mut fname = tmp.path().to_owned();
             fname.push(&x.name);
             let mut w = get_writer(&fname.to_string_lossy())?;
             w.write_all(&x.content)?;
         }
         #[allow(clippy::redundant_clone)]
-        let mut tmp_stdin = tmp.clone();
+        let mut tmp_stdin = tmp.path().to_owned();
         tmp_stdin.push("stdin");
         {
             let mut w = std::fs::OpenOptions::new()
@@ -169,7 +167,7 @@ impl Test {
             w.write_all(&self.stdin)?;
         }
         let ncmd = String::from_utf8_lossy(&self.cmd)
-            .replace("$TMP", &tmp.as_path().display().to_string())
+            .replace("$TMP", &tmp.path().display().to_string())
             .as_bytes()
             .to_vec();
         //        prerr(&[b"About to run ", &ncmd])?;
@@ -197,7 +195,6 @@ impl Test {
                 output = x;
             }
         }
-        std::fs::remove_file(&tmp_stdin)?;
         let mut failed = false;
         match output.status.code() {
             Some(code) => {
@@ -234,6 +231,7 @@ impl Test {
         if failed {
             prerr(&[b"Test ", self.name.as_bytes(), b" failed ", &self.cmd])?;
         }
+        // if (Debug) tmp.into_path()
         Ok(!failed)
     }
 }

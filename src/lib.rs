@@ -37,7 +37,10 @@ pub mod comp;
 pub mod expr;
 pub mod join;
 pub mod sort;
+pub mod text;
 pub mod tooltest;
+
+use crate::text::Text;
 
 /// Shorthand for returning an error Result
 #[macro_export]
@@ -414,7 +417,7 @@ impl<'a> Iterator for StringLineIter<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.line.len() {
+        if self.index >= self.line.parts.len() {
             None
         } else {
             self.index += 1;
@@ -530,6 +533,7 @@ struct InfileContext {
     delim: u8,
     is_done: bool,
     is_empty: bool,
+    has_header: bool,
 }
 
 // FIXME -- specify delimiter
@@ -542,6 +546,7 @@ impl InfileContext {
             delim: b'\t',
             is_done: true,
             is_empty: true,
+            has_header: false,
         }
     }
     fn read_header(&mut self, file: &mut impl BufRead, line: &mut TextLine) -> Result<()> {
@@ -553,6 +558,7 @@ impl InfileContext {
         self.is_done = false;
         self.is_empty = false;
         if self.header.line.starts_with(" CDX") {
+            self.has_header = true;
             self.delim = self.header.line.as_bytes()[4];
             self.header.split(self.delim);
             self.header.parts.remove(0);
@@ -576,7 +582,6 @@ impl InfileContext {
             let mut fake_head = head_str.as_bytes();
             self.header.read(&mut fake_head)?;
             self.header.split(self.delim);
-            self.header.line.clear();
         }
         Ok(())
     }
@@ -740,7 +745,7 @@ fn prerr(data: &[&[u8]]) -> Result<()> {
     std::io::stderr().write_all(b"\n")?;
     Ok(())
 }
-
+/*
 fn bytes_equal(c1: u8, c2: u8, ic: bool) -> bool {
     if c1 == c2 {
         return true;
@@ -766,7 +771,8 @@ fn chars_equal(c1: char, c2: char, ic: bool) -> bool {
     }
     c1.to_lowercase().eq(c2.to_lowercase())
 }
-
+*/
+/*
 /// match in glob format
 pub fn bglob(mut wild: &[u8], mut buff: &[u8], ic: bool) -> bool {
     while !buff.is_empty() && !wild.is_empty() && (wild[0] != b'*') {
@@ -811,11 +817,11 @@ fn first(s: &str) -> char {
     debug_assert!(!s.is_empty());
     s.chars().next().unwrap()
 }
-
+*/
 //fn first_len(s : &str) -> usize {
 //    s.chars().next().unwrap().len_utf8()
 //}
-
+/*
 fn skip_first(s: &str) -> &str {
     debug_assert!(!s.is_empty());
     &s[s.chars().next().unwrap().len_utf8()..]
@@ -867,7 +873,7 @@ pub fn sglob(mut wild: &str, mut buff: &str, ic: bool) -> bool {
     }
     wild.is_empty()
 }
-
+*/
 /// How to combine headers from multiple sources
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum HeaderMode {
@@ -961,7 +967,7 @@ fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {
         if x.is_empty() {
             return err!("File {} has an empty column name", fname);
         }
-        if !first(x).is_alphabetic() {
+        if !x.first().is_alphabetic() {
             return err!("Header for file {} has column name {} which does not start with an alphabetic character.", fname, x);
         }
         for ch in x.chars() {
@@ -1054,6 +1060,19 @@ impl HeaderChecker {
     }
 }
 
+/// copy r to w
+pub fn copy(mut r: impl Read, mut w: impl Write) -> Result<()> {
+    let mut buff = [0u8; 16 * 1024];
+    loop {
+        let sz = r.read(&mut buff)?;
+        if sz == 0 {
+            return Ok(());
+        }
+        w.write_all(&buff[0..sz])?;
+    }
+}
+
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1088,12 +1107,6 @@ mod tests {
         assert!(bglob(b"a?b", b"anb", false));
         assert!(!bglob(b"a?b", "añb".as_bytes(), false));
 
-        assert!(bglob(
-	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/*/add_hour_*",
-	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
-        assert!(bglob(
-	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/???/add_hour_*",
-	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
     }
     // ñ
     #[test]
@@ -1131,11 +1144,6 @@ mod tests {
         assert!(sglob("añb", "aÑb", true));
         assert!(sglob("aÑb", "añb", true));
 
-        assert!(sglob(
-	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/*/add_hour_*",
-	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
-        assert!(sglob(
-	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/???/add_hour_*",
-	    "s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz", false));
     }
 }
+*/

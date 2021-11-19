@@ -2,7 +2,8 @@
 //! Also helps with selecting those columns from a line of text
 
 use crate::comp::str_to_u_whole;
-use crate::{err, first, sglob, skip_first, take_first, Error, Result, StringLine, TextLine};
+use crate::text::{Case, Text};
+use crate::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp::Ordering;
@@ -100,20 +101,20 @@ impl ScopedValue {
             return s;
         }
         let mut spec = spec;
-        let ch = first(spec);
+        let ch = spec.first();
         if ch == del {
-            skip_first(spec);
+            spec.skip_first();
             if spec.is_empty() {
                 s.value.push(del);
                 return s;
             }
-            let ch = first(spec);
+            let ch = spec.first();
             if ch == del {
                 s.value.push(del);
             }
         }
         while !spec.is_empty() {
-            let ch = take_first(&mut spec);
+            let ch = spec.take_first();
             if ch == del {
                 s.cols.add_yes(spec);
                 return s;
@@ -379,7 +380,7 @@ impl ColumnSet {
     fn glob_range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
         let mut ret = Vec::new();
         for f in fieldnames.iter().enumerate() {
-            if sglob(rng, f.1, false) {
+            if f.1.glob(rng, Case::Sens) {
                 // allow case insensitive?
                 ret.push(f.0);
             }
@@ -829,7 +830,7 @@ impl<'a> ColumnClump<'a> {
         if spec.is_empty() {
             return err!("Can't construct a group from an empty string");
         }
-        let delim = take_first(&mut spec);
+        let delim = spec.take_first();
         if delim.len_utf8() != 1 {
             return err!("Delimiter must be a plain ascii character : {}", orig_spec);
         }
@@ -1028,11 +1029,11 @@ impl NamedCol {
         if spec.is_empty() {
             return Ok(spec);
         }
-        let mut ch = first(spec);
+        let mut ch = spec.first();
         let was_plus = ch == '+';
         if was_plus {
-            spec = skip_first(spec);
-            ch = first(spec);
+            spec = spec.skip_first();
+            ch = spec.first();
         }
         if ch.is_ascii_digit() {
             let mut pos: usize = 0;
@@ -1136,23 +1137,23 @@ impl CompositeColumn {
         self.parts.clear();
         const TAG: char = '^';
         while !curr.is_empty() {
-            let ch = take_first(&mut curr);
+            let ch = curr.take_first();
             if ch == TAG {
                 if curr.is_empty() {
                     self.suffix.push(TAG);
-                } else if first(curr) == TAG {
+                } else if curr.first() == TAG {
                     self.suffix.push(TAG);
-                    curr = skip_first(curr);
+                    curr = curr.skip_first();
                 } else {
                     let mut p = CompositeColumnPart::new();
                     std::mem::swap(&mut p.prefix, &mut self.suffix);
-                    if first(curr) == '{' {
-                        curr = skip_first(curr);
+                    if curr.first() == '{' {
+                        curr = curr.skip_first();
                         curr = p.col.parse(curr)?;
-                        if curr.is_empty() || first(curr) != '}' {
+                        if curr.is_empty() || curr.first() != '}' {
                             return err!("Closing bracket not found : {}", spec);
                         }
-                        curr = skip_first(curr);
+                        curr = curr.skip_first();
                     } else {
                         curr = p.col.parse(curr)?;
                     }

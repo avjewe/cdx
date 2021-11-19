@@ -316,12 +316,14 @@ pub struct CompareSettings {
     pub right_col: NamedCol,
     /// reverse comparison?
     pub reverse: bool,
+    /// column delimiter
+    pub delim: u8,
     // failure 0, -inf +inf
     // Vec<CompareSettings>
     // stable: bool
 }
 
-/// CompareSettings, wiht 'kind' turned into an actual object
+/// CompareSettings, with 'kind' turned into an actual object
 pub struct Comparator {
     /// the Compare Settings
     pub mode: CompareSettings,
@@ -343,7 +345,17 @@ impl CompareSettings {
             left_col: NamedCol::new(),
             right_col: NamedCol::new(),
             reverse: false,
+            delim: b'\t', // FIXME - set this somehow
         }
+    }
+    /// extract column from line
+    pub fn get<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        for (n, s) in data.split(|ch| *ch == self.delim).enumerate() {
+            if n == self.left_col.num {
+                return s;
+            }
+        }
+        &data[0..0]
     }
     /// reverse a comparison, if reverse flag is set
     pub fn do_reverse(&self, x: Ordering) -> Ordering {
@@ -391,6 +403,14 @@ impl Comparator {
     pub fn comp_cols(&self, left: &TextLine, right: &TextLine) -> Ordering {
         self.comp.comp_cols(self, left, right)
     }
+    /// compare two lines for equality
+    pub fn equal_lines(&self, left: &[u8], right: &[u8]) -> bool {
+        self.comp.equal_lines(left, right, &self.mode)
+    }
+    /// compare two lines
+    pub fn comp_lines(&self, left: &[u8], right: &[u8]) -> Ordering {
+        self.comp.comp_lines(left, right, &self.mode)
+    }
     /// resolve any named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.mode.lookup(fieldnames)
@@ -421,7 +441,7 @@ impl Comparator {
 
 /// method of comparing two slices
 pub trait Compare {
-    /// Compare two slices
+    /// Compare two slices, usually column values
     fn comp(&self, left: &[u8], right: &[u8]) -> Ordering;
     /// Compare two slices for equality
     fn equal(&self, left: &[u8], right: &[u8]) -> bool;
@@ -434,7 +454,7 @@ pub trait Compare {
     /// Compare self to slice for equality
     fn equal_self(&self, right: &[u8]) -> bool;
 
-    /// return true if comparator needs line split into columns
+    /// return true if TextLine comparisons need line split into columns
     fn need_split(&self) -> bool {
         true
     }
@@ -481,6 +501,14 @@ pub trait Compare {
         let line = item.get(base);
         let col = spec.get_col(line);
         self.fill_cache(item, col);
+    }
+    /// compare two lines for equality
+    fn equal_lines(&self, left: &[u8], right: &[u8], mode: &CompareSettings) -> bool {
+        self.equal(mode.get(left), mode.get(right))
+    }
+    /// compare two lines
+    fn comp_lines(&self, left: &[u8], right: &[u8], mode: &CompareSettings) -> Ordering {
+        self.comp(mode.get(left), mode.get(right))
     }
 }
 

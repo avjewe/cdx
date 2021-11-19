@@ -1,8 +1,131 @@
 //! Tools for sorting text files
 
 use crate::comp::{Comparator, Item};
-use crate::{err, get_reader, Error, Infile, InfileContext, Result, TextLine};
+use crate::{
+    copy, err, get_reader, get_writer, Error, Infile, InfileContext, Reader, Result, TextLine,
+};
+use std::cmp::Ordering;
 use std::io::{self, Read, Write};
+use std::mem;
+use tempdir::TempDir;
+
+/*
+fn assign(dst : &mut Vec<u8>, src : &[u8]) {
+    dst.clear();
+    dst.extend(src);
+}
+*/
+
+/// merge all the files into w, using tmp
+pub fn merge_t(
+    in_files: &[String],
+    cmp: &mut Comparator,
+    w: impl Write,
+    unique: bool,
+    tmp: &TempDir,
+) -> Result<()> {
+    if in_files.is_empty() {
+        return Ok(());
+    }
+    if in_files.len() == 1 {
+        let r = get_reader(&in_files[0])?;
+        return copy(r.0, w);
+    }
+
+    let mut files = in_files.to_owned();
+    let mut n = 0;
+    loop {
+        if files.len() == 2 {
+            return merge_2(&files[0], &files[1], cmp, w, unique);
+        }
+        let mut tmp_file = tmp.path().to_owned();
+        tmp_file.push(format!("merge_{}.txt", n));
+        n += 1;
+        let tmp_name = tmp_file.to_str().unwrap();
+        let new_w = get_writer(tmp_name)?;
+        merge_2(&files[0], &files[1], cmp, new_w, unique)?;
+        files.remove(0);
+        files.remove(0);
+        files.push(tmp_name.to_string());
+    }
+}
+
+/// merge all the files into w
+pub fn merge(files: &[String], cmp: &mut Comparator, w: impl Write, unique: bool) -> Result<()> {
+    let tmp = TempDir::new("merge")?;
+    merge_t(files, cmp, w, unique, &tmp)
+}
+
+/// given two file names, merge them into output
+pub fn merge_2(
+    left: &str,
+    right: &str,
+    cmp: &mut Comparator,
+    mut w: impl Write,
+    unique: bool,
+) -> Result<()> {
+    let mut left_file = Reader::new();
+    let mut right_file = Reader::new();
+    left_file.open(left)?;
+    right_file.open(right)?;
+    left_file.do_split = false;
+    right_file.do_split = false;
+    cmp.lookup(&left_file.names())?;
+
+    // FIXME -- Check Header
+    if left_file.cont.has_header {
+        w.write_all(left_file.header().line.as_bytes())?;
+    }
+
+    if unique {
+        let mut prev: Vec<u8> = Vec::new();
+        while !left_file.is_done() && !right_file.is_done() {
+            let ord = cmp.comp_lines(&left_file.curr().line, &right_file.curr().line);
+            if ord == Ordering::Less {
+                left_file.write(&mut w)?;
+                mem::swap(&mut prev, &mut left_file.line.line);
+                left_file.getline()?;
+            } else if ord == Ordering::Greater {
+                right_file.write(&mut w)?;
+                mem::swap(&mut prev, &mut left_file.line.line);
+                right_file.getline()?;
+            } else {
+                left_file.write(&mut w)?;
+                mem::swap(&mut prev, &mut left_file.line.line);
+                left_file.getline()?;
+                right_file.getline()?;
+            }
+            while !left_file.is_done() && cmp.equal_lines(&left_file.curr().line, &prev) {
+                left_file.getline()?;
+            }
+            while !right_file.is_done() && cmp.equal_lines(&right_file.curr().line, &prev) {
+                right_file.getline()?;
+            }
+        }
+    } else {
+        while !left_file.is_done() && !right_file.is_done() {
+            let ord = cmp.comp_lines(&left_file.curr().line, &right_file.curr().line);
+            // if Equal, write both lines
+            if ord != Ordering::Less {
+                right_file.write(&mut w)?;
+                right_file.getline()?;
+            }
+            if ord != Ordering::Greater {
+                left_file.write(&mut w)?;
+                left_file.getline()?;
+            }
+        }
+    }
+    while !left_file.is_done() {
+        left_file.write(&mut w)?;
+        left_file.getline()?;
+    }
+    while !right_file.is_done() {
+        right_file.write(&mut w)?;
+        right_file.getline()?;
+    }
+    Ok(())
+}
 
 /*
 /// convert u8 slice to string
@@ -51,9 +174,8 @@ impl BlockReader {
             let sz = self.file.read(&mut data[offset..])?;
             Ok(sz)
         } else {
-            debug_assert!(offset == 0);
             let len = self.first.line.len();
-            data[0..len].copy_from_slice(&self.first.line[0..len]);
+            data[offset..offset + len].copy_from_slice(&self.first.line[..]);
             self.first.line.clear();
             Ok(len)
         }
@@ -111,7 +233,6 @@ impl<'a> Sorter<'a> {
                 break;
             }
         }
-        self.calc();
         Ok(())
     }
     /// Populate 'ptrs' from 'data'
@@ -133,9 +254,13 @@ impl<'a> Sorter<'a> {
         self.data_unused = self.data.len() - off;
     }
     /// All files have been added, write final results
-    pub fn finalize(&mut self, w: &mut dyn Write) -> Result<()> {
+    pub fn finalize(&mut self, w: &mut dyn Write, unique: bool) -> Result<()> {
         self.ptrs
             .sort_by(|a, b| self.cmp.comp.comp_items(self.cmp, &self.data, a, b));
+        if unique {
+            self.ptrs
+                .dedup_by(|a, b| self.cmp.comp.equal_items(self.cmp, &self.data, a, b));
+        }
         for &x in &self.ptrs {
             w.write_all(x.get(&self.data))?;
         }
@@ -145,7 +270,7 @@ impl<'a> Sorter<'a> {
 
 /// Sort all the files together, into w
 /// will have to use a temp directory somehow
-pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write) -> Result<()> // maybe return some useful stats?
+pub fn sort(files: &[String], cmp: &Comparator, w: &mut dyn Write, unique: bool) -> Result<()> // maybe return some useful stats?
 {
     let mut s = Sorter::new(cmp, 1000000000);
     let mut header: String = String::new();
@@ -157,7 +282,9 @@ pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write) -> Result
         if first_file {
             first_file = false;
             header = b.cont.header.line.clone();
-            w.write_all(header.as_bytes())?;
+            if b.cont.has_header {
+                w.write_all(header.as_bytes())?;
+            }
         } else if b.cont.header.line != header {
             return err!(
                 "Header Mismatch : '{}' vs '{}'",
@@ -167,5 +294,6 @@ pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write) -> Result
         }
         s.add(&mut b)?;
     }
-    s.finalize(w)
+    s.calc();
+    s.finalize(w, unique)
 }

@@ -1,46 +1,11 @@
 //! Test if a line matches some criterea
 
 use crate::column::NamedCol;
-use crate::{bglob, err, sglob, Error, Reader, Result, TextLine};
+use crate::text::{Case, Text};
+use crate::{err, Error, Reader, Result, TextLine};
 use memchr::memmem::find;
 use std::collections::HashSet;
 use std::fmt;
-
-/// compare for equality, ignoring case.
-fn equal_nocase(a: &str, b: &str) -> bool {
-    for ch in a
-        .chars()
-        .flat_map(char::to_lowercase)
-        .zip(b.chars().flat_map(char::to_lowercase))
-    {
-        if ch.0 != ch.1 {
-            return false;
-        }
-    }
-    a.len() == b.len()
-}
-/*
-/// compare for equality, ignoring case, 'a' is already lowercase
-fn equal_nocase_a(a: &str, b: &str) -> bool {
-    for ch in a
-        .chars()
-        .zip(b.chars().flat_map(char::to_lowercase))
-    {
-    if ch.0 != ch.1 {
-        return false;
-    }
-    }
-    a.len() == b.len()
-}
-*/
-/*
-fn assign_lower(dst: &mut String, src : &str) {
-    dst.clear();
-    dst.extend(src.chars().flat_map(char::to_lowercase));
-}
- */
-
-// self.len() == other.len() && iter::zip(self, other).all(|(a, b)| a.eq_ignore_ascii_case(b))
 
 /// Match against whole line
 pub trait LineCheck {
@@ -392,11 +357,16 @@ fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Re
         return Ok(());
     }
     loop {
-        let line = &f.curr().line;
+        let mut line: &[u8] = &f.curr().line;
         if line.len() > 1 {
+            if line.last().unwrap() == &b'\n' {
+                line = &line[..line.len() - 1];
+            }
             if unicode {
+                data.insert(String::from_utf8(line.to_vec())?.new_lower().into_bytes());
+            // PERF - 2 allocations
             } else {
-                data.insert(line[0..line.len() - 1].to_ascii_lowercase());
+                data.insert(line.new_lower());
             }
         }
         if f.getline()? {
@@ -419,20 +389,20 @@ impl FileExactCheckC {
 }
 impl BufCheck for FileExactCheckC {
     fn scheck(&self, buff: &str) -> bool {
-        self.data.contains(buff.to_lowercase().as_bytes()) // PERF allocation
+        self.data.contains(&buff.new_lower().into_bytes()) // PERF allocation
     }
     fn ucheck(&self, buff: &[u8]) -> bool {
-        self.data.contains(&buff.to_ascii_lowercase()) // PERF allocation
+        self.data.contains(&buff.new_lower()) // PERF allocation
     }
 }
 
 #[derive(Debug, Clone)]
 struct GlobCheck {
     data: String,
-    ic: bool,
+    ic: Case,
 }
 impl GlobCheck {
-    fn new(data: &str, ic: bool) -> Self {
+    fn new(data: &str, ic: Case) -> Self {
         Self {
             data: data.to_string(),
             ic,
@@ -441,10 +411,10 @@ impl GlobCheck {
 }
 impl BufCheck for GlobCheck {
     fn scheck(&self, buff: &str) -> bool {
-        sglob(&self.data, buff, self.ic)
+        buff.glob(&self.data, self.ic)
     }
     fn ucheck(&self, buff: &[u8]) -> bool {
-        bglob(self.data.as_bytes(), buff, self.ic)
+        buff.glob(self.data.as_bytes(), self.ic)
     }
 }
 
@@ -452,20 +422,24 @@ impl BufCheck for GlobCheck {
 struct ExactCheckC {
     data: String,
 }
-// PERF - should lowercase data in constructor, use simpler comparitor
+
 impl ExactCheckC {
-    fn new(data: &str) -> Self {
-        Self {
-            data: data.to_string(),
-        }
+    fn new(data: &str, unicode: bool) -> Result<Self> {
+        Ok(Self {
+            data: if unicode {
+                data.new_lower()
+            } else {
+                String::from_utf8(data.as_bytes().new_lower())?
+            },
+        })
     }
 }
 impl BufCheck for ExactCheckC {
     fn scheck(&self, buff: &str) -> bool {
-        equal_nocase(&self.data, buff)
+        buff.equal_insens_quick(&self.data)
     }
     fn ucheck(&self, buff: &[u8]) -> bool {
-        self.data.as_bytes().eq_ignore_ascii_case(buff)
+        buff.equal_insens_quick(self.data.as_bytes())
     }
 }
 
@@ -523,11 +497,10 @@ pub struct CheckSpec {
     ctype: CheckType,
     /// true for unicode and &str, false for bytes an &[u8]
     string: bool,
-
     // u8 to unicode error, true for error, false for lossy
     // strict : bool,
-    /// true for case sensitive, false for case insensitive
-    case_insensitive: bool,
+    /// should match be case sensitive
+    case: Case,
     /// true to invert the match
     negate: bool,
 }
@@ -548,7 +521,7 @@ impl CheckSpec {
             } else if x.eq_ignore_ascii_case("N") {
                 c.negate = true;
             } else if x.eq_ignore_ascii_case("C") {
-                c.case_insensitive = true;
+                c.case = Case::Insens;
             } else if x.eq_ignore_ascii_case("regex") {
                 c.ctype = CheckType::Regex;
             } else if x.eq_ignore_ascii_case("exact") {
@@ -602,42 +575,42 @@ impl CheckSpec {
                 }
             }
             CheckType::FileExact => {
-                if self.case_insensitive {
+                if self.case == Case::Insens {
                     Box::new(FileExactCheckC::new(pattern, self.string)?)
                 } else {
                     Box::new(FileExactCheck::new(pattern)?)
                 }
             }
             CheckType::Exact => {
-                if self.case_insensitive {
-                    Box::new(ExactCheckC::new(pattern))
+                if self.case == Case::Insens {
+                    Box::new(ExactCheckC::new(pattern, self.string)?)
                 } else {
                     Box::new(ExactCheck::new(pattern))
                 }
             }
             CheckType::Length => Box::new(LengthCheck::new(pattern)?),
             CheckType::Prefix => {
-                if self.case_insensitive {
+                if self.case == Case::Insens {
                     Box::new(PrefixCheckC::new(pattern, self.string))
                 } else {
                     Box::new(PrefixCheck::new(pattern))
                 }
             }
             CheckType::Suffix => {
-                if self.case_insensitive {
+                if self.case == Case::Insens {
                     Box::new(SuffixCheckC::new(pattern, self.string))
                 } else {
                     Box::new(SuffixCheck::new(pattern))
                 }
             }
             CheckType::Substring => {
-                if self.case_insensitive {
+                if self.case == Case::Insens {
                     Box::new(InfixCheckC::new(pattern, self.string))
                 } else {
                     Box::new(InfixCheck::new(pattern))
                 }
             }
-            CheckType::Glob => Box::new(GlobCheck::new(pattern, self.case_insensitive)),
+            CheckType::Glob => Box::new(GlobCheck::new(pattern, self.case)),
         })
     }
 }

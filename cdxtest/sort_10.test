@@ -1,0 +1,15 @@
+#command cdx sort -mu $TMP/aaa $TMP/bbb
+#infile aaa
+aaa
+bbb
+ccc
+ddd
+#infile bbb
+aaa
+ccc
+ddd
+#stdout
+aaa
+bbb
+ccc
+ddd

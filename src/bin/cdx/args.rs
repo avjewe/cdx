@@ -39,20 +39,23 @@ pub struct ProgSpec {
     pub version: String,
 }
 
+/// return current version string
+pub fn version() -> String {
+    format!(
+        "{}.{}.{}{}",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR"),
+        env!("CARGO_PKG_VERSION_PATCH"),
+        option_env!("CARGO_PKG_VERSION_PRE").unwrap_or("")
+    )
+}
 impl ProgSpec {
     pub fn new(help: &str, files: FileCount) -> Self {
-        let version = format!(
-            "{}.{}.{}{}",
-            env!("CARGO_PKG_VERSION_MAJOR"),
-            env!("CARGO_PKG_VERSION_MINOR"),
-            env!("CARGO_PKG_VERSION_PATCH"),
-            option_env!("CARGO_PKG_VERSION_PRE").unwrap_or("")
-        );
         Self {
             help: help.to_string(),
             files,
             author: "avjewe@gmail.com".to_string(),
-            version,
+            version: version(),
         }
     }
 }
