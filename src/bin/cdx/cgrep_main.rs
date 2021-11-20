@@ -1,7 +1,7 @@
-use crate::{arg, args, arg_enum};
 use crate::args::ArgSpec;
+use crate::{arg, arg_enum, args};
 use cdx::check::*;
-use cdx::{get_writer, Error, LookbackReader, Result, HeaderChecker, HEADER_MODE, HeaderMode};
+use cdx::{get_writer, Error, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE};
 use std::str::FromStr;
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -32,50 +32,50 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut first_file = true;
 
     for x in &files {
-	let mut f = LookbackReader::new(1);
-	f.open(x)?;
-	if f.is_empty() {
+        let mut f = LookbackReader::new(1);
+        f.open(x)?;
+        if f.is_empty() {
             continue;
-	}
-	if first_file {
-	    first_file = false;
-	    list.lookup(&f.names())?;
-	}
-	if checker.check_file(&f.cont, &files[0])? {
-	    f.write_header(&mut w)?;
-	}
-	if f.is_done() {
+        }
+        if first_file {
+            first_file = false;
+            list.lookup(&f.names())?;
+        }
+        if checker.check_file(&f.cont, &files[0])? {
+            f.write_header(&mut w)?;
+        }
+        if f.is_done() {
             continue;
-	}
-	if grep_mode {
+        }
+        if grep_mode {
             loop {
-		if list.ok(f.curr_line()) ^ reverse {
+                if list.ok(f.curr_line()) ^ reverse {
                     // write previous lines of context if necessary
                     f.write_curr(&mut w)?;
-		} else {
+                } else {
                     // write more lines of context if necessary
-		}
-		if f.getline()? {
+                }
+                if f.getline()? {
                     break;
-		}
+                }
             }
-	} else {
+        } else {
             let mut fails = 0;
             loop {
-		if !list.ok_verbose(f.curr_line()) {
+                if !list.ok_verbose(f.curr_line()) {
                     fails += 1;
                     if fails >= max_fails {
-			break;
+                        break;
                     }
-		}
-		if f.getline()? {
+                }
+                if f.getline()? {
                     break;
-		}
+                }
             }
             if fails > 0 {
-		return Err(Error::Silent);
+                return Err(Error::Silent);
             }
-	}
+        }
     }
     Ok(())
 }

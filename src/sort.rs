@@ -1,18 +1,16 @@
 //! Tools for sorting text files
 
-
 /*
 incremental calc
 N-way merge
-header handling like cat
+add HEADER_MODE and total_size as parameters
+fancier sort
  */
 
 use crate::comp::{Comparator, Item};
-use crate::{
-    copy, err, get_reader, get_writer, Error, Reader, Result, HeaderChecker, is_cdx
-};
+use crate::{copy, err, get_reader, get_writer, is_cdx, Error, HeaderChecker, Reader, Result};
 use std::cmp::Ordering;
-use std::io::{Read, Write, BufRead};
+use std::io::{BufRead, Read, Write};
 use std::mem;
 use tempdir::TempDir;
 
@@ -132,9 +130,9 @@ pub fn merge_2(
 pub struct Sorter<'a> {
     ptrs: Vec<Item>,
     cmp: &'a mut Comparator,
-    tmp : TempDir,
-    tmp_files : Vec<String>,
-    unique : bool,
+    tmp: TempDir,
+    tmp_files: Vec<String>,
+    unique: bool,
     checker: HeaderChecker,
 
     // raw data. never resized smaller, so use data_used for real size
@@ -168,30 +166,30 @@ impl<'a> Sorter<'a> {
             ptrs: Vec::with_capacity(ptr_size),
             data: Vec::with_capacity(data_size),
             cmp,
-	    tmp : TempDir::new("sort").unwrap(), // FIXME - new should return Result
-	    tmp_files : Vec::new(),
-	    unique,
-	    checker : HeaderChecker::new(),
+            tmp: TempDir::new("sort").unwrap(), // FIXME - new should return Result
+            tmp_files: Vec::new(),
+            unique,
+            checker: HeaderChecker::new(),
             data_used: 0,
-	    data_calc : 0,
-	    data_nonl : 0,
+            data_calc: 0,
+            data_nonl: 0,
         }
     }
 
     fn check(&self) -> bool {
-	debug_assert!(self.data_used <= self.data.len());
-	debug_assert!(self.data_calc <= self.data_used);
-	debug_assert!((self.data_calc + self.data_nonl) <= self.data_used);
-	true
+        debug_assert!(self.data_used <= self.data.len());
+        debug_assert!(self.data_calc <= self.data_used);
+        debug_assert!((self.data_calc + self.data_nonl) <= self.data_used);
+        true
     }
-    
-    // number of bytes available to write 
+
+    // number of bytes available to write
     fn avail(&self) -> usize {
-	self.data.len() - self.data_used
+        self.data.len() - self.data_used
     }
-    
+
     // try to make N bytes available, return amount actually available
-    fn prepare(&mut self, n : usize) -> usize {
+    fn prepare(&mut self, n: usize) -> usize {
         let mut nsize = self.data_used + n;
         if nsize > self.data.capacity() {
             nsize = self.data.capacity();
@@ -199,53 +197,49 @@ impl<'a> Sorter<'a> {
         if self.data.len() < nsize {
             self.data.resize(nsize, 0);
         }
-	let avail = self.avail();
-	if avail < nsize {
-	    avail - self.data_used
-	}
-	else {
-	    nsize - self.data_used
-	}
+        let avail = self.avail();
+        if avail < n {
+            avail
+        } else {
+            n
+        }
     }
 
     /// add some more data to be sorted.
     /// must be integer number of lines.
-    pub fn add_data(&mut self, in_data : &[u8]) -> Result<()> {
-	let sz = self.prepare(in_data.len());
-	if sz != in_data.len() {
-	    eprintln!("Failed to prepare {}, only got {}", in_data.len(), sz);
-	    return err!("Badness");
-	}
-	self.data[self.data_used..self.data_used+in_data.len()].copy_from_slice(in_data);
-	self.data_used += in_data.len();
-	// FIXME - add newline
-	Ok(())
+    pub fn add_data(&mut self, in_data: &[u8]) -> Result<()> {
+        let sz = self.prepare(in_data.len());
+        if sz != in_data.len() {
+            eprintln!("Failed to prepare {}, only got {}", in_data.len(), sz);
+            return err!("Badness");
+        }
+        self.data[self.data_used..self.data_used + in_data.len()].copy_from_slice(in_data);
+        self.data_used += in_data.len();
+        // FIXME - add newline
+        Ok(())
     }
     /// Add another file's worth of data to the stream
     /// possibly writing temporary files
     pub fn add(&mut self, mut r: impl Read) -> Result<()> {
         loop {
-	    debug_assert!(self.check());
-	    const SIZE : usize = 16 * 1024;
-	    let sz = self.prepare(SIZE);
-	    debug_assert!(sz > 0);
-            let nbytes = r.read(&mut self.data[self.data_used..self.data_used+sz])?;
+            debug_assert!(self.check());
+            const SIZE: usize = 16 * 1024;
+            let sz = self.prepare(SIZE);
+            debug_assert!(sz > 0);
+            let nbytes = r.read(&mut self.data[self.data_used..self.data_used + sz])?;
             if nbytes == 0 {
-/*
-		if self.data_used > 0 && self.data.last().unwrap() != &b'\n' {
-		    self.data[self.data_used] = b'\n';
-		    self.data_used += 1;
-		}
-*/
-		return Ok(());
+                if self.data_used > 0 && self.data[self.data_used - 1] != b'\n' {
+                    self.data[self.data_used] = b'\n';
+                    self.data_used += 1;
+                }
+                return Ok(());
             }
             self.data_used += nbytes;
-	    // calc new stuff
+            // calc new stuff
             if self.data_used >= self.data.capacity() {
-		self.calc();
-		self.do_sort();
-		self.write_tmp()?;
-		self.data_used = 0;
+                self.calc();
+                self.do_sort();
+                self.write_tmp()?;
             }
         }
     }
@@ -254,7 +248,7 @@ impl<'a> Sorter<'a> {
         self.ptrs.clear();
         let mut item = Item::new();
         let mut off: usize = 0;
-        for iter in self.data.iter().enumerate() {
+        for iter in self.data[0..self.data_used].iter().enumerate() {
             if iter.1 == &b'\n' {
                 item.offset = off as u32;
                 item.size_plus = (iter.0 - off + 1) as u32;
@@ -265,22 +259,29 @@ impl<'a> Sorter<'a> {
                 self.ptrs.push(item);
             }
         }
-        self.data_used = self.data.len() - off;
+        self.data_calc = off;
     }
 
     /// write ptrs to tmp file
-    fn write_tmp(&mut self) -> Result <()> {
+    fn write_tmp(&mut self) -> Result<()> {
         let mut tmp_file = self.tmp.path().to_owned();
         tmp_file.push(format!("sort_{}.txt", self.tmp_files.len()));
-	let tmp_name = tmp_file.to_str().unwrap();
-	let mut new_w = get_writer(tmp_name)?;
+        let tmp_name = tmp_file.to_str().unwrap();
+        let mut new_w = get_writer(tmp_name)?;
         for &x in &self.ptrs {
-	    new_w.write_all(x.get(&self.data))?;
+            new_w.write_all(x.get(&self.data))?;
         }
-	self.tmp_files.push(tmp_name.to_string());
-	Ok(())
+        self.tmp_files.push(tmp_name.to_string());
+        self.ptrs.clear();
+        let nsize = self.data.len() - self.data_calc;
+        for i in 0..nsize {
+            self.data[i] = self.data[self.data_calc + i];
+        }
+        self.data_used = nsize;
+        self.data_calc = 0;
+        Ok(())
     }
-    
+
     /// sort and unique self.ptrs
     fn do_sort(&mut self) {
         self.ptrs
@@ -291,49 +292,59 @@ impl<'a> Sorter<'a> {
         }
     }
     /// All files have been added, write final results
-    pub fn finalize(&mut self, w: &mut dyn Write) -> Result<()> {
-	self.calc();
-	self.do_sort();
-	if self.tmp_files.is_empty() {
+    pub fn finalize(&mut self, mut w: impl Write) -> Result<()> {
+        self.calc();
+        self.do_sort();
+        if self.tmp_files.is_empty() {
             for &x in &self.ptrs {
-		w.write_all(x.get(&self.data))?;
+                w.write_all(x.get(&self.data))?;
             }
-	}
-	else {
-	    self.write_tmp()?;
-	    merge(&self.tmp_files, &mut self.cmp, w, self.unique)?;
-	}
+        } else {
+            self.write_tmp()?;
+            merge_t(&self.tmp_files, &mut self.cmp, w, self.unique, &self.tmp)?;
+        }
         Ok(())
     }
 
+    #[allow(dead_code)]
+    fn no_del(self) {
+        eprintln!(
+            "Not deleting {}",
+            self.tmp.into_path().into_os_string().to_string_lossy()
+        );
+    }
     /// add another file to be sorted
-    pub fn add_file(&mut self, fname : &str, w: &mut dyn Write) -> Result<()> {
-	let mut f = get_reader(fname)?;
-	let mut first_line = Vec::new();
-	let n = f.read_until(b'\n', &mut first_line)?;
-	if n == 0 {
+    pub fn add_file<W: Write>(&mut self, fname: &str, w: &mut W) -> Result<()> {
+        let mut f = get_reader(fname)?;
+        let mut first_line = Vec::new();
+        let n = f.read_until(b'\n', &mut first_line)?;
+        if n == 0 {
             return Ok(());
         }
-	if self.checker.check(&first_line, fname)? {
-	    if is_cdx(&first_line) {
-		w.write_all(&first_line)?;
-	    }
-	    else {
-		self.add_data(&first_line)?;
-	    }
+        if self.checker.check(&first_line, fname)? {
+            if is_cdx(&first_line) {
+                w.write_all(&first_line)?;
+            } else {
+                self.add_data(&first_line)?;
+            }
         }
-	self.add(&mut f.0)
+        self.add(&mut f.0)
     }
 }
 
 /// Sort all the files together, into w
-// FIXME impl instead of dyn
-// add HEADER_MODE and total_size as parameters
-pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write, unique: bool) -> Result<()> // maybe return some useful stats?
+pub fn sort<W: Write>(
+    files: &[String],
+    cmp: &mut Comparator,
+    w: &mut W,
+    unique: bool,
+) -> Result<()> // maybe return some useful stats?
 {
-    let mut s = Sorter::new(cmp, 1000000000, unique);
+    let mut s = Sorter::new(cmp, 100000000, unique);
     for fname in files {
-	s.add_file(fname, w)?;
+        s.add_file(fname, w)?;
     }
-    s.finalize(w)
+    s.finalize(w)?;
+    //    s.no_del();
+    Ok(())
 }

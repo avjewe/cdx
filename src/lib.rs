@@ -1001,15 +1001,14 @@ impl HeaderChecker {
     }
     /// call for the first line of every input file
     /// return true if the header should be written
-    pub fn check_file(&mut self, file : &InfileContext, fname: &str) -> Result<bool> {
-	let first = !self.saw_one;
-	if file.has_header {
-	    self.check(file.header.line.as_bytes(), fname)?;
-	}
-	else {
-	    self.check(b"fake", fname)?;
-	}
-	Ok(file.has_header && first)
+    pub fn check_file(&mut self, file: &InfileContext, fname: &str) -> Result<bool> {
+        let first = !self.saw_one;
+        if file.has_header {
+            self.check(file.header.line.as_bytes(), fname)?;
+        } else {
+            self.check(b"fake", fname)?;
+        }
+        Ok(file.has_header && first)
     }
 
     /// call for the first line of every input file
