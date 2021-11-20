@@ -31,7 +31,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     if merge {
         sort::merge(&files, &mut comp, &mut w, unique)?;
     } else {
-        sort::sort(&files, &comp, &mut w, unique)?;
+        sort::sort(&files, &mut comp, &mut w, unique)?;
     }
     Ok(())
 }

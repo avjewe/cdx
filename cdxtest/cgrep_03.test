@@ -1,0 +1,17 @@
+#command cdx cgrep -p two,,foo $TMP/one $TMP/two
+#infile one
+ CDX	one	two	three
+aaa	bbb	ccc
+111	2foo2	333
+qqq	www	eee
+#infile two
+ CDX	one	two	three
+zzz	zfooz	zzz
+aaa	bbb	ccc
+qqq	www	eee
+yyy	foo	yyy
+#stdout
+ CDX	one	two	three
+111	2foo2	333
+zzz	zfooz	zzz
+yyy	foo	yyy

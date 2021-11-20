@@ -1,0 +1,7 @@
+#command cdx cgrep -p 2,,foo
+#stdin
+aaa	bbb	ccc
+111	2foo2	333
+qqq	www	eee
+#stdout
+111	2foo2	333

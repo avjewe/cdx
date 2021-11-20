@@ -528,12 +528,18 @@ pub fn get_reader(name: &str) -> Result<Infile> {
 }
 
 #[derive(Debug, Default)]
-struct InfileContext {
-    header: StringLine,
-    delim: u8,
-    is_done: bool,
-    is_empty: bool,
-    has_header: bool,
+/// shared context for any input file type
+pub struct InfileContext {
+    /// CDX header, contructed if necessary
+    pub header: StringLine,
+    /// delimter
+    pub delim: u8,
+    /// have we read all the btes of the file
+    pub is_done: bool,
+    /// is the file length zero
+    pub is_empty: bool,
+    /// was there a CDX header?
+    pub has_header: bool,
 }
 
 // FIXME -- specify delimiter
@@ -593,7 +599,8 @@ pub struct Reader {
     file: Infile,
     /// The current line of text
     pub line: TextLine,
-    cont: InfileContext,
+    /// context
+    pub cont: InfileContext,
     /// automatically split each TextLine
     pub do_split: bool,
 }
@@ -657,7 +664,8 @@ impl Reader {
 pub struct LookbackReader {
     file: Infile,
     lines: Vec<TextLine>,
-    cont: InfileContext,
+    /// context
+    pub cont: InfileContext,
     /// Automatically split each line into columns
     pub do_split: bool,
     curr: usize,
@@ -991,6 +999,19 @@ impl HeaderChecker {
             ..Self::default()
         }
     }
+    /// call for the first line of every input file
+    /// return true if the header should be written
+    pub fn check_file(&mut self, file : &InfileContext, fname: &str) -> Result<bool> {
+	let first = !self.saw_one;
+	if file.has_header {
+	    self.check(file.header.line.as_bytes(), fname)?;
+	}
+	else {
+	    self.check(b"fake", fname)?;
+	}
+	Ok(file.has_header && first)
+    }
+
     /// call for the first line of every input file
     /// return true if the line should be part of the output
     pub fn check(&mut self, first_line: &[u8], fname: &str) -> Result<bool> {

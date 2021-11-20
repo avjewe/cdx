@@ -1,20 +1,20 @@
 //! Tools for sorting text files
 
-use crate::comp::{Comparator, Item};
-use crate::{
-    copy, err, get_reader, get_writer, Error, Infile, InfileContext, Reader, Result, TextLine,
-};
-use std::cmp::Ordering;
-use std::io::{self, Read, Write};
-use std::mem;
-use tempdir::TempDir;
 
 /*
-fn assign(dst : &mut Vec<u8>, src : &[u8]) {
-    dst.clear();
-    dst.extend(src);
-}
-*/
+incremental calc
+N-way merge
+header handling like cat
+ */
+
+use crate::comp::{Comparator, Item};
+use crate::{
+    copy, err, get_reader, get_writer, Error, Reader, Result, HeaderChecker, is_cdx
+};
+use std::cmp::Ordering;
+use std::io::{Read, Write, BufRead};
+use std::mem;
+use tempdir::TempDir;
 
 /// merge all the files into w, using tmp
 pub fn merge_t(
@@ -127,86 +127,38 @@ pub fn merge_2(
     Ok(())
 }
 
-/*
-/// convert u8 slice to string
-pub fn u2s(v: &[u8]) -> String {
-    String::from_utf8_lossy(v).to_string()
-}
- */
-
-/// Read a text file, but not line-by-line
-#[derive(Debug)]
-pub struct BlockReader {
-    file: Infile,
-    cont: InfileContext,
-    first: TextLine,
-}
-
-impl BlockReader {
-    /// new BlockReader
-    pub fn new() -> Self {
-        Self {
-            file: Infile::new(io::BufReader::new(Box::new(io::empty()))),
-            cont: InfileContext::new(),
-            first: TextLine::new(),
-        }
-    }
-    /// open the file
-    pub fn open(&mut self, name: &str) -> Result<()> {
-        self.file = get_reader(name)?;
-        self.cont.read_header(&mut *self.file, &mut self.first)?;
-        Ok(())
-    }
-    /// read from file, append to 'data' to a maximum of 'max' total size
-    /// return bytes read.
-    pub fn read(&mut self, data: &mut Vec<u8>, offset: usize) -> Result<usize> {
-        let mut nsize = offset + 16 * 1024;
-        if nsize > data.capacity() {
-            nsize = data.capacity();
-        }
-        if data.len() < nsize {
-            data.resize(nsize, 0);
-        }
-        if offset >= data.len() {
-            return Ok(0);
-        }
-        if self.first.line.is_empty() {
-            let sz = self.file.read(&mut data[offset..])?;
-            Ok(sz)
-        } else {
-            let len = self.first.line.len();
-            data[offset..offset + len].copy_from_slice(&self.first.line[..]);
-            self.first.line.clear();
-            Ok(len)
-        }
-    }
-}
-
-impl Default for BlockReader {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Large block of text and pointers to lines therein
 #[derive(Debug)]
 pub struct Sorter<'a> {
     ptrs: Vec<Item>,
-    data: Vec<u8>,
-    cmp: &'a Comparator,
+    cmp: &'a mut Comparator,
+    tmp : TempDir,
+    tmp_files : Vec<String>,
+    unique : bool,
+    checker: HeaderChecker,
 
-    /// bytes in data that are referenced by ptrs
-    /// needed because I can't just read into a Vec, of I don't want the whole file
+    // raw data. never resized smaller, so use data_used for real size
+    data: Vec<u8>,
+
+    // bytes of real data in Vec
     data_used: usize,
-    /// bytes in data from input files, not referenced by ptrs
-    data_unused: usize,
+
+    // bytes of data referenced by ptrs
+    // a.k.a. offset of first byte not referenced by ptrs
+    // assert(data_calc <= data_used)
+    data_calc: usize,
+
+    // number of btes beyond data_calc, known to be free of newlines
+    // to avoid N^2 craziness with long lines
+    // assert(data_calc+data_nonl <= data_used)
+    data_nonl: usize,
 }
 
 const MAX_DATA: usize = 0x0ffffff00;
 
 impl<'a> Sorter<'a> {
     /// new Sorter
-    pub fn new(cmp: &'a Comparator, max_alloc: usize) -> Self {
+    pub fn new(cmp: &'a mut Comparator, max_alloc: usize, unique: bool) -> Self {
         let mut data_size = max_alloc / 2;
         if data_size > MAX_DATA {
             data_size = MAX_DATA;
@@ -216,24 +168,86 @@ impl<'a> Sorter<'a> {
             ptrs: Vec::with_capacity(ptr_size),
             data: Vec::with_capacity(data_size),
             cmp,
+	    tmp : TempDir::new("sort").unwrap(), // FIXME - new should return Result
+	    tmp_files : Vec::new(),
+	    unique,
+	    checker : HeaderChecker::new(),
             data_used: 0,
-            data_unused: 0,
+	    data_calc : 0,
+	    data_nonl : 0,
         }
+    }
+
+    fn check(&self) -> bool {
+	debug_assert!(self.data_used <= self.data.len());
+	debug_assert!(self.data_calc <= self.data_used);
+	debug_assert!((self.data_calc + self.data_nonl) <= self.data_used);
+	true
+    }
+    
+    // number of bytes available to write 
+    fn avail(&self) -> usize {
+	self.data.len() - self.data_used
+    }
+    
+    // try to make N bytes available, return amount actually available
+    fn prepare(&mut self, n : usize) -> usize {
+        let mut nsize = self.data_used + n;
+        if nsize > self.data.capacity() {
+            nsize = self.data.capacity();
+        }
+        if self.data.len() < nsize {
+            self.data.resize(nsize, 0);
+        }
+	let avail = self.avail();
+	if avail < nsize {
+	    avail - self.data_used
+	}
+	else {
+	    nsize - self.data_used
+	}
+    }
+
+    /// add some more data to be sorted.
+    /// must be integer number of lines.
+    pub fn add_data(&mut self, in_data : &[u8]) -> Result<()> {
+	let sz = self.prepare(in_data.len());
+	if sz != in_data.len() {
+	    eprintln!("Failed to prepare {}, only got {}", in_data.len(), sz);
+	    return err!("Badness");
+	}
+	self.data[self.data_used..self.data_used+in_data.len()].copy_from_slice(in_data);
+	self.data_used += in_data.len();
+	// FIXME - add newline
+	Ok(())
     }
     /// Add another file's worth of data to the stream
     /// possibly writing temporary files
-    pub fn add(&mut self, r: &mut BlockReader) -> Result<()> {
+    pub fn add(&mut self, mut r: impl Read) -> Result<()> {
         loop {
-            let nbytes = r.read(&mut self.data, self.data_used)?;
+	    debug_assert!(self.check());
+	    const SIZE : usize = 16 * 1024;
+	    let sz = self.prepare(SIZE);
+	    debug_assert!(sz > 0);
+            let nbytes = r.read(&mut self.data[self.data_used..self.data_used+sz])?;
             if nbytes == 0 {
-                break;
+/*
+		if self.data_used > 0 && self.data.last().unwrap() != &b'\n' {
+		    self.data[self.data_used] = b'\n';
+		    self.data_used += 1;
+		}
+*/
+		return Ok(());
             }
             self.data_used += nbytes;
+	    // calc new stuff
             if self.data_used >= self.data.capacity() {
-                break;
+		self.calc();
+		self.do_sort();
+		self.write_tmp()?;
+		self.data_used = 0;
             }
         }
-        Ok(())
     }
     /// Populate 'ptrs' from 'data'
     fn calc(&mut self) {
@@ -251,49 +265,75 @@ impl<'a> Sorter<'a> {
                 self.ptrs.push(item);
             }
         }
-        self.data_unused = self.data.len() - off;
+        self.data_used = self.data.len() - off;
     }
-    /// All files have been added, write final results
-    pub fn finalize(&mut self, w: &mut dyn Write, unique: bool) -> Result<()> {
+
+    /// write ptrs to tmp file
+    fn write_tmp(&mut self) -> Result <()> {
+        let mut tmp_file = self.tmp.path().to_owned();
+        tmp_file.push(format!("sort_{}.txt", self.tmp_files.len()));
+	let tmp_name = tmp_file.to_str().unwrap();
+	let mut new_w = get_writer(tmp_name)?;
+        for &x in &self.ptrs {
+	    new_w.write_all(x.get(&self.data))?;
+        }
+	self.tmp_files.push(tmp_name.to_string());
+	Ok(())
+    }
+    
+    /// sort and unique self.ptrs
+    fn do_sort(&mut self) {
         self.ptrs
             .sort_by(|a, b| self.cmp.comp.comp_items(self.cmp, &self.data, a, b));
-        if unique {
+        if self.unique {
             self.ptrs
                 .dedup_by(|a, b| self.cmp.comp.equal_items(self.cmp, &self.data, a, b));
         }
-        for &x in &self.ptrs {
-            w.write_all(x.get(&self.data))?;
-        }
+    }
+    /// All files have been added, write final results
+    pub fn finalize(&mut self, w: &mut dyn Write) -> Result<()> {
+	self.calc();
+	self.do_sort();
+	if self.tmp_files.is_empty() {
+            for &x in &self.ptrs {
+		w.write_all(x.get(&self.data))?;
+            }
+	}
+	else {
+	    self.write_tmp()?;
+	    merge(&self.tmp_files, &mut self.cmp, w, self.unique)?;
+	}
         Ok(())
+    }
+
+    /// add another file to be sorted
+    pub fn add_file(&mut self, fname : &str, w: &mut dyn Write) -> Result<()> {
+	let mut f = get_reader(fname)?;
+	let mut first_line = Vec::new();
+	let n = f.read_until(b'\n', &mut first_line)?;
+	if n == 0 {
+            return Ok(());
+        }
+	if self.checker.check(&first_line, fname)? {
+	    if is_cdx(&first_line) {
+		w.write_all(&first_line)?;
+	    }
+	    else {
+		self.add_data(&first_line)?;
+	    }
+        }
+	self.add(&mut f.0)
     }
 }
 
 /// Sort all the files together, into w
-/// will have to use a temp directory somehow
-pub fn sort(files: &[String], cmp: &Comparator, w: &mut dyn Write, unique: bool) -> Result<()> // maybe return some useful stats?
+// FIXME impl instead of dyn
+// add HEADER_MODE and total_size as parameters
+pub fn sort(files: &[String], cmp: &mut Comparator, w: &mut dyn Write, unique: bool) -> Result<()> // maybe return some useful stats?
 {
-    let mut s = Sorter::new(cmp, 1000000000);
-    let mut header: String = String::new();
-    let mut first_file = true;
-
-    for f in files {
-        let mut b = BlockReader::new();
-        b.open(f)?;
-        if first_file {
-            first_file = false;
-            header = b.cont.header.line.clone();
-            if b.cont.has_header {
-                w.write_all(header.as_bytes())?;
-            }
-        } else if b.cont.header.line != header {
-            return err!(
-                "Header Mismatch : '{}' vs '{}'",
-                &header,
-                &b.cont.header.line
-            );
-        }
-        s.add(&mut b)?;
+    let mut s = Sorter::new(cmp, 1000000000, unique);
+    for fname in files {
+	s.add_file(fname, w)?;
     }
-    s.calc();
-    s.finalize(w, unique)
+    s.finalize(w)
 }

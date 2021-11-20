@@ -1,0 +1,16 @@
+#command cdx cut -f 2 $TMP/aaa $TMP/bbb
+#infile aaa
+aaa	bbb	ccc
+ddd	eee	fff
+ggg	hhh	iii
+#infile bbb
+jjj	kkk	lll
+mmm	nnn	ooo
+ppp	qqq	rrr
+#stdout
+bbb
+eee
+hhh
+kkk
+nnn
+qqq
