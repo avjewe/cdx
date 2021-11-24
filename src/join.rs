@@ -83,6 +83,14 @@ pub struct OutColSpec {
     cols: ColumnSet,
 }
 
+impl OutColSpec {
+    /// new
+    pub fn new(file: usize, cols: ColumnSet) -> Self {
+	Self { file, cols}
+    }
+}
+
+
 /// All the settings needed to join some files
 #[derive(Debug, Default)]
 #[non_exhaustive]
@@ -230,16 +238,18 @@ impl JoinConfig {
 
         let mut w = get_writer(&self.match_out)?;
 
-        // FIXME -- needs f2.names as well
-        comp.lookup(&f1.names())?;
+        comp.lookup_left(&f1.names())?;
+        comp.lookup_right(&f2.names())?;
 
         let mut out_cols: Vec<OneOutCol> = Vec::new();
         if self.out_cols.is_empty() {
             for x in 0..f1.names().len() {
                 out_cols.push(OneOutCol::new_plain(0, x));
             }
-            for x in 1..f2.names().len() {
-                out_cols.push(OneOutCol::new_plain(1, x));
+            for x in 0..f2.names().len() {
+		if x != comp.mode.right_col.num {
+                    out_cols.push(OneOutCol::new_plain(1, x));
+		}
             }
         } else {
             for x in &mut self.out_cols {

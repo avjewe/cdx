@@ -9,6 +9,7 @@ use crate::{err, Error, Result, TextLine};
 use libm;
 use std::cmp::Ordering;
 use std::fmt;
+use crate::text::Text;
 
 /// make fixed length array from slice
 pub fn make_array(val: &[u8]) -> [u8; 8] {
@@ -372,6 +373,14 @@ impl CompareSettings {
         }
     }
     /// Resolve any named columns
+    pub fn lookup_left(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.left_col.lookup(fieldnames)
+    }
+    /// Resolve any named columns
+    pub fn lookup_right(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.right_col.lookup(fieldnames)
+    }
+    /// Resolve any named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.left_col.lookup(fieldnames)?;
         self.right_col.lookup(fieldnames)
@@ -419,6 +428,14 @@ impl Comparator {
     /// compare two lines
     pub fn comp_lines(&self, left: &[u8], right: &[u8]) -> Ordering {
         self.comp.comp_lines(left, right, &self.mode)
+    }
+    /// resolve any named columns
+    pub fn lookup_left(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.mode.lookup_left(fieldnames)
+    }
+    /// resolve any named columns
+    pub fn lookup_right(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.mode.lookup_right(fieldnames)
     }
     /// resolve any named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -760,8 +777,15 @@ pub fn make_comp(spec: &str) -> Result<Comparator> {
         c.kind = Comparison::Whole;
     } else {
         // FIXME - need 'column from left file' vs 'column from right file'
-        let mut rest = c.left_col.parse(spec)?.as_bytes();
-        c.right_col = c.left_col.clone();
+        let mut rest = c.left_col.parse(spec)?;
+        if !rest.is_empty() && rest.first() == '.' {
+            rest = rest.skip_first();
+            rest = c.right_col.parse(rest)?;
+	}
+	else {
+            c.right_col = c.left_col.clone();
+	}
+	let mut rest = rest.as_bytes();
         if !rest.is_empty() && (rest[0] == b':') {
             rest = &rest[1..];
         }
