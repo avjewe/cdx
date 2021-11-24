@@ -1,8 +1,8 @@
 //! Tools for comparing lines and fields
-//! Comparison -- an enum for comparison semantics
-//! Compare -- a trait. Roughly one impl per Comparison
-//! CompareSettings -- a Comparison, plus a column and other context
-//! Comparator -- a CompareSettings, plus an instance of Compare matching the Comparison
+//!  * Comparison -- an enum for comparison semantics
+//!  * Compare -- a trait. Roughly one impl per Comparison
+//!  * CompareSettings -- a Comparison, plus a column and other context
+//!  * Comparator -- a CompareSettings, plus an instance of Compare matching the Comparison
 #![allow(clippy::float_cmp)]
 use crate::column::NamedCol;
 use crate::{err, Error, Result, TextLine};
@@ -305,8 +305,14 @@ pub enum Comparison {
     */
 }
 
+impl Default for Comparison {
+    fn default() -> Self {
+        Self::Whole
+    }
+}
+
 /// Settings for one compare object
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CompareSettings {
     /// type of comparison
     pub kind: Comparison,
@@ -384,12 +390,15 @@ impl CompareSettings {
         Comparator::new(self.clone(), self.make_box())
     }
 }
-impl Default for CompareSettings {
+
+impl Default for Comparator {
     fn default() -> Self {
-        Self::new()
+        Self {
+            mode: CompareSettings::default(),
+            comp: Box::new(CompareWhole::new()),
+        }
     }
 }
-
 impl Comparator {
     /// new Comparator
     pub fn new(mode: CompareSettings, comp: Box<dyn Compare>) -> Self {
@@ -513,8 +522,14 @@ pub trait Compare {
 }
 
 /// Compare for a list of compares
-struct CompareList {
+#[derive(Default)]
+pub struct CompareList {
     c: Vec<Box<dyn Compare>>,
+}
+impl fmt::Debug for CompareList {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CompareList")
+    }
 }
 
 /// Whole Line comparison
@@ -558,6 +573,17 @@ impl ComparePlain {
 impl CompareLen {
     fn new() -> Self {
         Self { value: 0 }
+    }
+}
+
+impl CompareList {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// add
+    pub fn push(&mut self, x: Box<dyn Compare>) {
+        self.c.push(x);
     }
 }
 

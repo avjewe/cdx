@@ -3,9 +3,11 @@ use crate::comp::{skip_leading_white, str_to_i_whole};
 use crate::prerr;
 use crate::{err, get_reader, get_writer, Error, Infile, Result};
 //use fs_err as fs;
+use fs_err as fs;
 use std::ffi::OsStr;
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read, Write};
 use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::process::Command;
 use tempdir::TempDir;
 
@@ -26,6 +28,21 @@ pub struct Test {
     code: i32,
     in_files: Vec<OneFile>,
     out_files: Vec<OneFile>,
+}
+
+/// remove item from Vec
+fn nuke(v: &mut Vec<String>, s: &str) {
+    v.retain(|x| x != s);
+}
+
+/// return directory as vec of file names
+pub fn read_dir(dir: &Path) -> Result<Vec<String>> {
+    let mut dirs = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        dirs.push(entry.file_name().to_string_lossy().to_string());
+    }
+    Ok(dirs)
 }
 
 /// if line doesn't start with tag, return false
@@ -195,6 +212,11 @@ impl Test {
                 output = x;
             }
         }
+        let mut files = read_dir(tmp.path())?;
+        nuke(&mut files, &"stdin".to_string());
+        for x in &self.in_files {
+            nuke(&mut files, &x.name);
+        }
         let mut failed = false;
         match output.status.code() {
             Some(code) => {
@@ -227,6 +249,39 @@ impl Test {
                 b"\ninstead of\n",
                 &self.stdout,
             ])?;
+        }
+        for x in &self.out_files {
+            nuke(&mut files, &x.name);
+            let mut fname = tmp.path().to_owned();
+            fname.push(&x.name);
+            match get_reader(&fname.to_string_lossy()) {
+                Err(e) => {
+                    failed = true;
+                    eprintln!("{:?}", e);
+                }
+                Ok(mut f) => {
+                    let mut body = Vec::new();
+                    f.read_to_end(&mut body)?;
+                    if body != x.content {
+                        failed = true;
+                        prerr(&[
+                            b"File ",
+                            x.name.as_bytes(),
+                            b" was\n",
+                            &body,
+                            b" but should have been\n",
+                            &x.content,
+                        ])?;
+                    }
+                }
+            }
+        }
+        if !files.is_empty() {
+            failed = true;
+            eprintln!("Files left over in TMP dir :");
+            for x in &files {
+                eprintln!("{}", x);
+            }
         }
         if failed {
             prerr(&[b"Test ", self.name.as_bytes(), b" failed ", &self.cmd])?;

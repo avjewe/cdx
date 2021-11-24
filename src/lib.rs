@@ -27,8 +27,11 @@ use flate2::read::MultiGzDecoder;
 use fs_err as fs;
 //use std::os::unix::io::FromRawFd;
 use std::error;
+use std::ffi::OsStr;
 use std::io::{self, BufRead, Read, Write};
 use std::ops::{Deref, DerefMut};
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use std::{fmt, str};
 
 pub mod check;
@@ -468,6 +471,21 @@ impl DerefMut for Infile {
 type Outfile = io::BufWriter<Box<dyn Write>>;
 
 /// Make an Outfile from a file name
+pub fn get_writer2<P: AsRef<Path>>(name: P) -> Result<Outfile> {
+    let name = name.as_ref().as_os_str();
+    let inner: Box<dyn Write> = {
+        if name == OsStr::new("-") {
+            Box::new(io::stdout())
+        } else if name == OsStr::new("--") {
+            Box::new(io::stderr())
+        } else {
+            Box::new(fs::OpenOptions::new().write(true).create(true).open(name)?)
+        }
+    };
+    Ok(io::BufWriter::new(inner))
+}
+
+/// Make an Outfile from a file name
 pub fn get_writer(name: &str) -> Result<Outfile> {
     let inner: Box<dyn Write> = {
         if name == "-" {
@@ -481,6 +499,7 @@ pub fn get_writer(name: &str) -> Result<Outfile> {
     Ok(io::BufWriter::new(inner))
 }
 
+// should return Cow<>
 fn unescape_vec(data: &[u8]) -> Vec<u8> {
     let mut ret: Vec<u8> = Vec::with_capacity(data.len());
     let mut last_was_slash = false;
@@ -503,6 +522,29 @@ fn unescape_vec(data: &[u8]) -> Vec<u8> {
         ret.push(b'\\');
     }
     ret
+}
+
+/// Make an Infile from a file name
+pub fn get_reader2<P: AsRef<Path>>(name: P) -> Result<Infile> {
+    let name = name.as_ref().as_os_str();
+    let inner: Box<dyn Read> = {
+        if name == OsStr::new("-") {
+            //	    unsafe { Box::new(std::fs::File::from_raw_fd(1)) }
+            Box::new(io::stdin())
+            //            } else if name.starts_with("s3://") {
+            //                Box::new(open_s3_file(name)?)
+        } else if name.as_bytes().starts_with(b"<<") {
+            Box::new(std::io::Cursor::new(unescape_vec(&name.as_bytes()[2..])))
+        } else {
+            Box::new(fs::File::open(name)?)
+        }
+    };
+    let mut outer = io::BufReader::new(inner);
+    let start = outer.fill_buf()?;
+    if start.starts_with(&[0x1fu8, 0x8bu8, 0x08u8]) {
+        outer = io::BufReader::new(Box::new(MultiGzDecoder::new(outer)));
+    }
+    Ok(Infile::new(outer))
 }
 
 /// Make an Infile from a file name
@@ -643,6 +685,11 @@ impl Reader {
     /// write the current text line with newline
     pub fn write(&self, w: &mut impl Write) -> Result<()> {
         w.write_all(&self.line.line)?;
+        Ok(())
+    }
+    /// write header
+    pub fn write_header(&self, w: &mut impl Write) -> Result<()> {
+        w.write_all(self.cont.header.line.as_bytes())?;
         Ok(())
     }
     /// get the next line of text. Return true if no more data available.

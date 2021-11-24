@@ -127,9 +127,9 @@ pub fn merge_2(
 
 /// Large block of text and pointers to lines therein
 #[derive(Debug)]
-pub struct Sorter<'a> {
+pub struct Sorter {
     ptrs: Vec<Item>,
-    cmp: &'a mut Comparator,
+    cmp: Comparator,
     tmp: TempDir,
     tmp_files: Vec<String>,
     unique: bool,
@@ -154,9 +154,9 @@ pub struct Sorter<'a> {
 
 const MAX_DATA: usize = 0x0ffffff00;
 
-impl<'a> Sorter<'a> {
+impl Sorter {
     /// new Sorter
-    pub fn new(cmp: &'a mut Comparator, max_alloc: usize, unique: bool) -> Self {
+    pub fn new(cmp: Comparator, max_alloc: usize, unique: bool) -> Self {
         let mut data_size = max_alloc / 2;
         if data_size > MAX_DATA {
             data_size = MAX_DATA;
@@ -255,7 +255,7 @@ impl<'a> Sorter<'a> {
                 off = iter.0 + 1;
                 self.cmp
                     .comp
-                    .fill_cache_item(self.cmp, &mut item, &self.data);
+                    .fill_cache_item(&self.cmp, &mut item, &self.data);
                 self.ptrs.push(item);
             }
         }
@@ -285,10 +285,10 @@ impl<'a> Sorter<'a> {
     /// sort and unique self.ptrs
     fn do_sort(&mut self) {
         self.ptrs
-            .sort_by(|a, b| self.cmp.comp.comp_items(self.cmp, &self.data, a, b));
+            .sort_by(|a, b| self.cmp.comp.comp_items(&self.cmp, &self.data, a, b));
         if self.unique {
             self.ptrs
-                .dedup_by(|a, b| self.cmp.comp.equal_items(self.cmp, &self.data, a, b));
+                .dedup_by(|a, b| self.cmp.comp.equal_items(&self.cmp, &self.data, a, b));
         }
     }
     /// All files have been added, write final results
@@ -333,12 +333,7 @@ impl<'a> Sorter<'a> {
 }
 
 /// Sort all the files together, into w
-pub fn sort<W: Write>(
-    files: &[String],
-    cmp: &mut Comparator,
-    w: &mut W,
-    unique: bool,
-) -> Result<()> // maybe return some useful stats?
+pub fn sort<W: Write>(files: &[String], cmp: Comparator, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
 {
     let mut s = Sorter::new(cmp, 100000000, unique);
     for fname in files {

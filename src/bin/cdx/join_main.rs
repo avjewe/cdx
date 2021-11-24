@@ -1,64 +1,35 @@
 use crate::arg;
 use crate::args;
 use crate::args::ArgSpec;
-use cdx::{comp, err, get_writer, Error, Reader, Result};
-use std::cmp::Ordering;
+use cdx::join::*;
+use cdx::{err, Error, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
-    if true {
-        eprintln!("The management regrets to inform youn that join s not yet ready");
-        return Ok(());
-    }
-    let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    const A: [ArgSpec; 1] = [arg! {"key", "k", "Spec", "How to compare adjacent lines"}];
+    let prog = args::ProgSpec::new("Join files on a matching column.", args::FileCount::Many);
+    const A: [ArgSpec; 2] = [
+        arg! {"also", "a", "FileNum,FileName", "Write non-matching lines from this file to this file."},
+        arg! {"key", "k", "Spec", "How to compare lines"},
+    ];
     let (args, files) = args::parse(&prog, &A, argv);
 
-    let mut key = "".to_string();
+    let mut config = JoinConfig::new();
+    config.infiles = files;
     for x in args {
         if x.name == "key" {
-            key = x.value;
+            config.keys.push(x.value);
+        } else if x.name == "also" {
+            let parts = x.value.split_once(',');
+            if let Some((a, b)) = parts {
+                config
+                    .unmatch_out
+                    .push(NoMatch::new(a.parse::<usize>()?, b));
+            } else {
+                return err!("--also format is FileNum,FileName {}", x.value);
+            }
         } else {
             unreachable!();
         }
     }
 
-    if files.len() != 2 {
-        return err!("{} files specified, exactly two required", files.len());
-    }
-
-    let mut f1 = Reader::new();
-    let mut f2 = Reader::new();
-    f1.open(&files[0])?;
-    f2.open(&files[1])?;
-    if f1.is_empty() && f2.is_empty() {
-        return Ok(());
-    }
-
-    let mut w = get_writer("-")?;
-    // FIXME header
-
-    let mut comp = comp::make_comp(&key)?;
-    comp.lookup(&f1.names())?;
-
-    loop {
-        if f1.is_done() || f2.is_done() {
-            break;
-        }
-        match comp.comp_cols(f1.curr(), f2.curr()) {
-            Ordering::Equal => {
-                // print
-                f1.write(&mut w)?;
-                f1.getline()?;
-                f2.getline()?;
-            }
-            Ordering::Less => {
-                f1.getline()?;
-            }
-            Ordering::Greater => {
-                f2.getline()?;
-            }
-        }
-    }
-    // drain f1 or f2 as needed
-    Ok(())
+    config.join()
 }

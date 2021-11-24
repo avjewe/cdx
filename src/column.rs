@@ -11,6 +11,19 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::{fmt, str};
 
+/// What to do if there would be duplicate column names
+#[derive(Debug, Copy, Clone)]
+pub enum DupColHandling {
+    /// Fail if there are duplicate columns names
+    Fail,
+    /// Drop all but the leftmost of the columns
+    Drop,
+    /// Allow duplicate columns names
+    Allow,
+    /// if "foo" is taken, try "foo1", then "foo2" until it's unique
+    Numeric,
+}
+
 /// A column set is a collection of column specifictions, which when interpreted
 /// in the context of a set of named columns, produces a list of column numbers
 /// It contains a bunch of "yes" specs and "no" specs.
@@ -773,34 +786,6 @@ impl ColumnSet {
         Ok(s.get_cols_num()[0])
     }
 }
-
-/*
-impl ColumnFun for ReaderFull<'_> {
-    fn write(&self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()> {
-        let mut need_delim = false;
-        for x in line.iter() {
-            if need_delim {
-                w.write_all(&[delim])?;
-            }
-            need_delim = true;
-            w.write_all(x)?;
-        }
-        Ok(())
-    }
-
-    fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()> {
-        let mut need_delim = false;
-        for x in head.iter() {
-            if need_delim {
-                w.write_all(&[delim])?;
-            }
-            need_delim = true;
-            w.write_all(x)?;
-        }
-        Ok(())
-    }
-}
- */
 
 /// Write the columns with a custom delimiter
 pub struct ColumnClump<'a> {
