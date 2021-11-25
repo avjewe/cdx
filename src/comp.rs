@@ -72,26 +72,26 @@ fn frac_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
     }
     if a.is_empty() {
         if b.is_empty() || !b[0].is_ascii_digit() {
-            return Ordering::Equal;
+            Ordering::Equal
+        } else {
+            Ordering::Less
         }
-        return Ordering::Less;
     } else if b.is_empty() {
         if a[0].is_ascii_digit() {
-            return Ordering::Greater;
-        }
-        return Ordering::Equal;
-    } else {
-        if a[0].is_ascii_digit() {
-            if b[0].is_ascii_digit() {
-                return a[0].cmp(&b[0]);
-            }
-            return Ordering::Greater;
+            Ordering::Greater
         } else {
-            if b[0].is_ascii_digit() {
-                return Ordering::Less;
-            }
-            return Ordering::Equal;
+            Ordering::Equal
         }
+    } else if a[0].is_ascii_digit() {
+        if b[0].is_ascii_digit() {
+            a[0].cmp(&b[0])
+        } else {
+            Ordering::Greater
+        }
+    } else if b[0].is_ascii_digit() {
+        Ordering::Less
+    } else {
+        Ordering::Equal
     }
 }
 
