@@ -86,10 +86,9 @@ pub struct OutColSpec {
 impl OutColSpec {
     /// new
     pub fn new(file: usize, cols: ColumnSet) -> Self {
-	Self { file, cols}
+        Self { file, cols }
     }
 }
-
 
 /// All the settings needed to join some files
 #[derive(Debug, Default)]
@@ -247,9 +246,9 @@ impl JoinConfig {
                 out_cols.push(OneOutCol::new_plain(0, x));
             }
             for x in 0..f2.names().len() {
-		if x != comp.mode.right_col.num {
+                if x != comp.mode.right_col.num {
                     out_cols.push(OneOutCol::new_plain(1, x));
-		}
+                }
             }
         } else {
             for x in &mut self.out_cols {
@@ -271,12 +270,14 @@ impl JoinConfig {
         if out_cols.is_empty() {
             return err!("No output columns specified");
         }
-        w.write_all(b" CDX")?;
-        for x in &out_cols {
-            w.write_all(&[self.out_delim])?;
-            x.write_head(&mut w, &f1, &f2)?;
+        if f1.cont.has_header {
+            w.write_all(b" CDX")?;
+            for x in &out_cols {
+                w.write_all(&[self.out_delim])?;
+                x.write_head(&mut w, &f1, &f2)?;
+            }
+            w.write_all(&[b'\n'])?;
         }
-        w.write_all(&[b'\n'])?;
 
         loop {
             if f1.is_done() || f2.is_done() {

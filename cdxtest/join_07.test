@@ -1,0 +1,13 @@
+#command cdx join -k2.3n $TMP/aaa $TMP/bbb
+#infile aaa
+aaa	3	ccc
+ddd	20	fff
+ggg	100	iii
+#infile bbb
+bbb	DDD	3
+ddd	FFF	4
+ggg	III	50
+hhh	JJJ	100
+#stdout
+aaa	3	ccc	bbb	DDD
+ggg	100	iii	hhh	JJJ

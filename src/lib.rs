@@ -468,6 +468,18 @@ impl DerefMut for Infile {
     }
 }
 
+impl AsRef<io::BufReader<Box<dyn Read>>> for Infile {
+    fn as_ref(&self) -> &io::BufReader<Box<dyn Read>> {
+        &self.0
+    }
+}
+
+impl AsMut<io::BufReader<Box<dyn Read>>> for Infile {
+    fn as_mut(&mut self) -> &mut io::BufReader<Box<dyn Read>> {
+        &mut self.0
+    }
+}
+
 type Outfile = io::BufWriter<Box<dyn Write>>;
 
 /// Make an Outfile from a file name

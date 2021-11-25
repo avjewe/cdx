@@ -328,7 +328,7 @@ impl Sorter {
                 self.add_data(&first_line)?;
             }
         }
-        self.add(&mut f.0)
+        self.add(&mut *f)
     }
 }
 

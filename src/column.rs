@@ -271,9 +271,9 @@ impl ColumnSet {
     }
     /// is empty?
     pub fn is_empty(&self) -> bool {
-	self.pos.is_empty() && self.neg.is_empty()
+        self.pos.is_empty() && self.neg.is_empty()
     }
-    
+
     /// Create an column set from a spec, e.g. "1-3"
     pub fn from_spec(spec: &str) -> Self {
         let mut s = ColumnSet::default();

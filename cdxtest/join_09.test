@@ -1,0 +1,23 @@
+#command cdx join -k1 $TMP/aaa $TMP/bbb -a 2,$TMP/bar -a 1,- -f $TMP/foo
+#infile aaa
+ CDX	one	two	three
+aaa	bbb	ccc
+ddd	eee	fff
+ggg	hhh	iii
+#infile bbb
+ CDX	uno	dos	tres
+bbb	CCC	DDD
+ddd	EEE	FFF
+ggg	HHH	III
+hhh	III	JJJ
+#outfile foo
+ CDX	one	two	three	dos	tres
+ddd	eee	fff	EEE	FFF
+ggg	hhh	iii	HHH	III
+#stdout
+ CDX	one	two	three
+aaa	bbb	ccc
+#outfile bar
+ CDX	uno	dos	tres
+bbb	CCC	DDD
+hhh	III	JJJ

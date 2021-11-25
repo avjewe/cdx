@@ -5,11 +5,11 @@
 //!  * Comparator -- a CompareSettings, plus an instance of Compare matching the Comparison
 #![allow(clippy::float_cmp)]
 use crate::column::NamedCol;
+use crate::text::Text;
 use crate::{err, Error, Result, TextLine};
 use libm;
 use std::cmp::Ordering;
 use std::fmt;
-use crate::text::Text;
 
 /// make fixed length array from slice
 pub fn make_array(val: &[u8]) -> [u8; 8] {
@@ -45,6 +45,162 @@ fn is_exp_char(ch: u8) -> bool {
     ch.is_ascii_digit() || (ch == b'+') || (ch == b'-')
 }
 
+fn skip_comma_zero(mut a: &[u8]) -> &[u8] {
+    while !a.is_empty() && (a[0] == b'0' || a[0] == b',') {
+        a = &a[1..];
+    }
+    a
+}
+
+fn skip_comma(mut a: &[u8]) -> &[u8] {
+    while !a.is_empty() && a[0] == b',' {
+        a = &a[1..];
+    }
+    a
+}
+
+fn frac_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
+    debug_assert!(!a.is_empty());
+    debug_assert!(!b.is_empty());
+    debug_assert!(a[0] == b'.');
+    debug_assert!(b[0] == b'.');
+    a = &a[1..];
+    b = &b[1..];
+    while !a.is_empty() && !b.is_empty() && (a[0] == b[0]) && a[0].is_ascii_digit() {
+        a = &a[1..];
+        b = &b[1..];
+    }
+    if a.is_empty() {
+        if b.is_empty() || !b[0].is_ascii_digit() {
+            return Ordering::Equal;
+        }
+        return Ordering::Less;
+    } else if b.is_empty() {
+        if a[0].is_ascii_digit() {
+            return Ordering::Greater;
+        }
+        return Ordering::Equal;
+    } else {
+        if a[0].is_ascii_digit() {
+            if b[0].is_ascii_digit() {
+                return a[0].cmp(&b[0]);
+            }
+            return Ordering::Greater;
+        } else {
+            if b[0].is_ascii_digit() {
+                return Ordering::Less;
+            }
+            return Ordering::Equal;
+        }
+    }
+}
+
+fn num_cmp_unsigned(mut a: &[u8], mut b: &[u8]) -> Ordering {
+    a = skip_comma_zero(a);
+    b = skip_comma_zero(b);
+    while !a.is_empty() && !b.is_empty() && (a[0] == b[0]) && a[0].is_ascii_digit() {
+        a = &a[1..];
+        b = &b[1..];
+        a = skip_comma(a);
+        b = skip_comma(b);
+    }
+    if a.is_empty() && b.is_empty() {
+        return Ordering::Equal;
+    }
+    if a.is_empty() {
+        if b[0].is_ascii_digit() {
+            return Ordering::Less;
+        }
+        return Ordering::Equal;
+    }
+    if b.is_empty() {
+        if a[0].is_ascii_digit() {
+            return Ordering::Greater;
+        }
+        return Ordering::Equal;
+    }
+    if a[0] == b'.' && b[0] == b'.' {
+        return frac_cmp(a, b);
+    }
+    let tmp = a[0].cmp(&b[0]);
+
+    let mut log_a = 0;
+    while !a.is_empty() && a[0].is_ascii_digit() {
+        log_a += 1;
+        a = &a[1..];
+        a = skip_comma(a);
+    }
+
+    let mut log_b = 0;
+    while !b.is_empty() && b[0].is_ascii_digit() {
+        log_b += 1;
+        b = &b[1..];
+        b = skip_comma(b);
+    }
+
+    if log_a != log_b {
+        return log_a.cmp(&log_b);
+    }
+    if log_a == 0 {
+        return Ordering::Equal;
+    }
+    tmp
+}
+
+fn num_cmp_signed(mut a: &[u8], mut b: &[u8]) -> Ordering {
+    a = skip_leading_white(a);
+    b = skip_leading_white(b);
+
+    let mut left_minus = false;
+    if !a.is_empty() && a[0] == b'-' {
+        a = &a[1..];
+        left_minus = true;
+    }
+    let mut right_minus = false;
+    if !b.is_empty() && b[0] == b'-' {
+        b = &b[1..];
+        right_minus = true;
+    }
+
+    if left_minus {
+        if right_minus {
+            return num_cmp_unsigned(b, a);
+        } else {
+            return Ordering::Less;
+        }
+    }
+    if right_minus {
+        return Ordering::Greater;
+    }
+    num_cmp_unsigned(a, b)
+}
+
+/*
+int ipnumcmp(char const * a, char const * b)
+{
+  while ((*a == ' ') || (*a == '\t')) ++a;
+  while ((*b == ' ') || (*b == '\t')) ++b;
+  while (true) {
+    const char * a2 = a;
+    while (ISDIGIT(*a2)) ++a2;
+    const char * b2 = b;
+    while (ISDIGIT(*b2)) ++b2;
+    if ((a2 - a) > (b2 - b)) return 1;
+    if ((a2 - a) < (b2 - b)) return -1;
+    while (a < a2) {
+      if (*a > *b) return 1;
+      if (*a < *b) return -1;
+      ++a;
+      ++b;
+    }
+    if ((*a != '.') && (*b != '.')) return 0;
+    if (*a != '.') return -1;
+    if (*b != '.') return 1;
+    ++a;
+    ++b;
+  }
+}
+*/
 /// skip leading whitespace
 pub fn skip_leading_white(num: &[u8]) -> &[u8] {
     let mut pos: usize = 0;
@@ -294,11 +450,12 @@ pub enum Comparison {
     Length,
     /// parse as f64, and compare that. Needs option for malfomed numbers.
     Double,
+    /// compare nnn.nnn with no limit on length
+    Numeric,
     /*
         Reverse, // compare right to left
         Lower, // ascii_tolower before comparison
         Human,  // 2.3K or 4.5G
-        Numeric, // compare nnn.nnn with no limit on length
         Fuzzy(u32 n), // integer compare, but equal if within n
         Date(String fmt), // formatted date compare
         Url, //. Compare backwards from first slash, then forwards from first slash
@@ -392,6 +549,7 @@ impl CompareSettings {
             Comparison::Plain => Box::new(ComparePlain::new()),
             Comparison::Length => Box::new(CompareLen::new()),
             Comparison::Double => Box::new(Comparef64::new()),
+            Comparison::Numeric => Box::new(CompareNumeric::new()),
         }
     }
     /// make Comparator
@@ -575,6 +733,17 @@ impl Comparef64 {
     }
 }
 
+/// nnn.nnn comparison
+struct CompareNumeric {
+    value: Vec<u8>,
+}
+
+impl CompareNumeric {
+    fn new() -> Self {
+        Self { value: Vec::new() }
+    }
+}
+
 impl CompareWhole {
     fn new() -> Self {
         Self { value: Vec::new() }
@@ -726,6 +895,27 @@ fn ulp_to_ulong(d: f64) -> u64 {
     }
 }
 
+impl Compare for CompareNumeric {
+    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+        num_cmp_signed(left, right)
+    }
+    fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+        num_cmp_signed(left, right) == Ordering::Equal
+    }
+    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+        item.cache = ulp_to_ulong(str_to_d_lossy(value));
+    }
+    fn set(&mut self, value: &[u8]) {
+        self.value = value.to_vec();
+    }
+    fn comp_self(&self, right: &[u8]) -> Ordering {
+        num_cmp_signed(&self.value, right)
+    }
+    fn equal_self(&self, right: &[u8]) -> bool {
+        num_cmp_signed(&self.value, right) == Ordering::Equal
+    }
+}
+
 impl Compare for Comparef64 {
     fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
         fcmp(str_to_d_lossy(left), str_to_d_lossy(right))
@@ -781,11 +971,10 @@ pub fn make_comp(spec: &str) -> Result<Comparator> {
         if !rest.is_empty() && rest.first() == '.' {
             rest = rest.skip_first();
             rest = c.right_col.parse(rest)?;
-	}
-	else {
+        } else {
             c.right_col = c.left_col.clone();
-	}
-	let mut rest = rest.as_bytes();
+        }
+        let mut rest = rest.as_bytes();
         if !rest.is_empty() && (rest[0] == b':') {
             rest = &rest[1..];
         }
@@ -799,6 +988,9 @@ pub fn make_comp(spec: &str) -> Result<Comparator> {
                 }
                 b'g' => {
                     c.kind = Comparison::Double;
+                }
+                b'n' => {
+                    c.kind = Comparison::Numeric;
                 }
                 _ => {
                     return err!("Bad parse of compare spec for {}", spec);
@@ -895,5 +1087,38 @@ impl Item {
 impl Default for Item {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn num_cmp() {
+        assert_eq!(num_cmp_signed(b"1", b"1"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"  1", b"1"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"1", b"  1"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"1,2", b"12"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"      1,2,3", b"123"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"123", b"   1,2,3"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b".123", b".123"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"123", b"124"), Ordering::Less);
+        assert_eq!(num_cmp_signed(b"123", b"1234"), Ordering::Less);
+        assert_eq!(num_cmp_signed(b"123", b"-124"), Ordering::Greater);
+        assert_eq!(num_cmp_signed(b"123", b"-1234"), Ordering::Greater);
+        assert_eq!(num_cmp_signed(b"999", b"1111"), Ordering::Less);
+        assert_eq!(num_cmp_signed(b".999", b".1111"), Ordering::Greater);
+        assert_eq!(num_cmp_signed(b"1234", b"123X"), Ordering::Greater);
+        assert_eq!(num_cmp_signed(b"5.123", b"5.123"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"5.123", b"5.1234"), Ordering::Less);
+        assert_eq!(num_cmp_signed(b"5.123", b"5.123X"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"5.1234", b"5.123"), Ordering::Greater);
+        assert_eq!(num_cmp_signed(b"5.1234", b"5.1234"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"5.1234", b"5.123X"), Ordering::Greater);
+        assert_eq!(num_cmp_signed(b"5.123X", b"5.123"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"5.123X", b"5.1234"), Ordering::Less);
+        assert_eq!(num_cmp_signed(b"5.123X", b"5.123X"), Ordering::Equal);
+        assert_eq!(num_cmp_signed(b"5.1234", b"5.1235"), Ordering::Less);
+        assert_eq!(num_cmp_signed(b"5.1235", b"5.1234"), Ordering::Greater);
     }
 }

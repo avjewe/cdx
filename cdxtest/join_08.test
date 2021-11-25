@@ -1,0 +1,16 @@
+#command cdx join -ktwo:g $TMP/aaa $TMP/bbb
+#infile aaa
+ CDX	one	two	three
+aaa	3	ccc
+ddd	20	fff
+ggg	100	iii
+#infile bbb
+ CDX	uno	dos	two
+bbb	DDD	3
+ddd	FFF	4
+ggg	III	50
+hhh	JJJ	100
+#stdout
+ CDX	one	two	three	uno	dos
+aaa	3	ccc	bbb	DDD
+ggg	100	iii	hhh	JJJ
