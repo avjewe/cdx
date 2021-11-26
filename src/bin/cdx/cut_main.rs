@@ -46,8 +46,10 @@ pub fn main(argv: &[String]) -> Result<()> {
         }
         v.lookup(&f.names())?;
         not_header.clear();
-        v.write_names(&mut not_header, f.header())?;
-        if checker.check(&not_header, x)? && f.cont.has_header {
+        if f.cont.has_header {
+            v.write_names(&mut not_header, f.header())?;
+        }
+        if checker.check(&not_header, x)? {
             w.write_all(&not_header)?;
         }
         if f.is_done() {

@@ -43,6 +43,12 @@ pub enum CheckType {
     /// if pattern is one number, a string a least that long
     /// if two numbers, length between the two numbers, inclusive
     Length,
+    /// all whitespace
+    Blank,
+    /// all whitespace, up to a #
+    HashCmt,
+    /// all whitespace, up to a //
+    SlashCmt,
     // XmlAttr
     // DelimSuffix
     // DelimPrefix
@@ -72,6 +78,81 @@ impl BufCheck for PrefixCheck {
     }
     fn ucheck(&self, buff: &[u8]) -> bool {
         buff.starts_with(self.data.as_bytes())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// check all whitespace
+pub struct BlankCheck;
+
+fn is_blank(data: &[u8]) -> bool {
+    for x in data {
+        if *x > b' ' {
+            return false;
+        }
+    }
+    true
+}
+
+impl BufCheck for BlankCheck {
+    fn scheck(&self, buff: &str) -> bool {
+        is_blank(buff.as_bytes()) // FIXME unicode blanks?
+    }
+    fn ucheck(&self, buff: &[u8]) -> bool {
+        is_blank(buff)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// check all whitespace, followed by #
+pub struct HashCmtCheck;
+
+fn is_hash_cmt(data: &[u8]) -> bool {
+    for x in data {
+        if *x > b' ' {
+            return *x == b'#';
+        }
+    }
+    true
+}
+
+impl BufCheck for HashCmtCheck {
+    fn scheck(&self, buff: &str) -> bool {
+        is_hash_cmt(buff.as_bytes()) // FIXME unicode blanks?
+    }
+    fn ucheck(&self, buff: &[u8]) -> bool {
+        is_hash_cmt(buff)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+/// check all whitespace, followed by //
+pub struct SlashCmtCheck;
+
+fn is_slash_cmt(data: &[u8]) -> bool {
+    let mut saw_slash = false;
+    for x in data {
+        if *x > b' ' {
+            if *x == b'/' {
+                if saw_slash {
+                    return true;
+                } else {
+                    saw_slash = true;
+                }
+            } else {
+                return false;
+            }
+        }
+    }
+    !saw_slash
+}
+
+impl BufCheck for SlashCmtCheck {
+    fn scheck(&self, buff: &str) -> bool {
+        is_slash_cmt(buff.as_bytes()) // FIXME unicode blanks?
+    }
+    fn ucheck(&self, buff: &[u8]) -> bool {
+        is_slash_cmt(buff)
     }
 }
 
@@ -443,13 +524,15 @@ impl BufCheck for ExactCheckC {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-struct LengthCheck {
+#[derive(Debug, Clone, Default, Copy)]
+/// check length
+pub struct LengthCheck {
     min: usize,
     max: Option<usize>,
 }
 impl LengthCheck {
-    fn new(data: &str) -> Result<Self> {
+    /// new
+    pub fn new(data: &str) -> Result<Self> {
         if data.is_empty() {
             return err!("Length spec can't be empty");
         }
@@ -611,6 +694,9 @@ impl CheckSpec {
                 }
             }
             CheckType::Glob => Box::new(GlobCheck::new(pattern, self.case)),
+            CheckType::Blank => Box::new(BlankCheck),
+            CheckType::HashCmt => Box::new(HashCmtCheck),
+            CheckType::SlashCmt => Box::new(SlashCmtCheck),
         })
     }
 }
@@ -691,7 +777,7 @@ impl LineCheck for ColChecker {
     }
 }
 
-/// Full list of checkers
+/// Full list of checkers, AND'ed
 #[derive(Default)]
 pub struct CheckList {
     checks: Vec<Box<dyn LineCheck>>,
@@ -735,5 +821,91 @@ impl CheckList {
             }
         }
         true
+    }
+}
+/// Full list of checkers, OR'ed
+#[derive(Default)]
+pub struct CheckListOr {
+    checks: Vec<Box<dyn LineCheck>>,
+}
+impl fmt::Debug for CheckListOr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CheckListOr")
+    }
+}
+
+impl CheckListOr {
+    /// new
+    pub fn new() -> Self {
+        Self { checks: Vec::new() }
+    }
+    /// add Check to list
+    pub fn push(&mut self, item: Box<dyn LineCheck>) {
+        self.checks.push(item)
+    }
+    /// lookup
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        for x in self.checks.iter_mut() {
+            x.lookup(fieldnames)?;
+        }
+        Ok(())
+    }
+    /// ok
+    pub fn ok(&self, line: &TextLine) -> bool {
+        for x in &self.checks {
+            if x.check(line) {
+                return true;
+            }
+        }
+        false
+    }
+    /// ok_verbose
+    pub fn ok_verbose(&self, line: &TextLine) -> bool {
+        for x in &self.checks {
+            if x.check(line) {
+                return true;
+            }
+        }
+        false
+    }
+}
+/// Full list of checkers, OR'ed
+#[derive(Default)]
+pub struct CheckOr {
+    checks: Vec<Box<dyn BufCheck>>,
+}
+impl fmt::Debug for CheckOr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CheckOr")
+    }
+}
+
+impl CheckOr {
+    /// new
+    pub fn new() -> Self {
+        Self { checks: Vec::new() }
+    }
+    /// add Check to list
+    pub fn push(&mut self, item: Box<dyn BufCheck>) {
+        self.checks.push(item)
+    }
+}
+
+impl BufCheck for CheckOr {
+    fn scheck(&self, buff: &str) -> bool {
+        for x in &self.checks {
+            if x.scheck(buff) {
+                return true;
+            }
+        }
+        false
+    }
+    fn ucheck(&self, buff: &[u8]) -> bool {
+        for x in &self.checks {
+            if x.ucheck(buff) {
+                return true;
+            }
+        }
+        false
     }
 }

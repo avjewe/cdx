@@ -1,0 +1,9 @@
+#command cdx cat -n spoo,27,end
+#stdin
+ CDX	one	two
+aaa	bbb
+ccc	ddd
+#stdout
+ CDX	one	two	spoo
+aaa	bbb	27
+ccc	ddd	28

@@ -253,9 +253,99 @@ pub trait ColumnFun {
     /// write the column names (called once)
     fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()>;
     /// write the column values (called many times)
-    fn write(&self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()>;
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()>;
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
+}
+
+/// write the whole line
+#[derive(Debug, Default, Copy, Clone)]
+pub struct ColumnWhole;
+
+impl ColumnFun for ColumnWhole {
+    /// write the column names (called once)
+    fn write_names(&self, w: &mut dyn Write, head: &StringLine, _delim: u8) -> Result<()> {
+        w.write_all(head.line[5..head.line.len() - 1].as_bytes())?;
+        Ok(())
+    }
+    /// write the column values (called many times)
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+        w.write_all(&line.line[0..line.line.len() - 1])?;
+        Ok(())
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// write the whole line
+#[derive(Debug, Default, Clone)]
+pub struct ColumnCount {
+    num: i64,
+    name: String,
+}
+
+impl ColumnCount {
+    /// new
+    pub fn new(num: i64, name: &str) -> Self {
+        Self {
+            num,
+            name: name.to_string(),
+        }
+    }
+}
+
+impl ColumnFun for ColumnCount {
+    /// write the column names (called once)
+    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
+        w.write_all(self.name.as_bytes())?;
+        Ok(())
+    }
+    /// write the column values (called many times)
+    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
+        w.write_all(self.num.to_string().as_bytes())?;
+        self.num += 1;
+        Ok(())
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// write the whole line
+#[derive(Debug, Default, Clone)]
+pub struct ColumnLiteral {
+    value: Vec<u8>,
+    name: String,
+}
+
+impl ColumnLiteral {
+    /// new
+    pub fn new(value: &[u8], name: &str) -> Self {
+        Self {
+            value: value.to_vec(),
+            name: name.to_string(),
+        }
+    }
+}
+
+impl ColumnFun for ColumnLiteral {
+    /// write the column names (called once)
+    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
+        w.write_all(self.name.as_bytes())?;
+        Ok(())
+    }
+    /// write the column values (called many times)
+    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
+        w.write_all(&self.value)?;
+        Ok(())
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl fmt::Debug for dyn ColumnFun {
@@ -793,20 +883,20 @@ impl ColumnSet {
 }
 
 /// Write the columns with a custom delimiter
-pub struct ColumnClump<'a> {
-    cols: Box<dyn ColumnFun + 'a>,
+pub struct ColumnClump {
+    cols: Box<dyn ColumnFun>,
     name: String,
     delim: u8,
 }
-impl fmt::Debug for ColumnClump<'_> {
+impl fmt::Debug for ColumnClump {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ColumnClump")
     }
 }
 
-impl<'a> ColumnClump<'a> {
+impl ColumnClump {
     /// new ColumnClump from parts
-    pub fn new(cols: Box<dyn ColumnFun + 'a>, name: &str, delim: u8) -> Self {
+    pub fn new(cols: Box<dyn ColumnFun>, name: &str, delim: u8) -> Self {
         Self {
             cols,
             name: name.to_string(),
@@ -843,8 +933,8 @@ impl<'a> ColumnClump<'a> {
     }
 }
 
-impl<'a> ColumnFun for ColumnClump<'a> {
-    fn write(&self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+impl ColumnFun for ColumnClump {
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
         self.cols.write(w, line, self.delim)?;
         Ok(())
     }
@@ -882,7 +972,7 @@ pub fn write_colname(w: &mut dyn Write, col: &OutCol, head: &StringLine) -> Resu
 }
 
 impl ColumnFun for ReaderColumns {
-    fn write(&self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()> {
         self.columns.write3(w, line, delim)?;
         Ok(())
     }
@@ -908,17 +998,17 @@ impl ColumnFun for ReaderColumns {
 }
 
 /// A collection of ColumnFun writers
-pub struct Writer<'a> {
-    v: Vec<Box<dyn ColumnFun + 'a>>,
+pub struct Writer {
+    v: Vec<Box<dyn ColumnFun>>,
     delim: u8,
 }
-impl fmt::Debug for Writer<'_> {
+impl fmt::Debug for Writer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Writer")
     }
 }
 
-impl<'a> Writer<'a> {
+impl Writer {
     /// new Writer
     pub fn new(delim: u8) -> Self {
         Self {
@@ -938,7 +1028,7 @@ impl<'a> Writer<'a> {
         Ok(())
     }
     /// Add a new writer
-    pub fn push(&mut self, x: Box<dyn ColumnFun + 'a>) {
+    pub fn push(&mut self, x: Box<dyn ColumnFun>) {
         self.v.push(x);
     }
     /// Write the column names
@@ -952,8 +1042,8 @@ impl<'a> Writer<'a> {
         Ok(())
     }
     /// Write the column values
-    pub fn write(&self, w: &mut dyn Write, line: &TextLine) -> Result<()> {
-        let mut iter = self.v.iter();
+    pub fn write(&mut self, w: &mut dyn Write, line: &TextLine) -> Result<()> {
+        let mut iter = self.v.iter_mut();
         match iter.next() {
             None => {}
             Some(first) => {
@@ -969,7 +1059,7 @@ impl<'a> Writer<'a> {
     }
 }
 
-impl<'a> Default for Writer<'a> {
+impl Default for Writer {
     fn default() -> Self {
         Self::new(b'\t')
     }
@@ -1165,7 +1255,7 @@ impl ColumnFun for CompositeColumn {
         Ok(())
     }
     /// write the column values (called many times)
-    fn write(&self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
         for x in &self.parts {
             w.write_all(x.prefix.as_bytes())?;
             w.write_all(line.get(x.col.num))?;

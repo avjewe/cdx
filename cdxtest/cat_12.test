@@ -1,0 +1,14 @@
+#command cdx cat -r slash
+#stdin
+aaa
+
+   	
+   	//
+	#
+    
+
+bbb
+#stdout
+aaa
+	#
+bbb

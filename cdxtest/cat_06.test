@@ -1,0 +1,9 @@
+#command cdx cat -b
+#stdin
+ CDX	one	two
+aaa	bbb
+ccc	ddd
+#stdout
+ CDX	number	one	two
+1	aaa	bbb
+2	ccc	ddd

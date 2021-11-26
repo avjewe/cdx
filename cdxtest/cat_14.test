@@ -1,0 +1,17 @@
+#command cdx cat -b -r empty -s blank
+#stdin
+aaa
+
+   	
+   	//
+	#
+    
+
+bbb
+#stdout
+1	aaa
+	   	
+2	   	//
+3		#
+	    
+4	bbb

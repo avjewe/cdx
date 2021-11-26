@@ -1,0 +1,15 @@
+#command cdx cat -r blank
+#stdin
+aaa
+
+   	
+   	//
+	#
+    
+
+bbb
+#stdout
+aaa
+   	//
+	#
+bbb
