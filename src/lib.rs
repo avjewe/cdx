@@ -3,7 +3,6 @@
 //! It is hoped that the associated library will be useful for theid party tools.
 
 #![warn(
-    missing_copy_implementations,
     absolute_paths_not_starting_with_crate,
     explicit_outlives_requirements,
     keyword_idents,
@@ -672,6 +671,10 @@ impl Reader {
     /// get current line
     pub fn curr(&self) -> &TextLine {
         &self.line
+    }
+    /// get current line contents, without the trailing newline
+    pub fn curr_nl(&self) -> &[u8] {
+        &self.line.line[0..self.line.line.len() - 1]
     }
     /// get header
     pub fn header(&self) -> &StringLine {

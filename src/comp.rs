@@ -175,32 +175,43 @@ fn num_cmp_signed(mut a: &[u8], mut b: &[u8]) -> Ordering {
     num_cmp_unsigned(a, b)
 }
 
-/*
-int ipnumcmp(char const * a, char const * b)
-{
-  while ((*a == ' ') || (*a == '\t')) ++a;
-  while ((*b == ' ') || (*b == '\t')) ++b;
-  while (true) {
-    const char * a2 = a;
-    while (ISDIGIT(*a2)) ++a2;
-    const char * b2 = b;
-    while (ISDIGIT(*b2)) ++b2;
-    if ((a2 - a) > (b2 - b)) return 1;
-    if ((a2 - a) < (b2 - b)) return -1;
-    while (a < a2) {
-      if (*a > *b) return 1;
-      if (*a < *b) return -1;
-      ++a;
-      ++b;
+fn ip_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
+    a = skip_leading_white(a);
+    b = skip_leading_white(b);
+
+    loop {
+        let mut a2: usize = 0;
+        while a.len() > a2 && a[a2].is_ascii_digit() {
+            a2 += 1;
+        }
+        let mut b2: usize = 0;
+        while b.len() > b2 && b[b2].is_ascii_digit() {
+            b2 += 1;
+        }
+        if a2 != b2 {
+            return a2.cmp(&b2);
+        }
+        for x in 0..a2 {
+            if a[x] != b[x] {
+                return a[x].cmp(&b[x]);
+            }
+        }
+        let a_dot = a.len() > a2 && a[a2] == b'.';
+        let b_dot = b.len() > b2 && b[b2] == b'.';
+        if !a_dot && !b_dot {
+            return Ordering::Equal;
+        }
+        if !a_dot {
+            return Ordering::Less;
+        }
+        if !b_dot {
+            return Ordering::Greater;
+        }
+        a = &a[a2 + 1..];
+        b = &b[b2 + 1..];
     }
-    if ((*a != '.') && (*b != '.')) return 0;
-    if (*a != '.') return -1;
-    if (*b != '.') return 1;
-    ++a;
-    ++b;
-  }
 }
-*/
+
 /// skip leading whitespace
 pub fn skip_leading_white(num: &[u8]) -> &[u8] {
     let mut pos: usize = 0;
@@ -452,14 +463,21 @@ pub enum Comparison {
     Double,
     /// compare nnn.nnn with no limit on length
     Numeric,
+    /// IP Address, or section numbers
+    IpAddr,
+    /// Ascii Case Insensitive
+    Lower,
     /*
         Reverse, // compare right to left
-        Lower, // ascii_tolower before comparison
+        LowerUtf, // unicode lowercase
+        NormUtf, // unicode normalized
+        LowerNormUtf, // unicode lowercase normalized
         Human,  // 2.3K or 4.5G
         Fuzzy(u32 n), // integer compare, but equal if within n
         Date(String fmt), // formatted date compare
         Url, //. Compare backwards from first slash, then forwards from first slash
         Prefix, // columns are equal if either is a prefix of the other
+        Enum (JAN,FEB,MAR,...)
     */
 }
 
@@ -550,6 +568,8 @@ impl CompareSettings {
             Comparison::Length => Box::new(CompareLen::new()),
             Comparison::Double => Box::new(Comparef64::new()),
             Comparison::Numeric => Box::new(CompareNumeric::new()),
+            Comparison::IpAddr => Box::new(CompareIP::new()),
+            Comparison::Lower => Box::new(CompareLower::new()),
         }
     }
     /// make Comparator
@@ -707,23 +727,39 @@ impl fmt::Debug for CompareList {
     }
 }
 
+/// IP Address Comparison
+#[derive(Default, Debug)]
+pub struct CompareIP {
+    value: Vec<u8>,
+}
+
 /// Whole Line comparison
-struct CompareWhole {
+#[derive(Default, Debug)]
+pub struct CompareWhole {
     value: Vec<u8>,
 }
 
 /// Default comparison
-struct ComparePlain {
+#[derive(Default, Debug)]
+pub struct ComparePlain {
+    value: Vec<u8>,
+}
+
+/// Default comparison
+#[derive(Default, Debug)]
+pub struct CompareLower {
     value: Vec<u8>,
 }
 
 /// Compare by length of string
-struct CompareLen {
+#[derive(Default, Debug)]
+pub struct CompareLen {
     value: u32,
 }
 
 /// f64 comparison
-struct Comparef64 {
+#[derive(Default, Debug)]
+pub struct Comparef64 {
     value: f64,
 }
 
@@ -734,7 +770,8 @@ impl Comparef64 {
 }
 
 /// nnn.nnn comparison
-struct CompareNumeric {
+#[derive(Default, Debug)]
+pub struct CompareNumeric {
     value: Vec<u8>,
 }
 
@@ -751,6 +788,18 @@ impl CompareWhole {
 }
 
 impl ComparePlain {
+    fn new() -> Self {
+        Self { value: Vec::new() }
+    }
+}
+
+impl CompareLower {
+    fn new() -> Self {
+        Self { value: Vec::new() }
+    }
+}
+
+impl CompareIP {
     fn new() -> Self {
         Self { value: Vec::new() }
     }
@@ -873,6 +922,54 @@ impl Compare for ComparePlain {
     }
     fn equal_self(&self, right: &[u8]) -> bool {
         self.value == right
+    }
+}
+
+impl Compare for CompareLower {
+    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+        left.cmp_insens(right)
+    }
+    fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+        left.equal_insens(right)
+    }
+    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+        let mut aa = make_array(value);
+        for x in &mut aa {
+            x.make_ascii_lowercase()
+        }
+        item.cache = u64::from_be_bytes(aa);
+        item.assign_complete(value.len() <= 8);
+    }
+    fn set(&mut self, value: &[u8]) {
+        value.assign_lower(&mut self.value);
+    }
+    fn comp_self(&self, right: &[u8]) -> Ordering {
+        self.value.cmp_insens_quick(right)
+    }
+    fn equal_self(&self, right: &[u8]) -> bool {
+        self.value.equal_insens_quick(right)
+    }
+}
+
+impl Compare for CompareIP {
+    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+        ip_cmp(left, right)
+    }
+    fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+        ip_cmp(left, right) == Ordering::Equal
+    }
+    fn fill_cache(&self, item: &mut Item, _value: &[u8]) {
+        item.cache = 0; // FIXME
+        item.clear_complete();
+    }
+    fn set(&mut self, value: &[u8]) {
+        self.value = value.to_vec();
+    }
+    fn comp_self(&self, right: &[u8]) -> Ordering {
+        ip_cmp(&self.value, right)
+    }
+    fn equal_self(&self, right: &[u8]) -> bool {
+        ip_cmp(&self.value, right) == Ordering::Equal
     }
 }
 
@@ -1093,6 +1190,27 @@ impl Default for Item {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_less(x: &[u8], y: &[u8]) {
+        assert_eq!(ip_cmp(x, y), Ordering::Less);
+        assert_eq!(ip_cmp(y, x), Ordering::Greater);
+    }
+
+    #[test]
+    fn test_ip_cmp() {
+        assert_eq!(ip_cmp(b"", b""), Ordering::Equal);
+        assert_eq!(ip_cmp(b"1", b"1"), Ordering::Equal);
+        assert_eq!(ip_cmp(b"1.2", b"1.2"), Ordering::Equal);
+        assert_eq!(ip_cmp(b"1.2.3.4", b"1.2.3.4"), Ordering::Equal);
+
+        test_less(b"", b"1");
+        test_less(b"1.100", b"100.1");
+
+        assert_eq!(ip_cmp(b"X", b"Y"), Ordering::Equal);
+        assert_eq!(ip_cmp(b"1.2.3X", b"1.2.3Y"), Ordering::Equal);
+        assert_eq!(ip_cmp(b"1.2.3.X", b"1.2.3.Y"), Ordering::Equal);
+        test_less(b"1.2.3X", b"1.2.3.Y");
+    }
     #[test]
     fn num_cmp() {
         assert_eq!(num_cmp_signed(b"1", b"1"), Ordering::Equal);

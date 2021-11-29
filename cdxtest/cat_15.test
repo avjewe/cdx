@@ -1,14 +1,13 @@
-#command cdx cat -r slash
+#command cdx cat -r slash -r hash
 #stdin
 aaa
 
    	
-   	//   foo
+   	//
 	#
     
 
 bbb
 #stdout
 aaa
-	#
 bbb

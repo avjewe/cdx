@@ -43,6 +43,8 @@ pub enum CheckType {
     /// if pattern is one number, a string a least that long
     /// if two numbers, length between the two numbers, inclusive
     Length,
+    /// length zero
+    Empty,
     /// all whitespace
     Blank,
     /// all whitespace, up to a #
@@ -61,6 +63,7 @@ impl Default for CheckType {
     }
 }
 
+/// pattern is prefix of string
 #[derive(Debug, Clone)]
 struct PrefixCheck {
     data: String,
@@ -83,7 +86,7 @@ impl BufCheck for PrefixCheck {
 
 #[derive(Debug, Clone, Copy)]
 /// check all whitespace
-pub struct BlankCheck;
+struct BlankCheck;
 
 fn is_blank(data: &[u8]) -> bool {
     for x in data {
@@ -103,56 +106,80 @@ impl BufCheck for BlankCheck {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-/// check all whitespace, followed by #
-pub struct HashCmtCheck;
-
-fn is_hash_cmt(data: &[u8]) -> bool {
-    for x in data {
-        if *x > b' ' {
-            return *x == b'#';
+#[derive(Debug, Clone)]
+/// check all whitespace, followed by literal
+struct CmtCheck {
+    tag: String,
+}
+impl CmtCheck {
+    fn new(tag: &str) -> Self {
+        Self {
+            tag: tag.to_string(),
         }
     }
-    true
-}
-
-impl BufCheck for HashCmtCheck {
-    fn scheck(&self, buff: &str) -> bool {
-        is_hash_cmt(buff.as_bytes()) // FIXME unicode blanks?
-    }
-    fn ucheck(&self, buff: &[u8]) -> bool {
-        is_hash_cmt(buff)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-/// check all whitespace, followed by //
-pub struct SlashCmtCheck;
-
-fn is_slash_cmt(data: &[u8]) -> bool {
-    let mut saw_slash = false;
-    for x in data {
-        if *x > b' ' {
-            if *x == b'/' {
-                if saw_slash {
-                    return true;
-                } else {
-                    saw_slash = true;
+    /*
+        Replaced by Text::is_cmt, which might be slower
+        fn is_ucmt(&self, data: &[u8]) -> bool {
+            let mut pos: usize = 0;
+            let mut found = false;
+        let tag : &[u8] = self.tag.as_bytes();
+            for x in data {
+                if found {
+                    if pos >= tag.len() {
+                        return true;
+                    }
+                    if tag[pos] != *x {
+                        return false;
+                    }
+                    pos += 1;
+                } else if *x > b' ' {
+                    if tag.is_empty() {
+                        return false;
+                    }
+                    found = true;
+                    if tag[0] != *x {
+                        return false;
+                    }
+                    pos = 1;
                 }
-            } else {
-                return false;
             }
+            true
         }
-    }
-    !saw_slash
+
+        fn is_scmt(&self, data: &str) -> bool {
+            let mut found = false;
+        let mut tag : &str = &self.tag;
+            for x in data.chars() {
+                if found {
+            if tag.is_empty() {
+                        return true;
+                    }
+                    if tag.first() != x {
+                        return false;
+                    }
+            tag = tag.skip_first();
+                } else if x > ' ' && !x.is_whitespace() {
+                    if tag.is_empty() {
+                        return false;
+                    }
+                    found = true;
+                    if tag.first() != x {
+                        return false;
+                    }
+            tag = tag.skip_first();
+                }
+            }
+            true
+        }
+    */
 }
 
-impl BufCheck for SlashCmtCheck {
+impl BufCheck for CmtCheck {
     fn scheck(&self, buff: &str) -> bool {
-        is_slash_cmt(buff.as_bytes()) // FIXME unicode blanks?
+        buff.is_cmt(&self.tag)
     }
     fn ucheck(&self, buff: &[u8]) -> bool {
-        is_slash_cmt(buff)
+        buff.is_cmt(self.tag.as_bytes())
     }
 }
 
@@ -165,6 +192,7 @@ fn str_to_lower(data: &str, unicode: bool) -> String {
 }
 
 #[derive(Debug, Clone)]
+/// pattern is prefix of string, case insensitive
 struct PrefixCheckC {
     data: String,
 }
@@ -252,6 +280,7 @@ impl BufCheck for PrefixCheckC {
 }
 
 #[derive(Debug, Clone)]
+/// pattern is suffix of string
 struct SuffixCheck {
     data: String,
 }
@@ -272,6 +301,7 @@ impl BufCheck for SuffixCheck {
 }
 
 #[derive(Debug, Clone)]
+/// pattern is suffix of string, case insensitive
 struct SuffixCheckC {
     data: String,
 }
@@ -292,6 +322,7 @@ impl BufCheck for SuffixCheckC {
 }
 
 #[derive(Debug, Clone)]
+/// pattern is substring of string, case insensitive
 struct InfixCheckC {
     data: String,
 }
@@ -312,6 +343,7 @@ impl BufCheck for InfixCheckC {
 }
 
 #[derive(Debug, Clone)]
+/// pattern is substring of string
 struct InfixCheck {
     needle: Vec<u8>,
 }
@@ -332,6 +364,7 @@ impl BufCheck for InfixCheck {
 }
 
 #[derive(Debug, Clone)]
+/// bytes regex
 struct RegexCheckB {
     data: regex::bytes::Regex,
 }
@@ -352,6 +385,7 @@ impl BufCheck for RegexCheckB {
 }
 
 #[derive(Debug, Clone)]
+/// utf8 regex
 struct RegexCheckS {
     data: regex::Regex,
 }
@@ -372,6 +406,7 @@ impl BufCheck for RegexCheckS {
 }
 
 #[derive(Debug, Clone)]
+/// string exactly matches pattern
 struct ExactCheck {
     data: Vec<u8>,
 }
@@ -411,6 +446,7 @@ fn load_hashset(data: &mut HashSet<Vec<u8>>, fname: &str) -> Result<()> {
 }
 
 #[derive(Debug, Clone)]
+/// pattern is file name. String exactly matches one line of file.
 struct FileExactCheck {
     data: HashSet<Vec<u8>>,
 }
@@ -458,6 +494,7 @@ fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Re
 }
 
 #[derive(Debug, Clone)]
+/// pattern is file name. String exactly matches one line of file, case insensitive
 struct FileExactCheckC {
     data: HashSet<Vec<u8>>,
 }
@@ -478,6 +515,7 @@ impl BufCheck for FileExactCheckC {
 }
 
 #[derive(Debug, Clone)]
+/// shell style wildcard match
 struct GlobCheck {
     data: String,
     ic: Case,
@@ -500,6 +538,7 @@ impl BufCheck for GlobCheck {
 }
 
 #[derive(Debug, Clone)]
+/// string exactly matches pattern, case insensitive
 struct ExactCheckC {
     data: String,
 }
@@ -526,13 +565,13 @@ impl BufCheck for ExactCheckC {
 
 #[derive(Debug, Clone, Default, Copy)]
 /// check length
-pub struct LengthCheck {
+struct LengthCheck {
     min: usize,
     max: Option<usize>,
 }
 impl LengthCheck {
     /// new
-    pub fn new(data: &str) -> Result<Self> {
+    fn new(data: &str) -> Result<Self> {
         if data.is_empty() {
             return err!("Length spec can't be empty");
         }
@@ -548,6 +587,12 @@ impl LengthCheck {
         }
         Ok(val)
     }
+    /*
+        /// new from actual numbers
+        pub fn with_sizes(min : usize, max : Option<usize>) -> Self {
+        Self {min, max}
+        }
+    */
 }
 
 impl BufCheck for LengthCheck {
@@ -574,7 +619,7 @@ impl BufCheck for LengthCheck {
 }
 
 /// Spec for BufCheck
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CheckSpec {
     /// general type
     ctype: CheckType,
@@ -595,7 +640,7 @@ impl CheckSpec {
     /// C for case-insensitive vs default of case-sensitive
     // F for fail-on-utf8-error vs default of lossy
     /// type which is one of : regex, exact, prefix, suffix, substring, fileexact, glob, length. Default is regex.
-    fn new(spec: &str) -> Result<Self> {
+    pub fn new(spec: &str) -> Result<Self> {
         let mut c = CheckSpec::default();
         for x in spec.split('.') {
             if x.eq_ignore_ascii_case("") {
@@ -624,6 +669,14 @@ impl CheckSpec {
                 c.ctype = CheckType::Glob;
             } else if x.eq_ignore_ascii_case("length") {
                 c.ctype = CheckType::Length;
+            } else if x.eq_ignore_ascii_case("blank") {
+                c.ctype = CheckType::Blank;
+            } else if x.eq_ignore_ascii_case("empty") {
+                c.ctype = CheckType::Empty;
+            } else if x.eq_ignore_ascii_case("hash") {
+                c.ctype = CheckType::HashCmt;
+            } else if x.eq_ignore_ascii_case("slash") {
+                c.ctype = CheckType::SlashCmt;
             } else {
                 return err!(
                     "Invalid Checker Item {}. Should be period delimited list :\n\
@@ -631,7 +684,7 @@ impl CheckSpec {
 			     'S' for string vs default of bytes\n\
 			     'N' for negate vs default of normal\n\
 			     'C' for case-insensitive vs default of case-sensitive\n\
-			     plus optionally one of these, to overrie the default 'regex'\n\
+			     plus optionally one of these, to override the default 'regex'\n\
 			     'regex' field must match pattern as per the regex crate\n\
 			     'exact' field must match pattern exactly\n\
 			     'prefix' pattern must be a prefix of the field\n\
@@ -694,9 +747,10 @@ impl CheckSpec {
                 }
             }
             CheckType::Glob => Box::new(GlobCheck::new(pattern, self.case)),
-            CheckType::Blank => Box::new(BlankCheck),
-            CheckType::HashCmt => Box::new(HashCmtCheck),
-            CheckType::SlashCmt => Box::new(SlashCmtCheck),
+            CheckType::Empty => Box::new(LengthCheck::new("0,0")?),
+            CheckType::Blank => Box::new(CmtCheck::new(pattern)),
+            CheckType::HashCmt => Box::new(CmtCheck::new("#")),
+            CheckType::SlashCmt => Box::new(CmtCheck::new("//")),
         })
     }
 }
@@ -709,10 +763,10 @@ pub struct Checker {
 
 impl Checker {
     /// new
-    pub fn new(spec: &CheckSpec, pattern: &str) -> Result<Self> {
+    pub fn new(spec: CheckSpec, pattern: &str) -> Result<Self> {
         Ok(Self {
-            spec: *spec,
             check: spec.make_box(pattern)?,
+            spec,
         })
     }
 }
@@ -753,7 +807,7 @@ impl ColChecker {
         }
         let parts = parts.unwrap();
         Ok(Self {
-            check: Checker::new(&CheckSpec::new(parts.0)?, parts.1)?,
+            check: Checker::new(CheckSpec::new(parts.0)?, parts.1)?,
             col: nc,
         })
     }
@@ -869,6 +923,7 @@ impl CheckListOr {
         false
     }
 }
+
 /// Full list of checkers, OR'ed
 #[derive(Default)]
 pub struct CheckOr {
@@ -907,5 +962,46 @@ impl BufCheck for CheckOr {
             }
         }
         false
+    }
+}
+
+/// Full list of checkers, OR'ed
+#[derive(Default)]
+pub struct CheckAnd {
+    checks: Vec<Box<dyn BufCheck>>,
+}
+impl fmt::Debug for CheckAnd {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CheckAnd")
+    }
+}
+
+impl CheckAnd {
+    /// new
+    pub fn new() -> Self {
+        Self { checks: Vec::new() }
+    }
+    /// add Check to list
+    pub fn push(&mut self, item: Box<dyn BufCheck>) {
+        self.checks.push(item)
+    }
+}
+
+impl BufCheck for CheckAnd {
+    fn scheck(&self, buff: &str) -> bool {
+        for x in &self.checks {
+            if !x.scheck(buff) {
+                return false;
+            }
+        }
+        true
+    }
+    fn ucheck(&self, buff: &[u8]) -> bool {
+        for x in &self.checks {
+            if !x.ucheck(buff) {
+                return false;
+            }
+        }
+        true
     }
 }

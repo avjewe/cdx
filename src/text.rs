@@ -23,9 +23,10 @@ pub trait Text {
     // this warning seems to be a bug in rustc
     #[allow(unused_qualifications)]
     /// the underlying type of the slice, e.g. char or u8
-    type Char: std::cmp::PartialEq;
+    type Char: std::cmp::PartialEq + Copy;
     /// A container for the underlying type, e.g. String or Vec<u8>
     type Container;
+
     /// is the slice empty?
     fn is_empty(&self) -> bool;
     /// return an empty slice
@@ -54,6 +55,41 @@ pub trait Text {
     fn assign_lower(&self, dst: &mut Self::Container);
     /// new lowercase version of self
     fn new_lower(&self) -> Self::Container;
+    /// is white space
+    fn is_blank(&self, ch: Self::Char) -> bool;
+    /// len
+    fn len(&self) -> usize;
+    /// bytes
+    fn as_bytes(&self) -> &[u8];
+
+    /// starts with whitespace and then tag
+    fn is_cmt(&self, mut tag: &Self) -> bool {
+        let mut found = false;
+        let mut rest = self;
+        while !rest.is_empty() {
+            let x = rest.first();
+            if found {
+                if tag.is_empty() {
+                    return true;
+                }
+                if tag.first() != x {
+                    return false;
+                }
+                tag = tag.skip_first();
+            } else if !self.is_blank(x) {
+                if tag.is_empty() {
+                    return false;
+                }
+                found = true;
+                if tag.first() != x {
+                    return false;
+                }
+                tag = tag.skip_first();
+            }
+            rest = rest.skip_first();
+        }
+        true
+    }
 
     /// match in glob format
     fn glob(&self, in_wild: &Self, ic: Case) -> bool {
@@ -117,6 +153,14 @@ fn equal_nocase(a: &str, b: &str) -> bool {
 impl Text for str {
     type Char = char;
     type Container = String;
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+    fn as_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+
     fn ascii(&self, ch: u8) -> Self::Char {
         char::from_u32(ch as u32).unwrap()
     }
@@ -134,6 +178,9 @@ impl Text for str {
     fn skip_first(&self) -> &str {
         debug_assert!(!self.is_empty());
         &self[self.chars().next().unwrap().len_utf8()..]
+    }
+    fn is_blank(&self, ch: Self::Char) -> bool {
+        ch <= ' ' || ch.is_whitespace()
     }
 
     fn chars_equal(&self, c1: char, c2: char, ic: Case) -> bool {
@@ -220,6 +267,12 @@ impl Text for [u8] {
     type Char = u8;
     type Container = Vec<u8>;
 
+    fn len(&self) -> usize {
+        self.len()
+    }
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
     fn ascii(&self, ch: u8) -> Self::Char {
         ch
     }
@@ -238,6 +291,10 @@ impl Text for [u8] {
         debug_assert!(!self.is_empty());
         &self[1..]
     }
+    fn is_blank(&self, ch: Self::Char) -> bool {
+        ch <= b' '
+    }
+
     fn chars_equal(&self, c1: u8, c2: u8, ic: Case) -> bool {
         if c1 == c2 {
             return true;

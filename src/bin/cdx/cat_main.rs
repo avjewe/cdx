@@ -1,6 +1,6 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
-use cdx::check::{BlankCheck, BufCheck, CheckOr, HashCmtCheck, LengthCheck, SlashCmtCheck};
+use cdx::check::{BufCheck, CheckOr, CheckSpec};
 use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole, Writer};
 use cdx::text::Text;
 use cdx::{
@@ -16,47 +16,15 @@ enum PadMode {
     End,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum MatchMode {
-    Empty,
-    Blank,
-    HashCmt,
-    SlashCmt,
-}
-
-impl MatchMode {
-    pub fn from(x: &str) -> Result<Self> {
-        if "empty".equal_insens_quick(x) {
-            Ok(MatchMode::Empty)
-        } else if "blank".equal_insens_quick(x) {
-            Ok(MatchMode::Blank)
-        } else if "hash".equal_insens_quick(x) {
-            Ok(MatchMode::HashCmt)
-        } else if "slash".equal_insens_quick(x) {
-            Ok(MatchMode::SlashCmt)
-        } else {
-            err!("Match Mode must be one of : empty, blank, hash, slash")
-        }
-    }
-    pub fn make(&self) -> Box<dyn BufCheck> {
-        match self {
-            MatchMode::Empty => Box::new(LengthCheck::new("0,1").unwrap()),
-            MatchMode::Blank => Box::new(BlankCheck),
-            MatchMode::HashCmt => Box::new(HashCmtCheck),
-            MatchMode::SlashCmt => Box::new(SlashCmtCheck),
-        }
-    }
-}
-
-fn make_match(src: &[MatchMode]) -> Option<CheckOr> {
+fn make_match(src: &[CheckSpec]) -> Result<Option<CheckOr>> {
     if src.is_empty() {
-        return None;
+        return Ok(None);
     }
     let mut res = CheckOr::new();
     for x in src {
-        res.push(x.make());
+        res.push(x.make_box("")?);
     }
-    Some(res)
+    Ok(Some(res))
 }
 
 #[derive(Default, Debug, Clone)]
@@ -133,8 +101,8 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut checker = HeaderChecker::new();
     let mut pad = PadMode::All;
     let mut num = LineNumber::new();
-    let mut skips: Vec<MatchMode> = Vec::new();
-    let mut removes: Vec<MatchMode> = Vec::new();
+    let mut skips: Vec<CheckSpec> = Vec::new();
+    let mut removes: Vec<CheckSpec> = Vec::new();
 
     for x in args {
         if x.name == "header" {
@@ -156,9 +124,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "end" {
             num.set("number,1,end")?;
         } else if x.name == "skip" {
-            skips.push(MatchMode::from(&x.value)?);
+            skips.push(CheckSpec::new(&x.value)?);
         } else if x.name == "remove" {
-            removes.push(MatchMode::from(&x.value)?);
+            removes.push(CheckSpec::new(&x.value)?);
         } else {
             unreachable!();
         }
@@ -185,8 +153,8 @@ pub fn main(argv: &[String]) -> Result<()> {
         if num.do_it && num.end {
             not_v.push(Box::new(ColumnLiteral::new(b"", "unused")));
         }
-        let skipper = make_match(&skips);
-        let remover = make_match(&removes);
+        let skipper = make_match(&skips)?;
+        let remover = make_match(&removes)?;
         let mut not_header: Vec<u8> = Vec::new();
 
         for x in &files {
@@ -210,12 +178,12 @@ pub fn main(argv: &[String]) -> Result<()> {
             loop {
                 let mut do_write = true;
                 if let Some(ref x) = remover {
-                    do_write = !x.ucheck(&f.curr().line);
+                    do_write = !x.ucheck(f.curr_nl());
                 }
                 if do_write {
                     let mut do_count = true;
                     if let Some(ref x) = skipper {
-                        do_count = !x.ucheck(&f.curr().line);
+                        do_count = !x.ucheck(f.curr_nl());
                     }
                     if do_count {
                         v.write(&mut w, f.curr())?;
