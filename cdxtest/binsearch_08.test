@@ -1,0 +1,13 @@
+#command cdx binsearch -k foo -C 1.2,2.1 ccc $TMP/foo.txt
+#infile foo.txt
+ CDX	foo
+aaa
+bbb
+ddd
+eee
+fff
+#stdout
+ CDX	foo
+aaa
+bbb
+ddd

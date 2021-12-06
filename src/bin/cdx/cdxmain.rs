@@ -25,11 +25,12 @@ macro_rules! proc {
 }
 
 pub const MAINLIST: &[OneMain] = &[
+    proc! {"binsearch",  "Search sorted files.",  binsearch_main::main},
     proc! {"cat",  "Concatenate Files.",  cat_main::main},
-    proc! {"cgrep",  "Select lines.",  cgrep_main::main},
+    proc! {"cgrep",  "Search files.",  cgrep_main::main},
     proc! {"cut",  "Select colums.",  cut_main::main},
     proc! {"join",  "Join files on a matching column",  join_main::main},
-    proc! {"sort", "Sort lines of files.", sort_main::main},
+    proc! {"sort", "Sort files.", sort_main::main},
     proc! {"tooltest", "Test command line tools.", tooltest_main::main},
     proc! {"uniq", "Remove duplicate lines.", uniq_main::main},
 ];

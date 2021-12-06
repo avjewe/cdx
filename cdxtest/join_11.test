@@ -1,0 +1,7 @@
+#command cdx join -ktwo:g $TMP/aaa $TMP/bbb
+#infile aaa
+ CDX	one	two	three
+#infile bbb
+ CDX	uno	dos	two
+#stdout
+ CDX	one	two	three	uno	dos

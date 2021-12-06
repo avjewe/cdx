@@ -91,7 +91,7 @@ impl OutCol {
         }
     }
     /// new with empty name
-    pub fn from_num(num: usize) -> Self {
+    pub const fn from_num(num: usize) -> Self {
         Self {
             num,
             name: String::new(),
@@ -109,7 +109,7 @@ pub struct ScopedValue {
 impl ScopedValue {
     /// one string
     pub fn new(spec: &str, del: char) -> Self {
-        let mut s = ScopedValue::default();
+        let mut s = Self::default();
         if spec.is_empty() {
             return s;
         }
@@ -138,7 +138,7 @@ impl ScopedValue {
     }
     /// two strings
     pub fn new2(value: &str, cols: &str) -> Self {
-        let mut s = ScopedValue::default();
+        let mut s = Self::default();
         s.cols.add_yes(cols);
         s.value = value.to_string();
         s
@@ -164,7 +164,7 @@ pub struct ScopedValues {
 impl ScopedValues {
     /// new
     pub fn new() -> Self {
-        ScopedValues::default()
+        Self::default()
     }
     /// value for column not otherwise assigned a value
     pub fn set_default(&mut self, d: &str) {
@@ -357,7 +357,7 @@ impl fmt::Debug for dyn ColumnFun {
 impl ColumnSet {
     /// Create an empty column set, which selects all columns.
     pub fn new() -> Self {
-        ColumnSet::default()
+        Self::default()
     }
     /// is empty?
     pub fn is_empty(&self) -> bool {
@@ -366,7 +366,7 @@ impl ColumnSet {
 
     /// Create an column set from a spec, e.g. "1-3"
     pub fn from_spec(spec: &str) -> Self {
-        let mut s = ColumnSet::default();
+        let mut s = Self::default();
         s.add_yes(spec);
         s
     }
@@ -544,7 +544,7 @@ impl ColumnSet {
 
     /// turn comma delimited list of ranges into list of possibly named column numbers
     pub fn ranges(fieldnames: &[&str], rng: &str) -> Result<Vec<OutCol>> {
-        let mut c = ColumnSet::new();
+        let mut c = Self::new();
         c.add_yes(rng);
         c.lookup(fieldnames)?;
         Ok(c.get_cols_full())
@@ -582,17 +582,16 @@ impl ColumnSet {
         }
 
         let start: usize;
-        let end: usize;
-        if parts.len() == 1 {
+        let end = if parts.len() == 1 {
             start = Self::single(fieldnames, parts[0])?;
-            end = start;
+            start
         } else {
             if parts[1].is_empty() {
                 parts[1] = "+1";
             }
             start = Self::single(fieldnames, parts[0])?;
-            end = Self::single(fieldnames, parts[1])?;
-        }
+            Self::single(fieldnames, parts[1])?
+        };
 
         if start > end {
             // throw new CdxException("start > end, i.e. {" + parts.get(0) + " > " + parts.get(1));
@@ -817,11 +816,12 @@ impl ColumnSet {
     }
 
     /// return owned columns by const reference
-    pub fn get_cols(&self) -> &Vec<OutCol> {
+    pub const fn get_cols(&self) -> &Vec<OutCol> {
         &self.columns
     }
 
     /// steal owned columns by value
+    #[allow(clippy::missing_const_for_fn)] // clippy bug
     pub fn get_cols_full(self) -> Vec<OutCol> {
         self.columns
     }
@@ -844,7 +844,7 @@ impl ColumnSet {
     ///    assert_eq!(ColumnSet::lookup_cols("~2-3", &header).unwrap(), &[0,3,4]);
     /// ```
     pub fn lookup_cols(spec: &str, names: &[&str]) -> Result<Vec<usize>> {
-        let mut s = ColumnSet::new();
+        let mut s = Self::new();
         s.add_yes(spec);
         s.lookup(names)?;
         Ok(s.get_cols_num())
@@ -852,7 +852,7 @@ impl ColumnSet {
 
     /// Shorthand to look up some columns, with names
     pub fn lookup_cols_full(spec: &str, names: &[&str]) -> Result<Vec<OutCol>> {
-        let mut s = ColumnSet::new();
+        let mut s = Self::new();
         s.add_yes(spec);
         s.lookup(names)?;
         Ok(s.get_cols_full())
@@ -868,7 +868,7 @@ impl ColumnSet {
     ///    assert_eq!(ColumnSet::lookup1("three", &header).unwrap(), 3);
     /// ```
     pub fn lookup1(spec: &str, names: &[&str]) -> Result<usize> {
-        let mut s = ColumnSet::new();
+        let mut s = Self::new();
         s.add_yes(spec);
         s.lookup(names)?;
         if s.get_cols().len() != 1 {
@@ -956,7 +956,7 @@ pub struct ReaderColumns {
 
 impl ReaderColumns {
     /// new ReaderColumns
-    pub fn new(columns: ColumnSet) -> Self {
+    pub const fn new(columns: ColumnSet) -> Self {
         Self { columns }
     }
 }
@@ -1078,7 +1078,7 @@ pub struct NamedCol {
 
 impl NamedCol {
     /// new named column
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             name: String::new(),
             num: 0,
@@ -1184,7 +1184,7 @@ pub struct CompositeColumn {
 impl CompositeColumn {
     /// new
     pub fn new(s: &str) -> Result<Self> {
-        let mut c = CompositeColumn::default();
+        let mut c = Self::default();
         c.set(s)?;
         Ok(c)
     }
@@ -1265,7 +1265,7 @@ impl ColumnFun for CompositeColumn {
     }
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        CompositeColumn::lookup(self, fieldnames)
+        Self::lookup(self, fieldnames)
     }
 }
 

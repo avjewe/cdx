@@ -1,0 +1,23 @@
+#command cdx binsearch -H name:1 -ktwo ccc $TMP/foo.txt $TMP/bar.txt
+#infile foo.txt
+ CDX	one	two	three
+stuff	aaa	aaa
+junk	bbb	zzz
+things	ccc	aaa
+aaa	ccc	zzz
+zzz	ddd	aaa
+aaa	eee	zzz
+#infile bar.txt
+ CDX	one	two	three
+stuff	aaa	aaa
+junk	bbb	zzz
+111	ccc	222
+333	ccc	444
+zzz	ddd	aaa
+aaa	eee	zzz
+#stdout
+ CDX	name	one	two	three
+foo.txt	things	ccc	aaa
+foo.txt	aaa	ccc	zzz
+bar.txt	111	ccc	222
+bar.txt	333	ccc	444

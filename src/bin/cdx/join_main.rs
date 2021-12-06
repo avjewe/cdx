@@ -27,7 +27,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                 let z = y.split_once('.');
                 if let Some((num, spec)) = z {
                     if !set.is_empty() {
-                        config.out_cols.push(OutColSpec::new(file.unwrap(), set));
+                        config.col_specs.push(OutColSpec::new(file.unwrap(), set));
                         set = ColumnSet::new();
                     }
                     let fnum = num.parse::<usize>()?;
@@ -47,7 +47,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                 }
             }
             if !set.is_empty() {
-                config.out_cols.push(OutColSpec::new(file.unwrap(), set));
+                config.col_specs.push(OutColSpec::new(file.unwrap(), set));
             }
         } else if x.name == "file" {
             config.match_out = x.value;

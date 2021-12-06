@@ -19,7 +19,13 @@
     unreachable_pub,
     unused_lifetimes,
     unused_extern_crates,
-    unused_qualifications
+    unused_qualifications,
+
+//    clippy::all,
+//    clippy::restriction,
+//    clippy::pedantic,
+    clippy::nursery,
+//    clippy::cargo,    
 )]
 
 use flate2::read::MultiGzDecoder;
@@ -33,6 +39,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::{fmt, str};
 
+pub mod binsearch;
 pub mod check;
 pub mod column;
 pub mod comp;
@@ -100,7 +107,7 @@ impl Error {
         }
     }
     /// return true if this error should be treated as an error, bu silently
-    pub fn silent(&self) -> bool {
+    pub const fn silent(&self) -> bool {
         matches!(self, Error::Silent)
     }
 }
@@ -204,16 +211,27 @@ impl std::ops::Index<usize> for StringLine {
     }
 }
 
+/// write a buffer. If non-empty, ensure trailing newline
+pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
+    if !buf.is_empty() {
+        w.write_all(buf)?;
+        if buf[buf.len() - 1] != b'\n' {
+            w.write_all(&[b'\n'])?;
+        }
+    }
+    Ok(())
+}
+
 impl TextLine {
     /// make a new TextLine
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             line: Vec::new(),
             parts: Vec::new(),
         }
     }
     /// Iterator over columns in the line
-    pub fn iter(&self) -> TextLineIter<'_> {
+    pub const fn iter(&self) -> TextLineIter<'_> {
         TextLineIter {
             line: self,
             index: 0,
@@ -285,18 +303,28 @@ impl TextLine {
 
 impl StringLine {
     /// make a new StringLine
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             line: String::new(),
             parts: Vec::new(),
         }
     }
     /// Iterator over columns in the line
-    pub fn iter(&self) -> StringLineIter<'_> {
+    pub const fn iter(&self) -> StringLineIter<'_> {
         StringLineIter {
             line: self,
             index: 0,
         }
+    }
+    /// create a fake CDX header with columns c1,c2...
+    pub fn fake(&mut self, num_cols: usize, delim: u8) {
+        self.line = " CDX".to_string();
+        for i in 1..=num_cols {
+            self.line += std::str::from_utf8(&[delim]).unwrap();
+            self.line += "c";
+            self.line += &i.to_string();
+        }
+        self.line += "\n";
     }
     fn clear(&mut self) {
         self.parts.clear();
@@ -599,7 +627,7 @@ pub struct InfileContext {
 // if CDX and specified and different, then strip header
 /// Reader header line, if any, and first line of text
 impl InfileContext {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             header: StringLine::new(),
             delim: b'\t',
@@ -668,8 +696,19 @@ impl Reader {
             do_split: true,
         }
     }
+    /// make a new Reader
+    pub fn new_open(name: &str) -> Result<Self> {
+        let mut tmp = Self {
+            file: get_reader(name)?,
+            line: TextLine::new(),
+            cont: InfileContext::new(),
+            do_split: true,
+        };
+        tmp.cont.read_header(&mut *tmp.file, &mut tmp.line)?;
+        Ok(tmp)
+    }
     /// get current line
-    pub fn curr(&self) -> &TextLine {
+    pub const fn curr(&self) -> &TextLine {
         &self.line
     }
     /// get current line contents, without the trailing newline
@@ -677,7 +716,7 @@ impl Reader {
         &self.line.line[0..self.line.line.len() - 1]
     }
     /// get header
-    pub fn header(&self) -> &StringLine {
+    pub const fn header(&self) -> &StringLine {
         &self.cont.header
     }
     /// get column names
@@ -690,11 +729,11 @@ impl Reader {
         self.cont.read_header(&mut *self.file, &mut self.line)
     }
     /// was the file zero bytes?
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.cont.is_empty
     }
     /// have we read all the lines?
-    pub fn is_done(&self) -> bool {
+    pub const fn is_done(&self) -> bool {
         self.cont.is_done
     }
     /// write the current text line with newline
@@ -756,15 +795,15 @@ impl LookbackReader {
         self.cont.read_header(&mut *self.file, &mut self.lines[0])
     }
     /// The full text of the header, without the trailing newline
-    pub fn header(&self) -> &String {
+    pub const fn header(&self) -> &String {
         &self.cont.header.line
     }
     /// was file zero bytes?
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.cont.is_empty
     }
     /// have we hit EOF?
-    pub fn is_done(&self) -> bool {
+    pub const fn is_done(&self) -> bool {
         self.cont.is_done
     }
     fn incr(&mut self) {
@@ -808,12 +847,11 @@ impl LookbackReader {
     }
 }
 
-fn prerr(data: &[&[u8]]) -> Result<()> {
+fn prerr(data: &[&[u8]]) {
     for x in data {
-        std::io::stderr().write_all(x)?;
+        std::io::stderr().write_all(x).unwrap();
     }
-    std::io::stderr().write_all(b"\n")?;
-    Ok(())
+    std::io::stderr().write_all(b"\n").unwrap();
 }
 /*
 fn bytes_equal(c1: u8, c2: u8, ic: bool) -> bool {
@@ -967,17 +1005,17 @@ impl str::FromStr for HeaderMode {
     type Err = Error;
     fn from_str(spec: &str) -> Result<Self> {
         if spec.to_ascii_lowercase() == "match" {
-            Ok(HeaderMode::Match)
+            Ok(Self::Match)
         } else if spec.to_ascii_lowercase() == "require" {
-            Ok(HeaderMode::Require)
+            Ok(Self::Require)
         } else if spec.to_ascii_lowercase() == "strip" {
-            Ok(HeaderMode::Strip)
+            Ok(Self::Strip)
         } else if spec.to_ascii_lowercase() == "none" {
-            Ok(HeaderMode::None)
+            Ok(Self::None)
         } else if spec.to_ascii_lowercase() == "trust" {
-            Ok(HeaderMode::Trust)
+            Ok(Self::Trust)
         } else if spec.to_ascii_lowercase() == "ignore" {
-            Ok(HeaderMode::Ignore)
+            Ok(Self::Ignore)
         } else {
             err!(
                 "Input Header Mode must be one of Match, Require, Strip, None or Trust : {}",
@@ -989,7 +1027,7 @@ impl str::FromStr for HeaderMode {
 
 impl Default for HeaderMode {
     fn default() -> Self {
-        HeaderMode::Match
+        Self::Match
     }
 }
 

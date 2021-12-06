@@ -19,6 +19,7 @@ libm = "0"
 memchr = "2"
 clap = "2"
 tempdir = "0.3"
+memmap = "0.7"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]

@@ -1,0 +1,13 @@
+#command cdx binsearch -ktwo eee $TMP/foo.txt
+#infile foo.txt
+ CDX	one	two	three
+stuff	aaa	aaa
+junk	bbb	zzz
+things	ccc	aaa
+aaa	ccc	zzz
+zzz	ddd	aaa
+aaa	eee	zzz
+#nonewline
+#stdout
+ CDX	one	two	three
+aaa	eee	zzz

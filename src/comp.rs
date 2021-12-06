@@ -37,11 +37,11 @@ fn make_array(val: &[u8]) -> [u8; 8] {
 }
 */
 
-fn is_e(ch: u8) -> bool {
+const fn is_e(ch: u8) -> bool {
     (ch == b'e') || (ch == b'E')
 }
 
-fn is_exp_char(ch: u8) -> bool {
+const fn is_exp_char(ch: u8) -> bool {
     ch.is_ascii_digit() || (ch == b'+') || (ch == b'-')
 }
 
@@ -151,16 +151,19 @@ fn num_cmp_signed(mut a: &[u8], mut b: &[u8]) -> Ordering {
     a = skip_leading_white(a);
     b = skip_leading_white(b);
 
-    let mut left_minus = false;
-    if !a.is_empty() && a[0] == b'-' {
+    let left_minus = if !a.is_empty() && a[0] == b'-' {
         a = &a[1..];
-        left_minus = true;
-    }
-    let mut right_minus = false;
-    if !b.is_empty() && b[0] == b'-' {
+        true
+    } else {
+        false
+    };
+
+    let right_minus = if !b.is_empty() && b[0] == b'-' {
         b = &b[1..];
-        right_minus = true;
-    }
+        true
+    } else {
+        false
+    };
 
     if left_minus {
         if right_minus {
@@ -449,6 +452,7 @@ pub struct Item {
     /// Compare caches, and then if necessary compare actual data
     pub cache: u64,
 }
+const _: () = assert!(std::mem::size_of::<Item>() == 16);
 
 /// How to compare two slices
 #[derive(Debug, Clone, Copy)]
@@ -521,7 +525,7 @@ impl fmt::Debug for Comparator {
 
 impl CompareSettings {
     /// new CompareSettings
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             kind: Comparison::Plain,
             left_col: NamedCol::new(),
@@ -534,13 +538,17 @@ impl CompareSettings {
     pub fn get<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         for (n, s) in data.split(|ch| *ch == self.delim).enumerate() {
             if n == self.left_col.num {
-                return s;
+                return if !s.is_empty() && s.last().unwrap() == &b'\n' {
+                    &s[0..s.len() - 1]
+                } else {
+                    s
+                };
             }
         }
         &data[0..0]
     }
     /// reverse a comparison, if reverse flag is set
-    pub fn do_reverse(&self, x: Ordering) -> Ordering {
+    pub const fn do_reverse(&self, x: Ordering) -> Ordering {
         if self.reverse {
             x.reverse()
         } else {
@@ -590,6 +598,26 @@ impl Comparator {
     /// new Comparator
     pub fn new(mode: CompareSettings, comp: Box<dyn Compare>) -> Self {
         Self { mode, comp }
+    }
+    /// Set value of self
+    pub fn set(&mut self, value: &[u8]) {
+        self.comp.set(value);
+    }
+    /// compare self to line for equality
+    pub fn equal_self_line(&self, right: &[u8]) -> bool {
+        self.comp.equal_self_line(right, &self.mode)
+    }
+    /// compare self to line
+    pub fn comp_self_line(&self, right: &[u8]) -> Ordering {
+        self.comp.comp_self_line(right, &self.mode)
+    }
+    /// Compare self to slice
+    pub fn comp_self(&self, right: &[u8]) -> Ordering {
+        self.comp.comp_self(right)
+    }
+    /// Compare self to slice for equality
+    pub fn equal_self(&self, right: &[u8]) -> bool {
+        self.comp.equal_self(right)
     }
     /// compare two lines for equality
     pub fn equal_cols(&self, left: &TextLine, right: &TextLine) -> bool {
@@ -714,12 +742,21 @@ pub trait Compare {
     fn comp_lines(&self, left: &[u8], right: &[u8], mode: &CompareSettings) -> Ordering {
         self.comp(mode.get(left), mode.get(right))
     }
+    /// compare self to line for equality
+    fn equal_self_line(&self, right: &[u8], mode: &CompareSettings) -> bool {
+        self.equal_self(mode.get(right))
+    }
+    /// compare self to line
+    fn comp_self_line(&self, right: &[u8], mode: &CompareSettings) -> Ordering {
+        self.comp_self(mode.get(right))
+    }
 }
 
 /// Compare for a list of compares
+/// should implement same interface as Comparator, but I don't think it should be a trait.
 #[derive(Default)]
 pub struct CompareList {
-    c: Vec<Box<dyn Compare>>,
+    c: Vec<Comparator>,
 }
 impl fmt::Debug for CompareList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -764,7 +801,7 @@ pub struct Comparef64 {
 }
 
 impl Comparef64 {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { value: 0.0 }
     }
 }
@@ -776,37 +813,37 @@ pub struct CompareNumeric {
 }
 
 impl CompareNumeric {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { value: Vec::new() }
     }
 }
 
 impl CompareWhole {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { value: Vec::new() }
     }
 }
 
 impl ComparePlain {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { value: Vec::new() }
     }
 }
 
 impl CompareLower {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { value: Vec::new() }
     }
 }
 
 impl CompareIP {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { value: Vec::new() }
     }
 }
 
 impl CompareLen {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { value: 0 }
     }
 }
@@ -817,54 +854,142 @@ impl CompareList {
         Self::default()
     }
     /// add
-    pub fn push(&mut self, x: Box<dyn Compare>) {
+    pub fn push(&mut self, x: Comparator) {
         self.c.push(x);
     }
-}
-
-impl Compare for CompareList {
-    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
-        for x in &self.c {
-            let o = x.comp(left, right);
-            if o != Ordering::Equal {
-                return o;
-            }
-        }
-        Ordering::Equal
+    /// is empty?
+    pub fn is_empty(&self) -> bool {
+        self.c.is_empty()
     }
-    fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+    /// set value
+    pub fn set(&mut self, values: &str, delim: char) -> Result<()> {
+        let parts: Vec<&str> = values.split(delim).collect();
+        if parts.len() != self.c.len() {
+            return err!(
+                "Comparator had {} parts, but trying to use a key with {} parts : {}",
+                self.c.len(),
+                parts.len(),
+                values
+            );
+        }
+        for (i, part) in parts.iter().enumerate() {
+            self.c[i].set(part.as_bytes());
+        }
+        Ok(())
+    }
+    /// compare self to line for equality
+    pub fn equal_self_line(&self, right: &[u8]) -> bool {
         for x in &self.c {
-            if !x.equal(left, right) {
+            if !x.equal_self_line(right) {
                 return false;
             }
         }
         true
     }
-    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
-        self.c[0].fill_cache(item, value);
-        item.clear_complete();
-    }
-    fn set(&mut self, value: &[u8]) {
-        for x in self.c.iter_mut() {
-            x.set(value);
-        }
-    }
-    fn comp_self(&self, right: &[u8]) -> Ordering {
+    /// compare self to line
+    pub fn comp_self_line(&self, right: &[u8]) -> Ordering {
         for x in &self.c {
-            let o = x.comp_self(right);
-            if o != Ordering::Equal {
-                return o;
+            let cmp = x.comp_self_line(right);
+            if cmp != Ordering::Equal {
+                return cmp;
             }
         }
         Ordering::Equal
     }
-    fn equal_self(&self, right: &[u8]) -> bool {
+    /// Compare self to slice
+    pub fn comp_self(&self, right: &[u8]) -> Ordering {
+        for x in &self.c {
+            let cmp = x.comp_self(right);
+            if cmp != Ordering::Equal {
+                return cmp;
+            }
+        }
+        Ordering::Equal
+    }
+    /// Compare self to slice for equality
+    pub fn equal_self(&self, right: &[u8]) -> bool {
         for x in &self.c {
             if !x.equal_self(right) {
                 return false;
             }
         }
         true
+    }
+    /// compare two lines for equality
+    pub fn equal_cols(&self, left: &TextLine, right: &TextLine) -> bool {
+        for x in &self.c {
+            if !x.equal_cols(left, right) {
+                return false;
+            }
+        }
+        true
+    }
+    /// compare two lines
+    pub fn comp_cols(&self, left: &TextLine, right: &TextLine) -> Ordering {
+        for x in &self.c {
+            let cmp = x.comp_cols(left, right);
+            if cmp != Ordering::Equal {
+                return cmp;
+            }
+        }
+        Ordering::Equal
+    }
+    /// compare two lines for equality
+    pub fn equal_lines(&self, left: &[u8], right: &[u8]) -> bool {
+        for x in &self.c {
+            if !x.equal_lines(left, right) {
+                return false;
+            }
+        }
+        true
+    }
+    /// compare two lines
+    pub fn comp_lines(&self, left: &[u8], right: &[u8]) -> Ordering {
+        for x in &self.c {
+            let cmp = x.comp_lines(left, right);
+            if cmp != Ordering::Equal {
+                return cmp;
+            }
+        }
+        Ordering::Equal
+    }
+    /// return Vec of column numbers refered to in the right file
+    pub fn right_cols(&self) -> Vec<usize> {
+        let mut v = Vec::new();
+        for x in &self.c {
+            v.push(x.mode.right_col.num);
+        }
+        v
+    }
+    /// resolve any named columns
+    pub fn lookup_left(&mut self, fieldnames: &[&str]) -> Result<()> {
+        for x in &mut self.c {
+            x.lookup_left(fieldnames)?;
+        }
+        Ok(())
+    }
+    /// resolve any named columns
+    pub fn lookup_right(&mut self, fieldnames: &[&str]) -> Result<()> {
+        for x in &mut self.c {
+            x.lookup_right(fieldnames)?;
+        }
+        Ok(())
+    }
+    /// resolve any named columns
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        for x in &mut self.c {
+            x.lookup(fieldnames)?;
+        }
+        Ok(())
+    }
+    /// Does comparison require line split into columns
+    pub fn need_split(&self) -> bool {
+        for x in &self.c {
+            if x.need_split() {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -1100,7 +1225,7 @@ pub fn make_comp(spec: &str) -> Result<Comparator> {
 
 impl Item {
     /// new item
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             offset: 0,
             size_plus: 0,
@@ -1112,11 +1237,11 @@ impl Item {
         &base[self.begin()..self.end()]
     }
     /// size in bytes of line
-    pub fn size(&self) -> u32 {
+    pub const fn size(&self) -> u32 {
         self.size_plus & 0x7fffffff
     }
     /// test complete bit
-    pub fn complete(&self) -> bool {
+    pub const fn complete(&self) -> bool {
         (self.size_plus & 0x80000000) != 0
     }
     /// set complete bit
@@ -1136,15 +1261,15 @@ impl Item {
         }
     }
     /// offset of begin
-    pub fn begin(&self) -> usize {
+    pub const fn begin(&self) -> usize {
         self.offset as usize
     }
     /// offset of end
-    pub fn end(&self) -> usize {
+    pub const fn end(&self) -> usize {
         self.offset as usize + self.size() as usize
     }
     /// Test an Item for equality to myself
-    pub fn equal(&self, other: &Item, base: &[u8]) -> bool {
+    pub fn equal(&self, other: &Self, base: &[u8]) -> bool {
         if self.cache != other.cache {
             return false;
         }
@@ -1154,7 +1279,7 @@ impl Item {
         self.get(base) == other.get(base)
     }
     /// Compare Item to myself with standard ordering
-    pub fn compare(&self, other: &Item, base: &[u8]) -> Ordering {
+    pub fn compare(&self, other: &Self, base: &[u8]) -> Ordering {
         if self.cache < other.cache {
             return Ordering::Less;
         }
@@ -1167,7 +1292,7 @@ impl Item {
         self.get(base).cmp(other.get(base))
     }
     /// Compare an Item to myself, with custom ordering
-    pub fn compare2(&self, other: &Item, base: &[u8], cmp: &dyn Compare) -> Ordering {
+    pub fn compare2(&self, other: &Self, base: &[u8], cmp: &dyn Compare) -> Ordering {
         if self.cache < other.cache {
             return Ordering::Less;
         }

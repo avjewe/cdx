@@ -1,0 +1,11 @@
+#command cdx binsearch ccc $TMP/foo.txt
+#infile foo.txt
+aaa
+bbb
+ccc
+ccc
+ddd
+eee
+#stdout
+ccc
+ccc

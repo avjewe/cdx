@@ -13,7 +13,7 @@ struct Var {
 }
 
 impl Var {
-    fn new(var: usize) -> Self {
+    const fn new(var: usize) -> Self {
         Self { var }
     }
 }
@@ -29,7 +29,7 @@ struct Const {
 }
 
 impl Const {
-    fn new(val: f64) -> Self {
+    const fn new(val: f64) -> Self {
         Self { val }
     }
 }
@@ -64,7 +64,7 @@ macro_rules! Binary {
 fn make_bool(val: f64) -> bool {
     val != 0.0
 }
-fn make_f64(val: bool) -> f64 {
+const fn make_f64(val: bool) -> f64 {
     if val {
         1.0
     } else {

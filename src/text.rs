@@ -2,6 +2,7 @@
 //! for all those things that are needed for both types
 
 use std::cmp::Ordering;
+use std::ops::Range;
 
 /// Case Sensitive or not
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -14,8 +15,24 @@ pub enum Case {
 
 impl Default for Case {
     fn default() -> Self {
-        Case::Sens
+        Self::Sens
     }
+}
+/// start of range contianing last 'num' parts delimited by 'delim'
+fn tail_u8_len(buff: &[u8], num: usize, delim: u8) -> usize {
+    let mut left = num;
+    if left == 0 {
+        return buff.len();
+    }
+    for pos in (0..buff.len()).rev() {
+        if buff[pos] == delim {
+            left -= 1;
+            if left == 0 {
+                return pos + 1;
+            }
+        }
+    }
+    0
 }
 
 /// abstraction of str and [u8]
@@ -33,6 +50,8 @@ pub trait Text {
     fn empty(&self) -> &Self;
     /// return first character in the slice
     fn first(&self) -> Self::Char;
+    /// return last byte in the slice
+    fn last_byte(&self) -> u8;
     /// return all but first character in the slice
     fn skip_first(&self) -> &Self;
     /// create a character from an ascii value
@@ -41,7 +60,8 @@ pub trait Text {
     fn chars_equal(&self, c1: Self::Char, c2: Self::Char, ic: Case) -> bool;
     /// return first character and remove it from slice
     fn take_first(self: &mut &Self) -> Self::Char;
-
+    /// extract slice
+    fn get(&self, r: Range<usize>) -> &Self;
     /// case insensitive equality
     fn equal_insens(&self, other: &Self) -> bool;
     /// case insensitive equality, self is already lowercase
@@ -57,8 +77,10 @@ pub trait Text {
     fn new_lower(&self) -> Self::Container;
     /// is white space
     fn is_blank(&self, ch: Self::Char) -> bool;
-    /// len
+    /// length in bytes
     fn len(&self) -> usize;
+    /// lenght in characters
+    fn num_chars(&self) -> usize;
     /// bytes
     fn as_bytes(&self) -> &[u8];
 
@@ -96,6 +118,7 @@ pub trait Text {
         let mut buff: &Self = self;
         let mut wild: &Self = in_wild;
 
+        #[allow(clippy::suspicious_operation_groupings)] // clippy false positive
         while !buff.is_empty() && !wild.is_empty() && (wild.first() != self.ascii(b'*')) {
             if !self.chars_equal(wild.first(), buff.first(), ic) {
                 return false;
@@ -133,6 +156,49 @@ pub trait Text {
         }
         wild.is_empty()
     }
+    /// return last 'num' elements, delimited by 'delim'
+    fn tail_u8(&self, num: usize, delim: u8) -> &Self;
+    /// return first 'num' elements, delimited by 'delim'
+    fn head(&self, num: usize, delim: Self::Char) -> &Self {
+        let mut left = num;
+        if left == 0 || self.is_empty() {
+            return self.empty();
+        }
+        let mut rest = self;
+        while !rest.is_empty() {
+            if rest.first() == delim {
+                left -= 1;
+                if left == 0 {
+                    return self.get(0..self.len() - rest.len());
+                }
+            }
+            rest = rest.skip_first();
+        }
+        self
+    }
+    /// return last 'num' elements, delimited by 'delim'
+    fn tail_path_u8(&self, num: usize, delim: u8) -> &Self {
+        if self.is_empty() {
+            return self.empty();
+        }
+        if self.last_byte() == delim {
+            self.tail_u8(num + 1, delim)
+        } else {
+            self.tail_u8(num, delim)
+        }
+    }
+    /// return first 'num' elements, delimited by 'delim'
+    /// but if the first char is the delim, don't count it
+    fn head_path(&self, num: usize, delim: Self::Char) -> &Self {
+        if self.is_empty() {
+            return self.empty();
+        }
+        if self.first() == delim {
+            self.head(num + 1, delim)
+        } else {
+            self.head(num, delim)
+        }
+    }
 }
 /*
 /// compare for equality, ignoring case.
@@ -157,6 +223,9 @@ impl Text for str {
     fn len(&self) -> usize {
         self.len()
     }
+    fn num_chars(&self) -> usize {
+        self.chars().count()
+    }
     fn as_bytes(&self) -> &[u8] {
         self.as_bytes()
     }
@@ -175,7 +244,7 @@ impl Text for str {
         self.chars().next().unwrap()
     }
 
-    fn skip_first(&self) -> &str {
+    fn skip_first(&self) -> &Self {
         debug_assert!(!self.is_empty());
         &self[self.chars().next().unwrap().len_utf8()..]
     }
@@ -261,6 +330,15 @@ impl Text for str {
         self.assign_lower(&mut dst);
         dst
     }
+    fn tail_u8(&self, num: usize, delim: u8) -> &Self {
+        &self[tail_u8_len(self.as_bytes(), num, delim)..]
+    }
+    fn get(&self, r: Range<usize>) -> &Self {
+        &self[r]
+    }
+    fn last_byte(&self) -> u8 {
+        self.as_bytes()[self.len() - 1]
+    }
 }
 
 impl Text for [u8] {
@@ -268,6 +346,9 @@ impl Text for [u8] {
     type Container = Vec<u8>;
 
     fn len(&self) -> usize {
+        self.len()
+    }
+    fn num_chars(&self) -> usize {
         self.len()
     }
     fn as_bytes(&self) -> &[u8] {
@@ -355,11 +436,97 @@ impl Text for [u8] {
         self.assign_lower(&mut dst);
         dst
     }
+    fn tail_u8(&self, num: usize, delim: u8) -> &Self {
+        &self[tail_u8_len(self, num, delim)..]
+    }
+    fn get(&self, r: Range<usize>) -> &Self {
+        &self[r]
+    }
+    fn last_byte(&self) -> u8 {
+        self[self.len() - 1]
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn head_path() {
+        assert_eq!("aa.bb".head_path(0, '.'), "");
+        assert_eq!("aa.bb".head_path(1, '.'), "aa");
+        assert_eq!("aa.bb".head_path(2, '.'), "aa.bb");
+        assert_eq!("aa.bb".head_path(3, '.'), "aa.bb");
+        assert_eq!(".aa.bb".head_path(0, '.'), "");
+        assert_eq!(".aa.bb".head_path(1, '.'), ".aa");
+        assert_eq!(".aa.bb".head_path(2, '.'), ".aa.bb");
+        assert_eq!(".aa.bb".head_path(3, '.'), ".aa.bb");
+    }
+
+    #[test]
+    fn tail_path_u8() {
+        assert_eq!("aa.bb".tail_path_u8(0, b'.'), "");
+        assert_eq!("aa.bb".tail_path_u8(1, b'.'), "bb");
+        assert_eq!("aa.bb".tail_path_u8(2, b'.'), "aa.bb");
+        assert_eq!("aa.bb".tail_path_u8(3, b'.'), "aa.bb");
+        assert_eq!("aa.bb.".tail_path_u8(0, b'.'), "");
+        assert_eq!("aa.bb.".tail_path_u8(1, b'.'), "bb.");
+        assert_eq!("aa.bb.".tail_path_u8(2, b'.'), "aa.bb.");
+        assert_eq!("aa.bb.".tail_path_u8(3, b'.'), "aa.bb.");
+    }
+
+    #[test]
+    fn head() {
+        assert_eq!(b"aa.bb.cc".head(0, b'.'), b"");
+        assert_eq!(b"aa.bb.cc".head(1, b'.'), b"aa");
+        assert_eq!(b"aa.bb.cc".head(2, b'.'), b"aa.bb");
+        assert_eq!(b"aa.bb.cc".head(3, b'.'), b"aa.bb.cc");
+        assert_eq!(b"aa.bb.cc".head(4, b'.'), b"aa.bb.cc");
+
+        assert_eq!("aa.bb.cc".head(0, '.'), "");
+        assert_eq!("aa.bb.cc".head(1, '.'), "aa");
+        assert_eq!("aa.bb.cc".head(2, '.'), "aa.bb");
+        assert_eq!("aa.bb.cc".head(3, '.'), "aa.bb.cc");
+        assert_eq!("aa.bb.cc".head(4, '.'), "aa.bb.cc");
+
+        assert_eq!(b"".head(1, b'.'), b"");
+        assert_eq!(b".".head(1, b'.'), b"");
+        assert_eq!(b".".head(2, b'.'), b".");
+        assert_eq!(b".aa".head(1, b'.'), b"");
+        assert_eq!(b".aa".head(2, b'.'), b".aa");
+        assert_eq!(b".aa".head(3, b'.'), b".aa");
+        assert_eq!(b".aa.".head(1, b'.'), b"");
+        assert_eq!(b".aa.".head(2, b'.'), b".aa");
+        assert_eq!(b".aa.".head(3, b'.'), b".aa.");
+        assert_eq!(b".aa.".head(4, b'.'), b".aa.");
+        assert_eq!(b".".head(1, b'.'), b"");
+    }
+
+    #[test]
+    fn tail_u8() {
+        assert_eq!(b"aa.bb.cc".tail_u8(0, b'.'), b"");
+        assert_eq!(b"aa.bb.cc".tail_u8(1, b'.'), b"cc");
+        assert_eq!(b"aa.bb.cc".tail_u8(2, b'.'), b"bb.cc");
+        assert_eq!(b"aa.bb.cc".tail_u8(3, b'.'), b"aa.bb.cc");
+        assert_eq!(b"aa.bb.cc".tail_u8(4, b'.'), b"aa.bb.cc");
+
+        assert_eq!("aa.bb.cc".tail_u8(0, b'.'), "");
+        assert_eq!("aa.bb.cc".tail_u8(1, b'.'), "cc");
+        assert_eq!("aa.bb.cc".tail_u8(2, b'.'), "bb.cc");
+        assert_eq!("aa.bb.cc".tail_u8(3, b'.'), "aa.bb.cc");
+        assert_eq!("aa.bb.cc".tail_u8(4, b'.'), "aa.bb.cc");
+
+        assert_eq!(b"".tail_u8(1, b'.'), b"");
+        assert_eq!(b".".tail_u8(1, b'.'), b"");
+        assert_eq!(b".".tail_u8(2, b'.'), b".");
+        assert_eq!(b"aa.".tail_u8(1, b'.'), b"");
+        assert_eq!(b"aa.".tail_u8(2, b'.'), b"aa.");
+        assert_eq!(b"aa.".tail_u8(3, b'.'), b"aa.");
+        assert_eq!(b".aa.".tail_u8(1, b'.'), b"");
+        assert_eq!(b".aa.".tail_u8(2, b'.'), b"aa.");
+        assert_eq!(b".aa.".tail_u8(3, b'.'), b".aa.");
+        assert_eq!(b".aa.".tail_u8(4, b'.'), b".aa.");
+    }
 
     #[test]
     fn uwild() {

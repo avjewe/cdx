@@ -7,6 +7,21 @@ macro_rules! arg {
             value: $c,
             help: $d,
             values: &[],
+            positional: false,
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! arg_pos {
+    ($a:expr,$c:expr,$d:expr) => {
+        args::ArgSpec {
+            name: $a,
+            short: "",
+            value: $c,
+            help: $d,
+            values: &[],
+            positional: true,
         }
     };
 }
@@ -20,6 +35,7 @@ macro_rules! arg_enum {
             value: $c,
             help: $d,
             values: $e,
+            positional: false,
         }
     };
 }
@@ -67,6 +83,7 @@ pub struct ArgSpec {
     pub value: &'static str,
     pub help: &'static str,
     pub values: &'static [&'static str],
+    pub positional: bool,
 }
 
 #[derive(Debug)]
@@ -93,11 +110,12 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
         .about(&*prog.help);
 
     for x in spec {
-        let mut b = clap::Arg::with_name(x.name)
-            .short(x.short)
-            .long(x.name)
-            .help(x.help)
-            .multiple(true);
+        let mut b = clap::Arg::with_name(x.name);
+        if x.positional {
+            b = b.takes_value(true).help(x.help);
+        } else {
+            b = b.short(x.short).long(x.name).help(x.help).multiple(true);
+        }
         if !x.value.is_empty() {
             b = b.value_name(x.value).number_of_values(1).takes_value(true);
         }

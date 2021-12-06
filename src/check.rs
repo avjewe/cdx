@@ -59,7 +59,7 @@ pub enum CheckType {
 }
 impl Default for CheckType {
     fn default() -> Self {
-        CheckType::Regex
+        Self::Regex
     }
 }
 
@@ -575,7 +575,7 @@ impl LengthCheck {
         if data.is_empty() {
             return err!("Length spec can't be empty");
         }
-        let mut val = LengthCheck::default();
+        let mut val = Self::default();
         for (n, x) in data.split(',').enumerate() {
             if n == 0 {
                 val.min = x.parse::<usize>()?;
@@ -641,7 +641,7 @@ impl CheckSpec {
     // F for fail-on-utf8-error vs default of lossy
     /// type which is one of : regex, exact, prefix, suffix, substring, fileexact, glob, length. Default is regex.
     pub fn new(spec: &str) -> Result<Self> {
-        let mut c = CheckSpec::default();
+        let mut c = Self::default();
         for x in spec.split('.') {
             if x.eq_ignore_ascii_case("") {
             } else if x.eq_ignore_ascii_case("S") {

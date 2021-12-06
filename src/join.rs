@@ -1,20 +1,22 @@
 //! Join files together by matching column values
 
 use crate::column::{self, ColumnSet, OutCol, ScopedValue};
-use crate::comp::make_comp;
+use crate::comp::{make_comp, CompareList};
 use crate::{err, get_writer, Error, Outfile, Reader, Result};
 use std::cmp::Ordering;
 use std::fmt;
 use std::io::Write;
 
 /// How to search and combine input files
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum JoinType {
-    /// 2 files, first never has repeated keys
+    /// All files sorted. Files 2-N never have repeated keys
     Quick,
-    /// 2 files, either may have repeated keys up to "limit"
+    /// All files sorted. Files 2-N may have repeated keys up to "limit", giving NxM output lines
     Full,
-    /// N files. Only first may have repeated keys. One output line per unique key.
+    /// All files sorted. Files 2-N never have repeated keys.
+    /// One output line per unique key from any file
+    /// no "unmatching file" output
     Poly,
     /// First file not sorted, binary search remaining files
     /// One output line per match in each file separately.
@@ -26,11 +28,12 @@ pub enum JoinType {
 
 impl Default for JoinType {
     fn default() -> Self {
-        JoinType::Quick
+        Self::Quick
     }
 }
 
 /// What to do if there would be duplicate column names
+#[derive(Clone)]
 pub enum DupColHandling {
     /// all the usual stuff
     Std(column::DupColHandling),
@@ -51,7 +54,7 @@ impl fmt::Debug for DupColHandling {
 
 impl Default for DupColHandling {
     fn default() -> Self {
-        DupColHandling::Std(column::DupColHandling::Fail)
+        Self::Std(column::DupColHandling::Fail)
     }
 }
 
@@ -85,13 +88,13 @@ pub struct OutColSpec {
 
 impl OutColSpec {
     /// new
-    pub fn new(file: usize, cols: ColumnSet) -> Self {
+    pub const fn new(file: usize, cols: ColumnSet) -> Self {
         Self { file, cols }
     }
 }
 
 /// All the settings needed to join some files
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 #[non_exhaustive]
 pub struct JoinConfig {
     /// the type, default Quick
@@ -105,7 +108,7 @@ pub struct JoinConfig {
     /// output columns, e.g. 0,1.1-2,2.title-author. Default is joined cols, everything from
     /// file 1 except joined cols, everything from file 2 except joined cols, ...
     /// if empty, create a reasonable default
-    pub out_cols: Vec<OutColSpec>,
+    pub col_specs: Vec<OutColSpec>,
     /// skip sortedness check, normally join fails if input file is not sorted
     pub skip_check: bool,
     /// output delimiter, default tab
@@ -135,32 +138,24 @@ impl OneOutCol {
             col: col.clone(),
         }
     }
-    fn new_plain(file: usize, col: usize) -> Self {
+    const fn new_plain(file: usize, col: usize) -> Self {
         Self {
             file,
             col: OutCol::from_num(col),
         }
     }
-    fn write(&self, mut w: impl Write, f1: &Reader, f2: &Reader) -> Result<()> {
-        if self.file == 0 {
-            w.write_all(f1.curr().get(self.col.num))?;
-        } else {
-            w.write_all(f2.curr().get(self.col.num))?;
-        }
+    fn write(&self, mut w: impl Write, f: &[Reader]) -> Result<()> {
+        w.write_all(f[self.file].curr().get(self.col.num))?;
         Ok(())
     }
-    fn write_head(&self, mut w: impl Write, f1: &Reader, f2: &Reader) -> Result<()> {
-        if self.file == 0 {
-            w.write_all(f1.header().get(self.col.num).as_bytes())?;
-        } else {
-            w.write_all(f2.header().get(self.col.num).as_bytes())?;
-        }
+    fn write_head(&self, mut w: impl Write, f: &[Reader]) -> Result<()> {
+        w.write_all(f[self.file].header().get(self.col.num).as_bytes())?;
         Ok(())
     }
 }
 
 impl JoinConfig {
-    /// create new JoinConfig. Nore thst derived 'default' is sub-optimal
+    /// create new JoinConfig. Note that derived 'default' is sub-optimal
     pub fn new() -> Self {
         Self {
             match_out: "-".to_string(),
@@ -170,158 +165,179 @@ impl JoinConfig {
         }
     }
     /// perform the join
-    pub fn join(&mut self) -> Result<()> {
-        match self.jtype {
-            JoinType::Quick => self.quick_join(),
-            _ => err!("Not implemented"),
-        }
+    pub fn join(&self) -> Result<()> {
+        Joiner::new(self)?.join(self)
     }
-    /// perform quick_join
-    /// each input line appears no more than once in an output file
-    pub fn quick_join(&mut self) -> Result<()> {
-        if self.infiles.len() != 2 {
+}
+
+/// does the actual joining
+struct Joiner {
+    r: Vec<Reader>,
+    comp: Vec<CompareList>,
+    yes_match: Outfile,
+    no_match: Vec<Option<Outfile>>,
+    out_cols: Vec<OneOutCol>,
+}
+
+impl Joiner {
+    fn new(config: &JoinConfig) -> Result<Self> {
+        Ok(Self {
+            r: Vec::new(),
+            comp: Vec::new(),
+            yes_match: get_writer(&config.match_out)?,
+            no_match: Vec::new(),
+            out_cols: Vec::new(),
+        })
+    }
+    fn join(&mut self, config: &JoinConfig) -> Result<()> {
+        if config.infiles.len() < 2 {
             return err!(
-                "{} files specified, exactly two required",
-                self.infiles.len()
+                "Join requires at least two input files, {} found",
+                config.infiles.len()
             );
         }
 
-        let mut f1 = Reader::new();
-        let mut f2 = Reader::new();
-        f1.open(&self.infiles[0])?;
-        f2.open(&self.infiles[1])?;
-        if f1.is_empty() && f2.is_empty() {
-            return Ok(());
+        for x in &config.infiles {
+            self.r.push(Reader::new_open(x)?);
         }
 
-        let mut comp = if self.keys.is_empty() {
-            make_comp("1")?
-        } else if self.keys.len() == 1 {
-            make_comp(&self.keys[0])?
-        } else {
-            make_comp(&self.keys[1])?
-            /*
-                    let mut cc = CompareList::new();
-                    for x in &self.keys {
-                    cc.push(Box::new(make_comp(x)?));
-                    }
-                    cc
-            */
-        };
-
-        let mut nomatch: Vec<Option<Outfile>> = vec![None, None];
-        for x in &self.unmatch_out {
-            if x.file_num == 1 {
-                if nomatch[0].is_none() {
-                    let mut w = get_writer(&x.file_name)?;
-                    f1.write_header(&mut w)?;
-                    nomatch[0] = Some(w);
-                } else {
-                    return err!("Multiple uses of --also for file 1");
-                }
-            } else if x.file_num == 2 {
-                if nomatch[1].is_none() {
-                    let mut w = get_writer(&x.file_name)?;
-                    f2.write_header(&mut w)?;
-                    nomatch[1] = Some(w);
-                } else {
-                    return err!("Multiple uses of --also for file 2");
-                }
-            } else {
+        for _x in 0..config.infiles.len() {
+            self.no_match.push(None)
+        }
+        for x in &config.unmatch_out {
+            if (x.file_num < 1) || (x.file_num > config.infiles.len()) {
                 return err!(
-                    "Join had 2 input files, but requested non matching lines from file {}",
+                    "Join had {} input files, but requested non matching lines from file {}",
+                    config.infiles.len(),
                     x.file_num
                 );
             }
+            let num = x.file_num - 1;
+            if self.no_match[num].is_none() {
+                let mut w = get_writer(&x.file_name)?;
+                self.r[num].write_header(&mut w)?;
+                self.no_match[num] = Some(w);
+            } else {
+                return err!("Multiple uses of --also for file {}", x.file_num);
+            }
         }
 
-        let mut w = get_writer(&self.match_out)?;
-
-        comp.lookup_left(&f1.names())?;
-        comp.lookup_right(&f2.names())?;
-
-        let mut out_cols: Vec<OneOutCol> = Vec::new();
-        if self.out_cols.is_empty() {
-            for x in 0..f1.names().len() {
-                out_cols.push(OneOutCol::new_plain(0, x));
+        self.comp.push(CompareList::new()); // position zero ignored
+        for i in 1..self.r.len() {
+            let mut c = CompareList::new();
+            if config.keys.is_empty() {
+                c.push(make_comp("1")?);
+            } else {
+                for x in &config.keys {
+                    c.push(make_comp(x)?);
+                }
             }
-            for x in 0..f2.names().len() {
-                if x != comp.mode.right_col.num {
-                    out_cols.push(OneOutCol::new_plain(1, x));
+            c.lookup_left(&self.r[0].names())?;
+            c.lookup_right(&self.r[i].names())?;
+            self.comp.push(c);
+        }
+
+        if config.col_specs.is_empty() {
+            let right_cols = self.comp[1].right_cols();
+            for f in 0..self.r.len() {
+                for x in 0..self.r[f].names().len() {
+                    if (f == 0) || (!right_cols.contains(&x)) {
+                        self.out_cols.push(OneOutCol::new_plain(f, x));
+                    }
                 }
             }
         } else {
-            for x in &mut self.out_cols {
-                if x.file == 0 {
-                    x.cols.lookup(&f1.names())?;
-                } else if x.file == 1 {
-                    x.cols.lookup(&f2.names())?;
-                } else {
+            for x in &config.col_specs {
+                let mut x = x.clone();
+                if x.file >= self.r.len() {
                     return err!(
-                        "Two input files, but file {} referred to as an output column",
+                        "{} input files, but file {} referred to as an output column",
+                        self.r.len(),
                         x.file
                     );
                 }
+                x.cols.lookup(&self.r[x.file].names())?;
                 for y in x.cols.get_cols() {
-                    out_cols.push(OneOutCol::new(x.file, y));
+                    self.out_cols.push(OneOutCol::new(x.file, y));
                 }
             }
         }
-        if out_cols.is_empty() {
+        if self.out_cols.is_empty() {
             return err!("No output columns specified");
         }
-        if f1.cont.has_header {
-            w.write_all(b" CDX")?;
-            for x in &out_cols {
-                w.write_all(&[self.out_delim])?;
-                x.write_head(&mut w, &f1, &f2)?;
-            }
-            w.write_all(&[b'\n'])?;
-        }
 
-        loop {
-            if f1.is_done() || f2.is_done() {
-                break;
+        if self.r[0].cont.has_header {
+            self.yes_match.write_all(b" CDX")?;
+            for x in &self.out_cols {
+                self.yes_match.write_all(&[config.out_delim])?;
+                x.write_head(&mut self.yes_match, &self.r)?;
             }
-            match comp.comp_cols(f1.curr(), f2.curr()) {
-                Ordering::Equal => {
-                    out_cols[0].write(&mut w, &f1, &f2)?;
-                    for x in &out_cols[1..] {
-                        w.write_all(&[self.out_delim])?;
-                        x.write(&mut w, &f1, &f2)?;
+            self.yes_match.write_all(&[b'\n'])?;
+        }
+        if config.jtype == JoinType::Quick {
+            self.join_quick(config)
+        } else {
+            err!("Only quick supported")
+        }
+    }
+    fn join_quick(&mut self, config: &JoinConfig) -> Result<()> {
+        if !self.r[0].is_done() && !self.r[1].is_done() {
+            let mut cmp = self.comp[1].comp_cols(self.r[0].curr(), self.r[1].curr());
+            'outer: loop {
+                match cmp {
+                    Ordering::Equal => loop {
+                        self.out_cols[0].write(&mut self.yes_match, &self.r)?;
+                        for x in &self.out_cols[1..] {
+                            self.yes_match.write_all(&[config.out_delim])?;
+                            x.write(&mut self.yes_match, &self.r)?;
+                        }
+                        self.yes_match.write_all(&[b'\n'])?;
+                        if self.r[0].getline()? {
+                            self.r[1].getline()?;
+                            break 'outer;
+                        }
+                        cmp = self.comp[1].comp_cols(self.r[0].curr(), self.r[1].curr());
+                        if cmp != Ordering::Equal {
+                            if self.r[1].getline()? {
+                                break 'outer;
+                            }
+                            cmp = self.comp[1].comp_cols(self.r[0].curr(), self.r[1].curr());
+                            break;
+                        }
+                    },
+                    Ordering::Less => {
+                        if let Some(x) = &mut self.no_match[0] {
+                            self.r[0].write(x)?;
+                        }
+                        if self.r[0].getline()? {
+                            break;
+                        }
+                        cmp = self.comp[1].comp_cols(self.r[0].curr(), self.r[1].curr());
                     }
-                    w.write_all(&[b'\n'])?;
-
-                    f1.getline()?;
-                    f2.getline()?;
-                }
-                Ordering::Less => {
-                    if let Some(x) = &mut nomatch[0] {
-                        f1.write(x)?;
+                    Ordering::Greater => {
+                        if let Some(x) = &mut self.no_match[1] {
+                            self.r[1].write(x)?;
+                        }
+                        if self.r[1].getline()? {
+                            break;
+                        }
+                        cmp = self.comp[1].comp_cols(self.r[0].curr(), self.r[1].curr());
                     }
-                    f1.getline()?;
-                }
-                Ordering::Greater => {
-                    if let Some(x) = &mut nomatch[1] {
-                        f2.write(x)?;
-                    }
-                    f2.getline()?;
                 }
             }
         }
-        while !f1.is_done() {
-            if let Some(x) = &mut nomatch[0] {
-                f1.write(x)?;
+        while !self.r[0].is_done() {
+            if let Some(x) = &mut self.no_match[0] {
+                self.r[0].write(x)?;
             }
-            f1.getline()?;
+            self.r[0].getline()?;
         }
-        while !f2.is_done() {
-            if let Some(x) = &mut nomatch[1] {
-                f2.write(x)?;
+        while !self.r[1].is_done() {
+            if let Some(x) = &mut self.no_match[1] {
+                self.r[1].write(x)?;
             }
-            f2.getline()?;
+            self.r[1].getline()?;
         }
-        // drain f1 or f2 as needed
         Ok(())
     }
 }

@@ -57,7 +57,7 @@ fn grab(
 ) -> Result<bool> {
     if let Some(x) = line.strip_prefix(tag) {
         if !x.is_empty() {
-            prerr(&[b"Unexpected stuff after ", tag, b" : ", line])?;
+            prerr(&[b"Unexpected stuff after ", tag, b" : ", line]);
             return Err(Error::Silent);
         }
         loop {
@@ -187,7 +187,7 @@ impl Test {
             .replace("$TMP", &tmp.path().display().to_string())
             .as_bytes()
             .to_vec();
-        //        prerr(&[b"About to run ", &ncmd])?;
+        //        prerr(&[b"About to run ", &ncmd]);
         let cmd: Vec<&[u8]> = ncmd.split(|num| num <= &b' ').collect();
         if cmd.is_empty() {
             return err!("command is empty");
@@ -196,7 +196,7 @@ impl Test {
         basecmd.extend(cmd[0]);
         let mut tmp_cmd = Command::new(OsStr::from_bytes(&basecmd));
         for x in &cmd[1..] {
-            //	    prerr(&[b"with arg ", x])?;
+            //	    prerr(&[b"with arg ", x]);
             tmp_cmd.arg(OsStr::from_bytes(x));
         }
         let res = tmp_cmd
@@ -205,7 +205,7 @@ impl Test {
         let output;
         match res {
             Err(x) => {
-                prerr(&[b"Error trying to execute : ", &basecmd])?;
+                prerr(&[b"Error trying to execute : ", &basecmd]);
                 return Err(Error::IoError(x));
             }
             Ok(x) => {
@@ -239,7 +239,7 @@ impl Test {
                 &output.stderr,
                 b"\ninstead of\n",
                 &self.stderr,
-            ])?;
+            ]);
         }
         if output.stdout != self.stdout {
             failed = true;
@@ -248,7 +248,7 @@ impl Test {
                 &output.stdout,
                 b"\ninstead of\n",
                 &self.stdout,
-            ])?;
+            ]);
         }
         for x in &self.out_files {
             nuke(&mut files, &x.name);
@@ -271,7 +271,7 @@ impl Test {
                             &body,
                             b" but should have been\n",
                             &x.content,
-                        ])?;
+                        ]);
                     }
                 }
             }
@@ -284,7 +284,7 @@ impl Test {
             }
         }
         if failed {
-            prerr(&[b"Test ", self.name.as_bytes(), b" failed ", &self.cmd])?;
+            prerr(&[b"Test ", self.name.as_bytes(), b" failed ", &self.cmd]);
         }
         // if (Debug) tmp.into_path()
         Ok(!failed)
