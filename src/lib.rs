@@ -25,8 +25,9 @@
 //    clippy::restriction,
 //    clippy::pedantic,
     clippy::nursery,
-//    clippy::cargo,    
+    clippy::cargo,
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;

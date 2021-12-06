@@ -1,0 +1,14 @@
+#command cdx cat -r comment,abc
+#stdin
+aaa
+
+   	
+   	abcdef
+	#
+    
+
+bbb
+#stdout
+aaa
+	#
+bbb

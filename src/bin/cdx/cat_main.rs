@@ -1,6 +1,6 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
-use cdx::check::{BufCheck, CheckOr, CheckSpec};
+use cdx::check::{make_match, BufCheck, CheckOr};
 use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole, Writer};
 use cdx::text::Text;
 use cdx::{
@@ -14,17 +14,6 @@ enum PadMode {
     None,
     All,
     End,
-}
-
-fn make_match(src: &[CheckSpec]) -> Result<Option<CheckOr>> {
-    if src.is_empty() {
-        return Ok(None);
-    }
-    let mut res = CheckOr::new();
-    for x in src {
-        res.push(x.make_box("")?);
-    }
-    Ok(Some(res))
 }
 
 #[derive(Default, Debug, Clone)]
@@ -90,8 +79,8 @@ pub fn main(argv: &[String]) -> Result<()> {
     const A: [ArgSpec; 7] = [
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
         arg_enum! {"pad", "p", "Mode", "Add trailing newline if absent.", &["Yes","No","End"]},
-        arg_enum! {"remove", "r", "Mode", "Remove these lines.", &["Empty","Blank","Hash","Slash"]},
-        arg_enum! {"skip", "s", "Mode", "Do not number these lines.", &["Empty","Blank","Hash","Slash"]},
+        arg! {"remove", "r", "Matcher", "Remove these lines."},
+        arg! {"skip", "s", "Matcher", "Do not number these lines."},
         arg! {"number", "n", "Name,Start,Where", "Number the lines in column 'Name', starting at 'Start', 'Where' can be 'begin' or 'end'"},
         arg! {"begin", "b", "",  "Shortcut for --number number,1,begin"},
         arg! {"end", "e", "",  "Shortcut for --number number,1,end"},
@@ -101,8 +90,8 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut checker = HeaderChecker::new();
     let mut pad = PadMode::All;
     let mut num = LineNumber::new();
-    let mut skips: Vec<CheckSpec> = Vec::new();
-    let mut removes: Vec<CheckSpec> = Vec::new();
+    let mut skips = CheckOr::new();
+    let mut removes = CheckOr::new();
 
     for x in args {
         if x.name == "header" {
@@ -124,9 +113,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "end" {
             num.set("number,1,end")?;
         } else if x.name == "skip" {
-            skips.push(CheckSpec::new(&x.value)?);
+            skips.push(make_match(&x.value)?);
         } else if x.name == "remove" {
-            removes.push(CheckSpec::new(&x.value)?);
+            removes.push(make_match(&x.value)?);
         } else {
             unreachable!();
         }
@@ -153,8 +142,6 @@ pub fn main(argv: &[String]) -> Result<()> {
         if num.do_it && num.end {
             not_v.push(Box::new(ColumnLiteral::new(b"", "unused")));
         }
-        let skipper = make_match(&skips)?;
-        let remover = make_match(&removes)?;
         let mut not_header: Vec<u8> = Vec::new();
 
         for x in &files {
@@ -176,19 +163,11 @@ pub fn main(argv: &[String]) -> Result<()> {
             }
             f.do_split = false;
             loop {
-                let mut do_write = true;
-                if let Some(ref x) = remover {
-                    do_write = !x.ucheck(f.curr_nl());
-                }
-                if do_write {
-                    let mut do_count = true;
-                    if let Some(ref x) = skipper {
-                        do_count = !x.ucheck(f.curr_nl());
-                    }
-                    if do_count {
-                        v.write(&mut w, f.curr())?;
-                    } else {
+                if !removes.ucheck(f.curr_nl()) {
+                    if skips.ucheck(f.curr_nl()) {
                         not_v.write(&mut w, f.curr())?;
+                    } else {
+                        v.write(&mut w, f.curr())?;
                     }
                 }
                 if f.getline()? {

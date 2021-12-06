@@ -51,6 +51,8 @@ pub enum CheckType {
     HashCmt,
     /// all whitespace, up to a //
     SlashCmt,
+    /// all whitespace, up to a literal pattern
+    Comment,
     // XmlAttr
     // DelimSuffix
     // DelimPrefix
@@ -618,6 +620,15 @@ impl BufCheck for LengthCheck {
     }
 }
 
+/// return a new BufCheck based on spec
+pub fn make_match(spec: &str) -> Result<Box<dyn BufCheck>> {
+    if let Some((x, y)) = spec.split_once(',') {
+        CheckSpec::new(x)?.make_box(y)
+    } else {
+        CheckSpec::new(spec)?.make_box("")
+    }
+}
+
 /// Spec for BufCheck
 #[derive(Debug, Clone, Default)]
 pub struct CheckSpec {
@@ -677,6 +688,8 @@ impl CheckSpec {
                 c.ctype = CheckType::HashCmt;
             } else if x.eq_ignore_ascii_case("slash") {
                 c.ctype = CheckType::SlashCmt;
+            } else if x.eq_ignore_ascii_case("comment") {
+                c.ctype = CheckType::Comment;
             } else {
                 return err!(
                     "Invalid Checker Item {}. Should be period delimited list :\n\
@@ -748,7 +761,8 @@ impl CheckSpec {
             }
             CheckType::Glob => Box::new(GlobCheck::new(pattern, self.case)),
             CheckType::Empty => Box::new(LengthCheck::new("0,0")?),
-            CheckType::Blank => Box::new(CmtCheck::new(pattern)),
+            CheckType::Blank => Box::new(CmtCheck::new("")),
+            CheckType::Comment => Box::new(CmtCheck::new(pattern)),
             CheckType::HashCmt => Box::new(CmtCheck::new("#")),
             CheckType::SlashCmt => Box::new(CmtCheck::new("//")),
         })
@@ -801,7 +815,7 @@ impl ColChecker {
         let parts = parts.1.split_once(',');
         if parts.is_none() {
             return err!(
-                "Column Pattern has only one column. SHould be Column,Spec,Pattern : {}",
+                "Column Pattern has only one column. Should be Column,Spec,Pattern : {}",
                 spec
             );
         }
@@ -893,6 +907,10 @@ impl CheckListOr {
     pub fn new() -> Self {
         Self { checks: Vec::new() }
     }
+    /// is empty?
+    pub fn is_empty(&self) -> bool {
+        self.checks.is_empty()
+    }
     /// add Check to list
     pub fn push(&mut self, item: Box<dyn LineCheck>) {
         self.checks.push(item)
@@ -944,6 +962,10 @@ impl CheckOr {
     pub fn push(&mut self, item: Box<dyn BufCheck>) {
         self.checks.push(item)
     }
+    /// is empty?
+    pub fn is_empty(&self) -> bool {
+        self.checks.is_empty()
+    }
 }
 
 impl BufCheck for CheckOr {
@@ -984,6 +1006,10 @@ impl CheckAnd {
     /// add Check to list
     pub fn push(&mut self, item: Box<dyn BufCheck>) {
         self.checks.push(item)
+    }
+    /// is empty?
+    pub fn is_empty(&self) -> bool {
+        self.checks.is_empty()
     }
 }
 
