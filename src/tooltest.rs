@@ -1,7 +1,7 @@
 //! parse and run tooltest files
-use crate::comp::{skip_leading_white, str_to_i_whole};
-use crate::prerr;
-use crate::{err, get_reader, get_writer, Error, Infile, Result};
+use crate::comp::{skip_leading_white, skip_leading_white_str, str_to_i_whole};
+use crate::matcher::{make_match, BufCheck, CheckSpec};
+use crate::{err, get_reader, get_writer, prerr, Error, Infile, Result};
 //use fs_err as fs;
 use fs_err as fs;
 use std::ffi::OsStr;
@@ -11,23 +11,53 @@ use std::path::Path;
 use std::process::Command;
 use tempdir::TempDir;
 
+/// print a description of the test file format to stdout
+pub fn show_format() {
+    println!("#command CMD : the command to be run");
+    println!("#stdin : followed by the input to the program. Default empty.");
+    println!("#stdout : followed by the expected stdout output. Default empty.");
+    println!("#stderr : followed by the expected stderr output. Default empty.");
+    println!("#infile Filename : followed by the contents of the named file. '#infile foo' means that the file $TMP/foo is available to the command.");
+    println!("#outfile Filename : followed by the contents of the named file. '#outfile foo' means that the file $TMP/foo must be created by the command, with exactly that contents.");
+    println!("#nonewline : must follow the contents of one of the above four. Removes the final newline from the input or expected output.");
+    println!("#status Number : the expected exit status. Default zero.");
+    println!("'# ' : a line starting with # and a space is a comment, and is ignored");
+}
+
 #[derive(Debug, Clone, Default)]
-struct OneFile {
+struct InFile {
     name: String,
     content: Vec<u8>,
 }
 
+#[allow(missing_debug_implementations)]
+struct OutFile {
+    name: String,
+    content: Vec<u8>,
+    matcher: Box<dyn BufCheck>,
+}
+impl Default for OutFile {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            content: Vec::new(),
+            matcher: make_match("empty").unwrap(),
+        }
+    }
+}
+
 /// One test to be run
-#[derive(Debug, Clone, Default)]
+#[allow(missing_debug_implementations)]
+#[derive(Default)]
 pub struct Test {
     name: String,
     cmd: Vec<u8>,
     stdin: Vec<u8>,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
+    stdout: OutFile,
+    stderr: OutFile,
     code: i32,
-    in_files: Vec<OneFile>,
-    out_files: Vec<OneFile>,
+    in_files: Vec<InFile>,
+    out_files: Vec<OutFile>,
 }
 
 /// remove item from Vec
@@ -108,21 +138,44 @@ impl Test {
             if let Some(x) = line.strip_prefix(b"#command") {
                 let y = skip_leading_white(x);
                 self.cmd = y.to_vec();
+            } else if let Some(x) = line.strip_prefix(b"#stdout") {
+                if x.is_empty() {
+                    let mut buf = Vec::new();
+                    grab(b"#stdout", &mut buf, &mut line, &mut reader, &mut need_read)?;
+                    let mspec = CheckSpec::new("exact")?;
+                    self.stdout = OutFile {
+                        name: "stdout".to_string(),
+                        matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
+                        content: buf,
+                    }
+                } else {
+                    self.stdout = OutFile {
+                        name: "stdout".to_string(),
+                        matcher: make_match(std::str::from_utf8(x)?)?,
+                        content: x.to_vec(),
+                    }
+                }
+            // FIXME -- these two cases are duplicates
+            } else if let Some(x) = line.strip_prefix(b"#stderr") {
+                if x.is_empty() {
+                    let mut buf = Vec::new();
+                    grab(b"#stderr", &mut buf, &mut line, &mut reader, &mut need_read)?;
+                    let mspec = CheckSpec::new("exact")?;
+                    self.stderr = OutFile {
+                        name: "stderr".to_string(),
+                        matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
+                        content: buf,
+                    }
+                } else {
+                    self.stderr = OutFile {
+                        name: "stderr".to_string(),
+                        matcher: make_match(std::str::from_utf8(x)?)?,
+                        content: x.to_vec(),
+                    }
+                }
             } else if grab(
                 b"#stdin",
                 &mut self.stdin,
-                &mut line,
-                &mut reader,
-                &mut need_read,
-            )? || grab(
-                b"#stdout",
-                &mut self.stdout,
-                &mut line,
-                &mut reader,
-                &mut need_read,
-            )? || grab(
-                b"#stderr",
-                &mut self.stderr,
                 &mut line,
                 &mut reader,
                 &mut need_read,
@@ -132,7 +185,7 @@ impl Test {
                 self.code = str_to_i_whole(y)? as i32;
             } else if let Some(x) = line.strip_prefix(b"#infile") {
                 let y = skip_leading_white(x);
-                let mut f = OneFile {
+                let mut f = InFile {
                     name: String::from_utf8(y.to_vec())?,
                     ..Default::default()
                 };
@@ -140,18 +193,35 @@ impl Test {
                 grab(b"", &mut f.content, &mut line, &mut reader, &mut need_read)?;
                 self.in_files.push(f);
             } else if let Some(x) = line.strip_prefix(b"#outfile") {
-                let y = skip_leading_white(x);
-                let mut f = OneFile {
-                    name: String::from_utf8(y.to_vec())?,
-                    ..Default::default()
-                };
-                line.clear();
-                grab(b"", &mut f.content, &mut line, &mut reader, &mut need_read)?;
-                self.out_files.push(f);
+                let y = std::str::from_utf8(x)?;
+                let y = skip_leading_white_str(y);
+                if let Some((name, matcher)) = y.split_once(' ') {
+                    let f = OutFile {
+                        name: name.to_string(),
+                        content: matcher.as_bytes().to_vec(),
+                        matcher: make_match(matcher)?,
+                    };
+                    self.out_files.push(f);
+                } else {
+                    let name = y.to_string();
+                    line.clear();
+                    let mut buf = Vec::new();
+                    grab(b"", &mut buf, &mut line, &mut reader, &mut need_read)?;
+                    let mspec = CheckSpec::new("exact")?;
+                    let f = OutFile {
+                        name,
+                        matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
+                        content: buf,
+                    };
+                    self.out_files.push(f);
+                }
             } else if line.starts_with(b"# ") {
                 // comment
             } else {
-                return err!("Unexpected line in test file : {:#?}", line);
+                return err!(
+                    "Unexpected line in test file : {}",
+                    std::str::from_utf8(&line)?
+                );
             }
             if need_read {
                 line.clear();
@@ -232,22 +302,22 @@ impl Test {
         }
         //	eprintln!("Got input {} {} {}", self.code, self.stdout.len(), self.stderr.len());
         //	eprintln!("Got output {} {} {}", output.status.code().unwrap(), output.stdout.len(), output.stderr.len());
-        if output.stderr != self.stderr {
+        if !self.stderr.matcher.ucheck(&output.stderr) {
             failed = true;
             prerr(&[
                 b"Stderr was\n",
                 &output.stderr,
                 b"\ninstead of\n",
-                &self.stderr,
+                &self.stderr.content,
             ]);
         }
-        if output.stdout != self.stdout {
+        if !self.stdout.matcher.ucheck(&output.stdout) {
             failed = true;
             prerr(&[
                 b"Stdout was\n",
                 &output.stdout,
                 b"\ninstead of\n",
-                &self.stdout,
+                &self.stdout.content,
             ]);
         }
         for x in &self.out_files {
@@ -262,7 +332,7 @@ impl Test {
                 Ok(mut f) => {
                     let mut body = Vec::new();
                     f.read_to_end(&mut body)?;
-                    if body != x.content {
+                    if !x.matcher.ucheck(&body) {
                         failed = true;
                         prerr(&[
                             b"File ",
@@ -342,7 +412,6 @@ impl Config {
         Ok(true)
     }
 }
-
 impl Default for Config {
     fn default() -> Self {
         Self::new()

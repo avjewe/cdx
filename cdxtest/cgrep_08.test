@@ -1,0 +1,10 @@
+#command cdx cgrep -p one,exact,^aaa^bbb
+#stdin
+ CDX	one
+XaaaX
+XbbbX
+XaaaXbbbX
+XbbbXaaaX
+XcccX
+^aaa^bbb
+#stdout substr.and,,aaa,bbb

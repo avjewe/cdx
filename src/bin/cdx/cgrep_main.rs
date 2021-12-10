@@ -1,6 +1,6 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
-use cdx::check::*;
+use cdx::matcher::*;
 use cdx::{get_writer, Error, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE};
 use std::str::FromStr;
 

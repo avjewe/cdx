@@ -16,12 +16,147 @@ use std::{fmt, str};
 pub enum DupColHandling {
     /// Fail if there are duplicate columns names
     Fail,
-    /// Drop all but the leftmost of the columns
-    Drop,
     /// Allow duplicate columns names
     Allow,
+    /// Allow duplicate columns names, but write a message to stderr
+    Warn,
     /// if "foo" is taken, try "foo1", then "foo2" until it's unique
     Numeric,
+}
+
+impl DupColHandling {
+    /// new
+    pub fn new(spec: &str) -> Result<Self> {
+        if spec.to_ascii_lowercase() == "fail" {
+            Ok(Self::Fail)
+        } else if spec.to_ascii_lowercase() == "allow" {
+            Ok(Self::Allow)
+        } else if spec.to_ascii_lowercase() == "warn" {
+            Ok(Self::Warn)
+        } else if spec.to_ascii_lowercase() == "numeric" {
+            Ok(Self::Numeric)
+        } else {
+            err!("Duplicate Column Mode must be one of : Fail, Allow, Warn, Numeric")
+        }
+    }
+}
+
+impl Default for DupColHandling {
+    fn default() -> Self {
+        Self::Fail
+    }
+}
+
+/// build the CDX header for an output file
+#[derive(Debug, Default, Clone)]
+pub struct ColumnHeader {
+    cols: Vec<String>,
+    dups: DupColHandling,
+}
+
+/// is 'name' a valid column name
+pub const fn is_valid_column_name(name: &str) -> bool {
+    !name.is_empty()
+}
+
+/// throw an error is name is not a valid column name
+pub fn validate_column_name(name: &str) -> Result<()> {
+    if !is_valid_column_name(name) {
+        err!("Invalid column name {}", name)
+    } else {
+        Ok(())
+    }
+}
+
+impl ColumnHeader {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// set the DupColHandling mode
+    pub fn set_handling(&mut self, dups: DupColHandling) {
+        self.dups = dups;
+    }
+    /// clear
+    pub fn clear(&mut self) {
+        self.cols.clear();
+    }
+    /// add all of the columns from 'cols'
+    pub fn push_all(&mut self, cols: &StringLine) -> Result<()> {
+        for x in cols.into_iter() {
+            self.push(x)?;
+        }
+        Ok(())
+    }
+
+    /// do we already have this column name
+    pub fn contains(&self, name: &str) -> bool {
+        for x in &self.cols {
+            if x == name {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// add new column name
+    pub fn push(&mut self, name: &str) -> Result<()> {
+        validate_column_name(name)?;
+        if self.contains(name) {
+            match self.dups {
+                DupColHandling::Fail => return err!("Duplicate column name {}", name),
+                DupColHandling::Allow => self.cols.push(name.to_string()),
+                DupColHandling::Warn => {
+                    self.cols.push(name.to_string());
+                    eprintln!("Warning : creating duplicate column name {}", name);
+                }
+                DupColHandling::Numeric => {
+                    for x in 1..10000 {
+                        let new_name = format!("name{}", x);
+                        if !self.contains(&new_name) {
+                            self.cols.push(new_name);
+                            break;
+                        }
+                    }
+                }
+            }
+        } else {
+            self.cols.push(name.to_string());
+        }
+        Ok(())
+    }
+
+    /// get new string, which is the full CDX header, including newline
+    pub fn get_head(&self, delim: u8) -> String {
+        let mut res = String::with_capacity(self.get_size() + 6);
+        res.push_str(" CDX");
+        res.push(delim as char);
+        self.add_head(&mut res, delim);
+        res.push('\n');
+        res
+    }
+
+    /// get new string, which nis the column names joined
+    pub fn get_head_short(&self, delim: u8) -> String {
+        let mut res = String::with_capacity(self.get_size());
+        self.add_head(&mut res, delim);
+        res
+    }
+
+    fn get_size(&self) -> usize {
+        self.cols.iter().map(|v| v.len()).sum::<usize>() + self.cols.len() - 1
+    }
+    /// append column names, joined
+    fn add_head(&self, res: &mut String, delim: u8) {
+        if self.cols.is_empty() {
+            return;
+        }
+        res.push_str(&self.cols[0]);
+        for x in self.cols.iter().skip(1) {
+            res.push(delim as char);
+            res.push_str(x);
+        }
+    }
 }
 
 /// A column set is a collection of column specifictions, which when interpreted
@@ -251,7 +386,7 @@ impl ScopedValues {
 /// Write some output
 pub trait ColumnFun {
     /// write the column names (called once)
-    fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()>;
+    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()>;
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()>;
     /// resolve any named columns
@@ -264,9 +399,8 @@ pub struct ColumnWhole;
 
 impl ColumnFun for ColumnWhole {
     /// write the column names (called once)
-    fn write_names(&self, w: &mut dyn Write, head: &StringLine, _delim: u8) -> Result<()> {
-        w.write_all(head.line[5..head.line.len() - 1].as_bytes())?;
-        Ok(())
+    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+        w.push_all(head)
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
@@ -298,9 +432,8 @@ impl ColumnCount {
 
 impl ColumnFun for ColumnCount {
     /// write the column names (called once)
-    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
-        w.write_all(self.name.as_bytes())?;
-        Ok(())
+    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+        w.push(&self.name)
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
@@ -333,9 +466,8 @@ impl ColumnLiteral {
 
 impl ColumnFun for ColumnLiteral {
     /// write the column names (called once)
-    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
-        w.write_all(self.name.as_bytes())?;
-        Ok(())
+    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+        w.push(&self.name)
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
@@ -939,9 +1071,8 @@ impl ColumnFun for ColumnClump {
         Ok(())
     }
 
-    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
-        w.write_all(self.name.as_bytes())?;
-        Ok(())
+    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+        w.push(&self.name)
     }
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.cols.lookup(fieldnames)
@@ -977,19 +1108,14 @@ impl ColumnFun for ReaderColumns {
         Ok(())
     }
 
-    fn write_names(&self, w: &mut dyn Write, head: &StringLine, delim: u8) -> Result<()> {
-        let mut iter = self.columns.get_cols().iter();
-        match iter.next() {
-            None => {}
-            Some(first) => {
-                write_colname(w, first, head)?;
-                for x in iter {
-                    w.write_all(&[delim])?;
-                    write_colname(w, x, head)?;
-                }
+    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+        for x in self.columns.get_cols() {
+            if x.name.is_empty() {
+                w.push(head.get(x.num))?;
+            } else {
+                w.push(&x.name)?;
             }
         }
-        //        self.columns.write3s(w, head, delim)?;
         Ok(())
     }
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -1032,13 +1158,10 @@ impl Writer {
         self.v.push(x);
     }
     /// Write the column names
-    pub fn write_names(&self, w: &mut dyn Write, head: &StringLine) -> Result<()> {
-        w.write_all(b" CDX")?;
+    pub fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
         for x in self.v.iter() {
-            w.write_all(&[self.delim])?;
-            x.write_names(w, head, self.delim)?;
+            x.add_names(w, head)?;
         }
-        w.write_all(&[b'\n'])?;
         Ok(())
     }
     /// Write the column values
@@ -1250,9 +1373,8 @@ impl CompositeColumn {
 
 impl ColumnFun for CompositeColumn {
     /// write the column names (called once)
-    fn write_names(&self, w: &mut dyn Write, _head: &StringLine, _delim: u8) -> Result<()> {
-        w.write_all(self.name.as_bytes())?;
-        Ok(())
+    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+        w.push(&self.name)
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {

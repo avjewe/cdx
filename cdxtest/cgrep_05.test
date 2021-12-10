@@ -1,0 +1,16 @@
+#command cdx cgrep -p one,or.c,^aaa^bbb
+#stdin
+ CDX	one
+XaaaX
+XbbbX
+XaaaXbbbX
+XbbbXaaaX
+XcccX
+^aaa^bbb
+#stdout
+ CDX	one
+XaaaX
+XbbbX
+XaaaXbbbX
+XbbbXaaaX
+^aaa^bbb

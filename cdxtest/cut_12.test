@@ -1,0 +1,6 @@
+#command cdx cut -f 1,one
+#stdin
+ CDX	one	two
+aaa	bbb
+#stderr substr.and.C,,duplicate,one
+#status 1

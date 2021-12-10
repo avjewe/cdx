@@ -1,6 +1,7 @@
 //! Test if a line matches some criterea
 
 use crate::column::NamedCol;
+use crate::comp::skip_leading_white_str;
 use crate::text::{Case, Text};
 use crate::{err, Error, Reader, Result, TextLine};
 use memchr::memmem::find;
@@ -21,6 +22,14 @@ pub trait BufCheck {
     fn scheck(&self, buff: &str) -> bool;
     /// is the line ok?
     fn ucheck(&self, buff: &[u8]) -> bool;
+    /// ucheck or scheck
+    fn check(&self, buff: &[u8], use_str: bool) -> Result<bool> {
+        if use_str {
+            Ok(self.scheck(std::str::from_utf8(buff)?))
+        } else {
+            Ok(self.ucheck(buff))
+        }
+    }
 }
 
 /// types of BufCheck
@@ -620,13 +629,77 @@ impl BufCheck for LengthCheck {
     }
 }
 
+/// mode for combining parts of a multi-match
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum MultiMode {
+    /// Regular non-multi mode
+    Single,
+    /// matches if any match
+    Or,
+    /// matches only if all match
+    And,
+}
+impl Default for MultiMode {
+    fn default() -> Self {
+        Self::Single
+    }
+}
+impl MultiMode {
+    /// is this multi mode
+    pub fn is_multi(&self) -> bool {
+        *self != Self::Single
+    }
+}
+
 /// return a new BufCheck based on spec
 pub fn make_match(spec: &str) -> Result<Box<dyn BufCheck>> {
-    if let Some((x, y)) = spec.split_once(',') {
-        CheckSpec::new(x)?.make_box(y)
-    } else {
-        CheckSpec::new(spec)?.make_box("")
+    let (_, matcher) = make_match2(spec)?;
+    Ok(matcher)
+}
+
+/// return a new BufCheck based on spec
+pub fn make_match2(spec: &str) -> Result<(CheckSpec, Box<dyn BufCheck>)> {
+    let spec = skip_leading_white_str(spec);
+    if spec.is_empty() {
+        return err!("Can't make a match from an empty string");
     }
+    let (s, mut p) = if let Some((x, y)) = spec.split_once(',') {
+        (x, y)
+    } else {
+        (spec, "")
+    };
+    let mspec = CheckSpec::new(s)?;
+    let b: Box<dyn BufCheck> = if mspec.is_multi() {
+        if p.is_empty() {
+            return err!("Can't make a multi pattern from an empty string");
+        }
+        let delim = p.first();
+        if delim.is_alphanumeric() {
+            return err!("First character of a Multi-Pattern is the delimiter, which must not be alphanumeric. {}", p);
+        }
+        p = p.skip_first();
+        if mspec.multi_mode == MultiMode::And {
+            let mut outer = Box::new(CheckAnd::new());
+            for x in p.split(delim) {
+                outer.push(mspec.make_box(x)?);
+            }
+            outer
+        } else {
+            let mut outer = Box::new(CheckOr::new());
+            for x in p.split(delim) {
+                outer.push(mspec.make_box(x)?);
+            }
+            outer
+        }
+    } else {
+        mspec.make_box(p)?
+    };
+    Ok((mspec, b))
+    /*
+        if !spec.first().is_alphanumeric() {
+        make_multi_match(spec)
+        }
+    */
 }
 
 /// Spec for BufCheck
@@ -642,9 +715,15 @@ pub struct CheckSpec {
     case: Case,
     /// true to invert the match
     negate: bool,
+    /// for multi-matches, combine with AND or OR
+    multi_mode: MultiMode,
 }
 
 impl CheckSpec {
+    /// is this a multi-match
+    pub fn is_multi(&self) -> bool {
+        self.multi_mode.is_multi()
+    }
     /// period delimited parts, which can be
     /// S for string vs default of bytes
     /// N for negate vs default of normal
@@ -661,6 +740,10 @@ impl CheckSpec {
                 c.negate = true;
             } else if x.eq_ignore_ascii_case("C") {
                 c.case = Case::Insens;
+            } else if x.eq_ignore_ascii_case("and") {
+                c.multi_mode = MultiMode::And;
+            } else if x.eq_ignore_ascii_case("or") {
+                c.multi_mode = MultiMode::Or;
             } else if x.eq_ignore_ascii_case("regex") {
                 c.ctype = CheckType::Regex;
             } else if x.eq_ignore_ascii_case("exact") {
@@ -777,11 +860,8 @@ pub struct Checker {
 
 impl Checker {
     /// new
-    pub fn new(spec: CheckSpec, pattern: &str) -> Result<Self> {
-        Ok(Self {
-            check: spec.make_box(pattern)?,
-            spec,
-        })
+    pub fn new(spec: CheckSpec, check: Box<dyn BufCheck>) -> Self {
+        Self { check, spec }
     }
 }
 
@@ -812,16 +892,9 @@ impl ColChecker {
         let parts = parts.unwrap();
         let mut nc = NamedCol::new();
         nc.parse(parts.0)?;
-        let parts = parts.1.split_once(',');
-        if parts.is_none() {
-            return err!(
-                "Column Pattern has only one column. Should be Column,Spec,Pattern : {}",
-                spec
-            );
-        }
-        let parts = parts.unwrap();
+        let (s, b) = make_match2(parts.1)?;
         Ok(Self {
-            check: Checker::new(CheckSpec::new(parts.0)?, parts.1)?,
+            check: Checker::new(s, b),
             col: nc,
         })
     }

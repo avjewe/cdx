@@ -228,6 +228,20 @@ pub fn skip_leading_white(num: &[u8]) -> &[u8] {
     &num[pos..]
 }
 
+/// skip leading whitespace
+pub fn skip_leading_white_str(mut buf: &str) -> &str {
+    loop {
+        if buf.is_empty() {
+            return buf;
+        }
+        if buf.first().is_whitespace() {
+            buf = buf.skip_first();
+        } else {
+            return buf;
+        }
+    }
+}
+
 /// https://doc.rust-lang.org/std/primitive.f64.html
 /// Standard Rust parsing with str_to_d interface
 pub fn str_to_d_native(n: &str) -> f64 {

@@ -41,11 +41,11 @@ use std::path::Path;
 use std::{fmt, str};
 
 pub mod binsearch;
-pub mod check;
 pub mod column;
 pub mod comp;
 pub mod expr;
 pub mod join;
+pub mod matcher;
 pub mod sort;
 pub mod text;
 pub mod tooltest;

@@ -1,7 +1,7 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
-use cdx::check::{make_match, BufCheck, CheckOr};
-use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole, Writer};
+use cdx::column::{ColumnCount, ColumnHeader, ColumnLiteral, ColumnWhole, Writer};
+use cdx::matcher::{make_match, BufCheck, CheckOr};
 use cdx::text::Text;
 use cdx::{
     err, get_reader, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE,
@@ -121,6 +121,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         }
     }
 
+    let mut header = ColumnHeader::new();
     let mut w = get_writer("-")?;
     let slow = num.do_it || !skips.is_empty() || !removes.is_empty();
 
@@ -142,7 +143,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         if num.do_it && num.end {
             not_v.push(Box::new(ColumnLiteral::new(b"", "unused")));
         }
-        let mut not_header: Vec<u8> = Vec::new();
+        let mut not_header = String::new();
 
         for x in &files {
             let mut f = Reader::new();
@@ -151,12 +152,14 @@ pub fn main(argv: &[String]) -> Result<()> {
                 continue;
             }
             v.lookup(&f.names())?;
+            header.clear();
             not_header.clear();
+            v.add_names(&mut header, f.header())?;
             if f.cont.has_header {
-                v.write_names(&mut not_header, f.header())?;
+                not_header = header.get_head(b'\t');
             }
-            if checker.check(&not_header, x)? {
-                w.write_all(&not_header)?;
+            if checker.check(not_header.as_bytes(), x)? {
+                w.write_all(not_header.as_bytes())?;
             }
             if f.is_done() {
                 return Ok(());
