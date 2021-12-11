@@ -60,9 +60,22 @@ pub struct Test {
     out_files: Vec<OutFile>,
 }
 
-/// remove item from Vec
-fn nuke(v: &mut Vec<String>, s: &str) {
+/// delete file from dir
+fn delete_file(s: &str, dir: &str) -> Result<()> {
+    let mut f = dir.to_string();
+    f.push_str(s);
+    std::fs::remove_file(f)?;
+    Ok(())
+}
+
+/// remove item from Vec and delete file
+fn nuke(v: &mut Vec<String>, s: &str, dir: &str, keep_files: bool) -> Result<()> {
     v.retain(|x| x != s);
+    if keep_files {
+        Ok(())
+    } else {
+        delete_file(s, dir)
+    }
 }
 
 /// return directory as vec of file names
@@ -120,6 +133,40 @@ impl Test {
     pub fn new() -> Self {
         Self::default()
     }
+    fn add_outfile(
+        &mut self,
+        tag: &str,
+        line: &mut Vec<u8>,
+        reader: &mut Infile,
+        need_read: &mut bool,
+    ) -> Result<bool> {
+        if let Some(x) = line.strip_prefix(tag.as_bytes()) {
+            let out = if x.is_empty() {
+                let mut buf = Vec::new();
+                grab(tag.as_bytes(), &mut buf, line, reader, need_read)?;
+                let mspec = CheckSpec::new("exact")?;
+                OutFile {
+                    name: tag[1..].to_string(),
+                    matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
+                    content: buf,
+                }
+            } else {
+                OutFile {
+                    name: tag[1..].to_string(),
+                    matcher: make_match(std::str::from_utf8(x)?)?,
+                    content: x.to_vec(),
+                }
+            };
+            if tag == "#stderr" {
+                self.stderr = out;
+            } else {
+                self.stdout = out;
+            }
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
     /// parse the file
     pub fn open(&mut self, file: &str) -> Result<()> {
         self.name = file.to_string();
@@ -138,48 +185,17 @@ impl Test {
             if let Some(x) = line.strip_prefix(b"#command") {
                 let y = skip_leading_white(x);
                 self.cmd = y.to_vec();
-            } else if let Some(x) = line.strip_prefix(b"#stdout") {
-                if x.is_empty() {
-                    let mut buf = Vec::new();
-                    grab(b"#stdout", &mut buf, &mut line, &mut reader, &mut need_read)?;
-                    let mspec = CheckSpec::new("exact")?;
-                    self.stdout = OutFile {
-                        name: "stdout".to_string(),
-                        matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
-                        content: buf,
-                    }
-                } else {
-                    self.stdout = OutFile {
-                        name: "stdout".to_string(),
-                        matcher: make_match(std::str::from_utf8(x)?)?,
-                        content: x.to_vec(),
-                    }
-                }
-            // FIXME -- these two cases are duplicates
-            } else if let Some(x) = line.strip_prefix(b"#stderr") {
-                if x.is_empty() {
-                    let mut buf = Vec::new();
-                    grab(b"#stderr", &mut buf, &mut line, &mut reader, &mut need_read)?;
-                    let mspec = CheckSpec::new("exact")?;
-                    self.stderr = OutFile {
-                        name: "stderr".to_string(),
-                        matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
-                        content: buf,
-                    }
-                } else {
-                    self.stderr = OutFile {
-                        name: "stderr".to_string(),
-                        matcher: make_match(std::str::from_utf8(x)?)?,
-                        content: x.to_vec(),
-                    }
-                }
-            } else if grab(
-                b"#stdin",
-                &mut self.stdin,
-                &mut line,
-                &mut reader,
-                &mut need_read,
-            )? {
+            } else if self.add_outfile("#stdout", &mut line, &mut reader, &mut need_read)?
+                || self.add_outfile("#stderr", &mut line, &mut reader, &mut need_read)?
+                || grab(
+                    b"#stdin",
+                    &mut self.stdin,
+                    &mut line,
+                    &mut reader,
+                    &mut need_read,
+                )?
+            {
+                /* do nothing */
             } else if let Some(x) = line.strip_prefix(b"#status") {
                 let y = skip_leading_white(x);
                 self.code = str_to_i_whole(y)? as i32;
@@ -236,25 +252,34 @@ impl Test {
 
     /// run the test
     pub fn run(&mut self, config: &Config) -> Result<bool> {
-        let tmp = TempDir::new("tooltest")?;
+        let mut keep_files = false;
+        let mut tmp: String = if config.tmpdir.is_empty() {
+            config.tmp.path().to_owned().to_string_lossy().to_string()
+        } else {
+            keep_files = true;
+            config.tmpdir.clone()
+        };
+        if !tmp.ends_with('/') {
+            tmp.push('/');
+        }
         for x in &self.in_files {
-            let mut fname = tmp.path().to_owned();
-            fname.push(&x.name);
-            let mut w = get_writer(&fname.to_string_lossy())?;
+            let mut fname = tmp.clone();
+            fname.push_str(&x.name);
+            let mut w = get_writer(&fname)?;
             w.write_all(&x.content)?;
         }
         #[allow(clippy::redundant_clone)]
-        let mut tmp_stdin = tmp.path().to_owned();
-        tmp_stdin.push("stdin");
+        let mut tmp_stdin = tmp.clone();
+        tmp_stdin.push_str("stdin");
         {
             let mut w = std::fs::OpenOptions::new()
                 .write(true)
                 .create(true)
-                .open(&tmp_stdin.as_os_str())?;
+                .open(&tmp_stdin)?;
             w.write_all(&self.stdin)?;
         }
         let ncmd = String::from_utf8_lossy(&self.cmd)
-            .replace("$TMP", &tmp.path().display().to_string())
+            .replace("$TMP", &tmp)
             .as_bytes()
             .to_vec();
         //        prerr(&[b"About to run ", &ncmd]);
@@ -282,10 +307,10 @@ impl Test {
                 output = x;
             }
         }
-        let mut files = read_dir(tmp.path())?;
-        nuke(&mut files, &"stdin".to_string());
+        let mut files = read_dir(Path::new(&tmp))?;
+        nuke(&mut files, &"stdin".to_string(), &tmp, keep_files)?;
         for x in &self.in_files {
-            nuke(&mut files, &x.name);
+            nuke(&mut files, &x.name, &tmp, keep_files)?;
         }
         let mut failed = false;
         match output.status.code() {
@@ -321,10 +346,9 @@ impl Test {
             ]);
         }
         for x in &self.out_files {
-            nuke(&mut files, &x.name);
-            let mut fname = tmp.path().to_owned();
-            fname.push(&x.name);
-            match get_reader(&fname.to_string_lossy()) {
+            let mut fname = tmp.clone();
+            fname.push_str(&x.name);
+            match get_reader(&fname) {
                 Err(e) => {
                     failed = true;
                     eprintln!("{:?}", e);
@@ -345,13 +369,25 @@ impl Test {
                     }
                 }
             }
+            nuke(&mut files, &x.name, &tmp, keep_files)?;
         }
-        if !files.is_empty() {
+        if !keep_files && !files.is_empty() {
             failed = true;
             eprintln!("Files left over in TMP dir :");
             for x in &files {
                 eprintln!("{}", x);
+                delete_file(x, &tmp)?;
             }
+        }
+        if keep_files {
+            let mut fname = tmp.clone();
+            fname.push_str("stdout");
+            let mut w = get_writer(&fname)?;
+            w.write_all(&output.stdout)?;
+            fname = tmp.clone();
+            fname.push_str("stderr");
+            w = get_writer(&fname)?;
+            w.write_all(&output.stderr)?;
         }
         if failed {
             prerr(&[b"Test ", self.name.as_bytes(), b" failed ", &self.cmd]);
@@ -363,21 +399,34 @@ impl Test {
 
 /// Global config for running a bunch of tooltests
 /// Accumulates statistics
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Config {
     pass: usize,
     fail: usize,
     bindir: String,
+    tmpdir: String,
+    tmp: TempDir,
 }
 
 impl Config {
     /// new
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Result<Self> {
+        Ok(Self {
             pass: 0,
             fail: 0,
             bindir: "./".to_string(),
+            tmpdir: String::new(),
+            tmp: TempDir::new("tooltest")?,
+        })
+    }
+    /// set tmp dir
+    pub fn tmp(&mut self, path: &str) -> Result<()> {
+        self.tmpdir = path.to_string();
+        if !self.tmpdir.ends_with('/') {
+            self.tmpdir.push('/');
         }
+        fs::create_dir_all(&self.tmpdir)?;
+        Ok(())
     }
     /// set bin dir
     pub fn bin(&mut self, path: &str) {
@@ -412,8 +461,9 @@ impl Config {
         Ok(true)
     }
 }
+
 impl Default for Config {
     fn default() -> Self {
-        Self::new()
+        Self::new().unwrap()
     }
 }

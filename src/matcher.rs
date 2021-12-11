@@ -37,6 +37,8 @@ pub trait BufCheck {
 pub enum CheckType {
     /// as per regex crate
     Regex,
+    /// always matches
+    Yes,
     /// exact match
     Exact,
     /// starts_with
@@ -575,6 +577,18 @@ impl BufCheck for ExactCheckC {
 }
 
 #[derive(Debug, Clone, Default, Copy)]
+/// Always Matches
+struct YesCheck {}
+impl BufCheck for YesCheck {
+    fn scheck(&self, _buff: &str) -> bool {
+        true
+    }
+    fn ucheck(&self, _buff: &[u8]) -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Clone, Default, Copy)]
 /// check length
 struct LengthCheck {
     min: usize,
@@ -746,6 +760,8 @@ impl CheckSpec {
                 c.multi_mode = MultiMode::Or;
             } else if x.eq_ignore_ascii_case("regex") {
                 c.ctype = CheckType::Regex;
+            } else if x.eq_ignore_ascii_case("yes") {
+                c.ctype = CheckType::Yes;
             } else if x.eq_ignore_ascii_case("exact") {
                 c.ctype = CheckType::Exact;
             } else if x.eq_ignore_ascii_case("prefix") {
@@ -821,6 +837,7 @@ impl CheckSpec {
                 }
             }
             CheckType::Length => Box::new(LengthCheck::new(pattern)?),
+            CheckType::Yes => Box::new(YesCheck {}),
             CheckType::Prefix => {
                 if self.case == Case::Insens {
                     Box::new(PrefixCheckC::new(pattern, self.string))

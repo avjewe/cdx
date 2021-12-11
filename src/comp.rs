@@ -477,6 +477,8 @@ pub enum Comparison {
     Plain,
     /// compare length of data, not contents
     Length,
+    /// always compares equal
+    Equal,
     /// parse as f64, and compare that. Needs option for malfomed numbers.
     Double,
     /// compare nnn.nnn with no limit on length
@@ -589,6 +591,7 @@ impl CompareSettings {
             Comparison::Plain => Box::new(ComparePlain::new()),
             Comparison::Length => Box::new(CompareLen::new()),
             Comparison::Double => Box::new(Comparef64::new()),
+            Comparison::Equal => Box::new(CompareEqual {}),
             Comparison::Numeric => Box::new(CompareNumeric::new()),
             Comparison::IpAddr => Box::new(CompareIP::new()),
             Comparison::Lower => Box::new(CompareLower::new()),
@@ -807,6 +810,10 @@ pub struct CompareLower {
 pub struct CompareLen {
     value: u32,
 }
+
+/// always equal comparison
+#[derive(Default, Debug)]
+pub struct CompareEqual {}
 
 /// f64 comparison
 #[derive(Default, Debug)]
@@ -1149,6 +1156,26 @@ impl Compare for CompareNumeric {
     }
     fn equal_self(&self, right: &[u8]) -> bool {
         num_cmp_signed(&self.value, right) == Ordering::Equal
+    }
+}
+
+impl Compare for CompareEqual {
+    fn comp(&self, _left: &[u8], _right: &[u8]) -> Ordering {
+        Ordering::Equal
+    }
+    fn equal(&self, _left: &[u8], _right: &[u8]) -> bool {
+        true
+    }
+    fn fill_cache(&self, item: &mut Item, _value: &[u8]) {
+        item.cache = 0;
+        item.set_complete();
+    }
+    fn set(&mut self, _value: &[u8]) {}
+    fn comp_self(&self, _right: &[u8]) -> Ordering {
+        Ordering::Equal
+    }
+    fn equal_self(&self, _right: &[u8]) -> bool {
+        true
     }
 }
 
