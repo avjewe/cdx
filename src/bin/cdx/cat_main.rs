@@ -1,7 +1,7 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::column::{ColumnCount, ColumnHeader, ColumnLiteral, ColumnWhole, Writer};
-use cdx::matcher::{make_match, BufCheck, CheckOr};
+use cdx::matcher::{BufMatch, MatchMaker, MatchOr};
 use cdx::text::Text;
 use cdx::{
     err, get_reader, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE,
@@ -90,8 +90,8 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut checker = HeaderChecker::new();
     let mut pad = PadMode::All;
     let mut num = LineNumber::new();
-    let mut skips = CheckOr::new();
-    let mut removes = CheckOr::new();
+    let mut skips = MatchOr::new();
+    let mut removes = MatchOr::new();
 
     for x in args {
         if x.name == "header" {
@@ -113,9 +113,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "end" {
             num.set("number,1,end")?;
         } else if x.name == "skip" {
-            skips.push(make_match(&x.value)?);
+            skips.push(MatchMaker::make(&x.value)?);
         } else if x.name == "remove" {
-            removes.push(make_match(&x.value)?);
+            removes.push(MatchMaker::make(&x.value)?);
         } else {
             unreachable!();
         }
@@ -166,8 +166,8 @@ pub fn main(argv: &[String]) -> Result<()> {
             }
             f.do_split = false;
             loop {
-                if !removes.ucheck(f.curr_nl()) {
-                    if skips.ucheck(f.curr_nl()) {
+                if !removes.umatch(f.curr_nl()) {
+                    if skips.umatch(f.curr_nl()) {
                         not_v.write(&mut w, f.curr())?;
                     } else {
                         v.write(&mut w, f.curr())?;

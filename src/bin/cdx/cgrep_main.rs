@@ -6,19 +6,23 @@ use std::str::FromStr;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    const A: [ArgSpec; 2] = [
+    const A: [ArgSpec; 3] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
+        arg! {"show-matchers", "s", "", "Print available matchers"},
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
     let mut checker = HeaderChecker::new();
-    let mut list = CheckList::new();
+    let mut list = LineMatchAnd::new();
     for x in args {
         if x.name == "header" {
             checker.mode = HeaderMode::from_str(&x.value)?;
         } else if x.name == "pattern" {
-            list.push(Box::new(ColChecker::new(&x.value)?));
+            list.push(Box::new(ColMatcher::new(&x.value)?));
+        } else if x.name == "show-matchers" {
+            MatchMaker::help();
+            return Ok(());
         } else {
             unreachable!();
         }

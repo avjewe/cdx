@@ -1,6 +1,6 @@
 //! parse and run tooltest files
 use crate::comp::{skip_leading_white, skip_leading_white_str, str_to_i_whole};
-use crate::matcher::{make_match, BufCheck, CheckSpec};
+use crate::matcher::{MatchMaker, Matcher};
 use crate::{err, get_reader, get_writer, prerr, Error, Infile, Result};
 //use fs_err as fs;
 use fs_err as fs;
@@ -34,14 +34,14 @@ struct InFile {
 struct OutFile {
     name: String,
     content: Vec<u8>,
-    matcher: Box<dyn BufCheck>,
+    matcher: Matcher,
 }
 impl Default for OutFile {
     fn default() -> Self {
         Self {
             name: String::new(),
             content: Vec::new(),
-            matcher: make_match("empty").unwrap(),
+            matcher: MatchMaker::make("empty").unwrap(),
         }
     }
 }
@@ -144,16 +144,16 @@ impl Test {
             let out = if x.is_empty() {
                 let mut buf = Vec::new();
                 grab(tag.as_bytes(), &mut buf, line, reader, need_read)?;
-                let mspec = CheckSpec::new("exact")?;
                 OutFile {
                     name: tag[1..].to_string(),
-                    matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
+                    matcher: MatchMaker::make2("exact", std::str::from_utf8(&buf)?)?,
                     content: buf,
                 }
             } else {
+                let x = skip_leading_white(x);
                 OutFile {
                     name: tag[1..].to_string(),
-                    matcher: make_match(std::str::from_utf8(x)?)?,
+                    matcher: MatchMaker::make(std::str::from_utf8(x)?)?,
                     content: x.to_vec(),
                 }
             };
@@ -215,7 +215,7 @@ impl Test {
                     let f = OutFile {
                         name: name.to_string(),
                         content: matcher.as_bytes().to_vec(),
-                        matcher: make_match(matcher)?,
+                        matcher: MatchMaker::make(matcher)?,
                     };
                     self.out_files.push(f);
                 } else {
@@ -223,10 +223,9 @@ impl Test {
                     line.clear();
                     let mut buf = Vec::new();
                     grab(b"", &mut buf, &mut line, &mut reader, &mut need_read)?;
-                    let mspec = CheckSpec::new("exact")?;
                     let f = OutFile {
                         name,
-                        matcher: mspec.make_box(std::str::from_utf8(&buf)?)?,
+                        matcher: MatchMaker::make2("exact", std::str::from_utf8(&buf)?)?,
                         content: buf,
                     };
                     self.out_files.push(f);
@@ -327,7 +326,7 @@ impl Test {
         }
         //	eprintln!("Got input {} {} {}", self.code, self.stdout.len(), self.stderr.len());
         //	eprintln!("Got output {} {} {}", output.status.code().unwrap(), output.stdout.len(), output.stderr.len());
-        if !self.stderr.matcher.ucheck(&output.stderr) {
+        if !self.stderr.matcher.umatch(&output.stderr) {
             failed = true;
             prerr(&[
                 b"Stderr was\n",
@@ -336,7 +335,7 @@ impl Test {
                 &self.stderr.content,
             ]);
         }
-        if !self.stdout.matcher.ucheck(&output.stdout) {
+        if !self.stdout.matcher.umatch(&output.stdout) {
             failed = true;
             prerr(&[
                 b"Stdout was\n",
@@ -356,7 +355,7 @@ impl Test {
                 Ok(mut f) => {
                     let mut body = Vec::new();
                     f.read_to_end(&mut body)?;
-                    if !x.matcher.ucheck(&body) {
+                    if !x.matcher.umatch(&body) {
                         failed = true;
                         prerr(&[
                             b"File ",

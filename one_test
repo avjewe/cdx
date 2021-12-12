@@ -1,0 +1,4 @@
+#!/bin/bash
+
+cargo run tooltest -b target/debug --tmp tmp $1
+
