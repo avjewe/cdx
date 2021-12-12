@@ -242,7 +242,7 @@ pub fn skip_leading_white_str(mut buf: &str) -> &str {
     }
 }
 
-/// https://doc.rust-lang.org/std/primitive.f64.html
+// https://doc.rust-lang.org/std/primitive.f64.html
 /// Standard Rust parsing with str_to_d interface
 pub fn str_to_d_native(n: &str) -> f64 {
     n.parse().unwrap()

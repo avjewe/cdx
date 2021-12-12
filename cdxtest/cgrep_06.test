@@ -1,4 +1,4 @@
-#command cdx cgrep -p one,and.c,^aaa^bbb
+#command cdx cgrep -p one,and.case,^aaa^bbb
 #stdin
  CDX	one
 XaaaX

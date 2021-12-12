@@ -2,5 +2,5 @@
 #stdin
  CDX	one	two
 aaa	bbb
-#stderr substr.and.C,,duplicate,one
+#stderr substr.and.case,,duplicate,one
 #status 1

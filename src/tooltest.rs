@@ -326,7 +326,7 @@ impl Test {
         }
         //	eprintln!("Got input {} {} {}", self.code, self.stdout.len(), self.stderr.len());
         //	eprintln!("Got output {} {} {}", output.status.code().unwrap(), output.stdout.len(), output.stderr.len());
-        if !self.stderr.matcher.umatch(&output.stderr) {
+        if !self.stderr.matcher.do_match_safe(&output.stderr) {
             failed = true;
             prerr(&[
                 b"Stderr was\n",
@@ -335,7 +335,7 @@ impl Test {
                 &self.stderr.content,
             ]);
         }
-        if !self.stdout.matcher.umatch(&output.stdout) {
+        if !self.stdout.matcher.do_match_safe(&output.stdout) {
             failed = true;
             prerr(&[
                 b"Stdout was\n",
@@ -355,7 +355,7 @@ impl Test {
                 Ok(mut f) => {
                     let mut body = Vec::new();
                     f.read_to_end(&mut body)?;
-                    if !x.matcher.umatch(&body) {
+                    if !x.matcher.do_match_safe(&body) {
                         failed = true;
                         prerr(&[
                             b"File ",
@@ -448,16 +448,27 @@ impl Config {
             Ok(())
         }
     }
-    /// run
-    pub fn run(&mut self, file: &str) -> Result<bool> {
+    fn do_run(&mut self, file: &str) -> Result<bool> {
         let mut t = Test::new();
         t.open(file)?;
-        if t.run(self)? {
-            self.pass += 1;
-        } else {
-            self.fail += 1;
+        t.run(self)
+    }
+    /// run
+    pub fn run(&mut self, file: &str) {
+        match self.do_run(file) {
+            Ok(x) => {
+                if x {
+                    self.pass += 1;
+                } else {
+                    self.fail += 1;
+                }
+            }
+            Err(x) => {
+                self.fail += 1;
+                eprintln!("Failure : {}", x);
+                prerr(&[b"Test ", file.as_bytes(), b" failed "]);
+            }
         }
-        Ok(true)
     }
 }
 

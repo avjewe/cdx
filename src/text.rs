@@ -83,35 +83,8 @@ pub trait Text {
     fn num_chars(&self) -> usize;
     /// bytes
     fn as_bytes(&self) -> &[u8];
-
-    /// starts with whitespace and then tag
-    fn is_cmt(&self, mut tag: &Self) -> bool {
-        let mut found = false;
-        let mut rest = self;
-        while !rest.is_empty() {
-            let x = rest.first();
-            if found {
-                if tag.is_empty() {
-                    return true;
-                }
-                if tag.first() != x {
-                    return false;
-                }
-                tag = tag.skip_first();
-            } else if !self.is_blank(x) {
-                if tag.is_empty() {
-                    return false;
-                }
-                found = true;
-                if tag.first() != x {
-                    return false;
-                }
-                tag = tag.skip_first();
-            }
-            rest = rest.skip_first();
-        }
-        true
-    }
+    /// trim whitespace
+    fn trimw(&self) -> &Self;
 
     /// match in glob format
     fn glob(&self, in_wild: &Self, ic: Case) -> bool {
@@ -244,6 +217,9 @@ impl Text for str {
         self.chars().next().unwrap()
     }
 
+    fn trimw(&self) -> &Self {
+        self.trim()
+    }
     fn skip_first(&self) -> &Self {
         debug_assert!(!self.is_empty());
         &self[self.chars().next().unwrap().len_utf8()..]
@@ -368,6 +344,14 @@ impl Text for [u8] {
         self[0]
     }
 
+    fn trimw(&self) -> &Self {
+        let from = match self.iter().position(|x| *x > b' ') {
+            Some(i) => i,
+            None => return &self[0..0],
+        };
+        let to = self.iter().rposition(|x| *x > b' ').unwrap();
+        &self[from..=to]
+    }
     fn skip_first(&self) -> &[u8] {
         debug_assert!(!self.is_empty());
         &self[1..]

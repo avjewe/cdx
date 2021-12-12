@@ -1,10 +1,10 @@
-#command cdx cgrep -p one,or.c,^aaa^bbb
+#command cdx cgrep -p one,or.case,^aaa^bbb
 #stdin
  CDX	one
 XaaaX
 XbbbX
 XaaaXbbbX
-XbbbXaaaX
+XbBbXaAaX
 XcccX
 ^aaa^bbb
 #stdout
@@ -12,5 +12,5 @@ XcccX
 XaaaX
 XbbbX
 XaaaXbbbX
-XbbbXaaaX
+XbBbXaAaX
 ^aaa^bbb

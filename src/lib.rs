@@ -848,7 +848,8 @@ impl LookbackReader {
     }
 }
 
-fn prerr(data: &[&[u8]]) {
+/// print a bunch of u8 to stderr
+pub fn prerr(data: &[&[u8]]) {
     for x in data {
         std::io::stderr().write_all(x).unwrap();
     }

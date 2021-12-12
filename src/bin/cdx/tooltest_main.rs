@@ -25,7 +25,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         }
     }
     for x in &files {
-        config.run(x)?;
+        config.run(x);
     }
     config.report()
 }
