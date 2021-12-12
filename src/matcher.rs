@@ -1005,7 +1005,7 @@ impl MatchMaker {
         let mut m = Matcher::default();
         if !matcher.is_empty() {
             for x in matcher.split('.') {
-                if x.eq_ignore_ascii_case("S") {
+                if x.eq_ignore_ascii_case("utf8") {
                     m.string = true;
                 } else if x.eq_ignore_ascii_case("not") {
                     m.negate = true;
