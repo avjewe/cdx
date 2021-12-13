@@ -11,17 +11,17 @@ use std::sync::Mutex;
 
 /// Match against [TextLine]
 pub trait LineMatch {
-    /// is the line ok?
+    /// Is this line ok?
     fn ok(&self, line: &TextLine) -> bool;
-    /// resolve any named columns
+    /// Resolve any named columns.
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
 }
 
 /// Match against `str` or `&[u8]`
 pub trait BufMatch {
-    /// is the buffer ok?
+    /// Are these characters ok?
     fn smatch(&self, buff: &str) -> bool;
-    /// is the line ok?
+    /// Are these bytes ok?
     fn umatch(&self, buff: &[u8]) -> bool;
 }
 
@@ -591,7 +591,7 @@ impl LineMatchMulti {
             matchers: Vec::new(),
         }
     }
-    /// add Match to list
+    /// add Matcher to list
     pub fn push(&mut self, item: Box<dyn LineMatch>) {
         self.matchers.push(item)
     }
@@ -650,22 +650,22 @@ impl fmt::Debug for MatchMulti {
 }
 
 impl MatchMulti {
-    /// new
+    /// new, default mode
     pub fn new() -> Self {
         Self::default()
     }
-    /// new
+    /// new, explicit mode
     pub const fn with_tag(multi: MultiMode) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
         }
     }
-    /// add Match to list
+    /// add Matcher to list
     pub fn push(&mut self, item: Matcher) {
         self.matchers.push(item)
     }
-    /// is empty?
+    /// Are there any matchers in the list?
     pub fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
@@ -779,7 +779,7 @@ impl Clone for Matcher {
 }
 
 impl Matcher {
-    /// are these characters ok?
+    /// Are these characters ok?
     pub fn smatch(&self, mut buff: &str) -> bool {
         if self.trim {
             buff = buff.trimw();
@@ -790,7 +790,7 @@ impl Matcher {
             self.matcher.smatch(buff)
         }
     }
-    /// are these bytes ok?
+    /// Are these bytes ok?
     pub fn umatch(&self, mut buff: &[u8]) -> bool {
         if self.trim {
             buff = buff.trimw();
@@ -801,7 +801,7 @@ impl Matcher {
             self.matcher.umatch(buff)
         }
     }
-    /// umatch or smatch
+    /// umatch or smatch, depending on self.string
     pub fn do_match(&self, buff: &[u8]) -> Result<bool> {
         if self.string {
             Ok(self.smatch(std::str::from_utf8(buff)?))
@@ -810,8 +810,8 @@ impl Matcher {
         }
     }
 
-    /// umatch or smatch
-    /// failure to convert to utf8 is simply 'does not match'
+    /// umatch or smatch, depending on self.string ;
+    /// Failure to convert to utf8 is simply 'does not match'
     pub fn do_match_safe(&self, buff: &[u8]) -> bool {
         if self.string {
             if let Ok(x) = std::str::from_utf8(buff) {
@@ -837,6 +837,11 @@ pub struct MatchMakerItem {
     pub maker: MakerBox,
 }
 
+struct MatchMakerAlias {
+    old_name: &'static str,
+    new_name: &'static str,
+}
+
 macro_rules! mm {
     ($a:expr,$b:expr,$c:expr) => {
         MatchMakerItem {
@@ -849,6 +854,9 @@ macro_rules! mm {
 
 lazy_static! {
     static ref MATCH_MAKER: Mutex<Vec<MatchMakerItem>> = Mutex::new(Vec::new());
+    static ref MATCH_ALIAS: Mutex<Vec<MatchMakerAlias>> = Mutex::new(Vec::new());
+    static ref MODIFIERS: Vec<&'static str> =
+        vec!["utf8", "not", "trim", "null", "case", "and", "or"];
 }
 
 /// Makes a [Matcher]
@@ -857,10 +865,13 @@ pub struct MatchMaker {}
 
 impl MatchMaker {
     /// add standard match makers
-    fn init() {
+    fn init() -> Result<()> {
         if !MATCH_MAKER.lock().unwrap().is_empty() {
-            return;
+            return Ok(());
         }
+        Self::do_add_alias("infix", "substr")?;
+        Self::do_add_alias("infix", "substring")?;
+        Self::do_add_alias("file-exact", "fileexact")?;
         Self::do_push(mm!(
             "prefix",
             "Is the pattern a prefix of the target?",
@@ -869,7 +880,7 @@ impl MatchMaker {
             } else {
                 Box::new(PrefixMatch::new(p))
             })
-        ));
+        ))?;
         Self::do_push(mm!(
             "regex",
             "Interpret the pattern as a regex, as per the eponymous crate",
@@ -878,7 +889,7 @@ impl MatchMaker {
             } else {
                 Box::new(RegexMatchB::new(p, m.case)?)
             })
-        ));
+        ))?;
         Self::do_push(mm!(
             "file-exact",
             "Is the target exactly one one the lines in this file?",
@@ -887,7 +898,7 @@ impl MatchMaker {
             } else {
                 Box::new(FileExactMatch::new(p)?)
             })
-        ));
+        ))?;
         Self::do_push(mm!(
             "exact",
             "Does the target exactly match the pattern",
@@ -896,15 +907,15 @@ impl MatchMaker {
             } else {
                 Box::new(ExactMatch::new(p))
             })
-        ));
+        ))?;
         Self::do_push(mm!(
             "length",
             "For the pattern X,Y, length is between X and Y inclusive",
             |_m, p| Ok(Box::new(LengthMatch::new(p)?))
-        ));
+        ))?;
         Self::do_push(mm!("yes", "always matches", |_m, _p| Ok(Box::new(
             YesMatch {}
-        ))));
+        ))))?;
         Self::do_push(mm!(
             "suffix",
             "Is the pattern a suffix of the target?",
@@ -913,7 +924,7 @@ impl MatchMaker {
             } else {
                 Box::new(SuffixMatch::new(p))
             })
-        ));
+        ))?;
         Self::do_push(mm!(
             "infix",
             "Is the pattern a substring of the target?",
@@ -922,15 +933,15 @@ impl MatchMaker {
             } else {
                 Box::new(InfixMatch::new(p))
             })
-        ));
+        ))?;
         Self::do_push(mm!("glob", "Treat the pattern as a shell glob", |m, p| Ok(
             Box::new(GlobMatch::new(p, m.case))
-        )));
+        )))?;
         Self::do_push(mm!(
             "empty",
             "Is the target empty, i.e. zero bytes",
             |_m, _p| Ok(Box::new(LengthMatch::new("0,0")?))
-        ));
+        ))?;
         Self::do_push(mm!(
             "blank",
             "Is the target made entirely of white space",
@@ -939,7 +950,7 @@ impl MatchMaker {
                 m.empty = true;
                 Ok(Box::new(NoMatch {}))
             }
-        ));
+        ))?;
         Self::do_push(mm!(
             "comment",
             "Is the target white space followed by the pattern?",
@@ -948,7 +959,7 @@ impl MatchMaker {
                 m.empty = true;
                 Ok(Box::new(PrefixMatch::new(p)))
             }
-        ));
+        ))?;
         Self::do_push(mm!(
             "hash",
             "Is the target white space folled by the # character?",
@@ -957,7 +968,7 @@ impl MatchMaker {
                 m.empty = true;
                 Ok(Box::new(PrefixMatch::new("#")))
             }
-        ));
+        ))?;
         Self::do_push(mm!(
             "slash",
             "Is the target white space followed by //",
@@ -966,41 +977,76 @@ impl MatchMaker {
                 m.empty = true;
                 Ok(Box::new(PrefixMatch::new("//")))
             }
-        ));
+        ))
     }
-    /// add new matcher. Replace if same name as existing.
-    pub fn push(m: MatchMakerItem) {
-        Self::init();
-        Self::do_push(m);
+    /// Add a new matcher. If a Matcher already exists by that name, replace it.
+    pub fn push(m: MatchMakerItem) -> Result<()> {
+        Self::init()?;
+        Self::do_push(m)
     }
-    /// add new matcher. Replace if same name as existing.
-    fn do_push(m: MatchMakerItem) {
+    /// Add a new alias. If an alias already exists by that name, replace it.
+    pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
+        Self::init()?;
+        Self::do_add_alias(old_name, new_name)
+    }
+    /// Return name, replaced by its alias, if any.
+    fn resolve_alias(name: String) -> String {
+        let mut mm = MATCH_ALIAS.lock().unwrap();
+        for x in mm.iter_mut() {
+            if x.new_name == name {
+                return x.old_name.to_string();
+            }
+        }
+        name
+    }
+    fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
+        if MODIFIERS.contains(&new_name) {
+            return err!("You can't add an alias named {} because that is reserved for a modifier");
+        }
+        let m = MatchMakerAlias { old_name, new_name };
+        let mut mm = MATCH_ALIAS.lock().unwrap();
+        for x in mm.iter_mut() {
+            if x.new_name == m.new_name {
+                *x = m;
+                return Ok(());
+            }
+        }
+        mm.push(m);
+        Ok(())
+    }
+    fn do_push(m: MatchMakerItem) -> Result<()> {
+        if MODIFIERS.contains(&m.tag) {
+            return err!(
+                "You can't add a matcher named {} because that is reserved for a modifier"
+            );
+        }
         let mut mm = MATCH_MAKER.lock().unwrap();
         for x in mm.iter_mut() {
             if x.tag == m.tag {
                 *x = m;
-                return;
+                return Ok(());
             }
         }
         mm.push(m);
+        Ok(())
     }
-    /// print all available match makers to stdout
+    /// Print all available Matchers to stdout.
     pub fn help() {
-        Self::init();
+        Self::init().unwrap();
         let mm = MATCH_MAKER.lock().unwrap();
         for x in &*mm {
             println!("{:12}{}", x.tag, x.help);
         }
     }
-    /// call pr for every match maker
+    /// Call pr for every Matcher.
     pub fn help1(pr: &dyn Fn(&str, &str)) {
-        Self::init();
+        Self::init().unwrap();
         let mm = MATCH_MAKER.lock().unwrap();
         for x in &*mm {
             pr(x.tag, x.help);
         }
     }
-    /// create a matcher from a matcher spec and a pattern
+    /// Create a Matcher from a matcher spec and a pattern
     pub fn make2(matcher: &str, pattern: &str) -> Result<Matcher> {
         let mut m = Matcher::default();
         if !matcher.is_empty() {
@@ -1023,16 +1069,7 @@ impl MatchMaker {
                     m.ctype = x.to_string();
                 }
             }
-            // FIXME this should be user accessible
-            if m.ctype.eq_ignore_ascii_case("substr") {
-                m.ctype = "infix".to_string();
-            }
-            if m.ctype.eq_ignore_ascii_case("substring") {
-                m.ctype = "infix".to_string();
-            }
-            if m.ctype.eq_ignore_ascii_case("fileexact") {
-                m.ctype = "file-exact".to_string();
-            }
+            m.ctype = Self::resolve_alias(m.ctype);
         }
         if let Some(mm) = m.multi_mode {
             let mut outer = Box::new(MatchMulti::new());
@@ -1052,7 +1089,7 @@ impl MatchMaker {
         }
         Ok(m)
     }
-    /// create a matcher from a full spec
+    /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
     pub fn make(spec: &str) -> Result<Matcher> {
         if let Some((a, b)) = spec.split_once(',') {
             Self::make2(a, b)
@@ -1060,9 +1097,9 @@ impl MatchMaker {
             Self::make2(spec, "")
         }
     }
-    /// remake the dyn BufMatch based on current contents
+    /// Remake the dyn BufMatch based on current contents.
     pub fn remake(m: &mut Matcher, pattern: &str) -> Result<()> {
-        Self::init();
+        Self::init()?;
         let mm = MATCH_MAKER.lock().unwrap();
         for x in &*mm {
             if x.tag == m.ctype {
