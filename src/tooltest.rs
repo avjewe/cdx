@@ -1,6 +1,7 @@
 //! parse and run tooltest files
-use crate::comp::{skip_leading_white, skip_leading_white_str, str_to_i_whole};
+use crate::comp::str_to_i_whole;
 use crate::matcher::{MatchMaker, Matcher};
+use crate::text::Text;
 use crate::{err, get_reader, get_writer, prerr, Error, Infile, Result};
 //use fs_err as fs;
 use fs_err as fs;
@@ -150,7 +151,7 @@ impl Test {
                     content: buf,
                 }
             } else {
-                let x = skip_leading_white(x);
+                let x = x.trimw_start();
                 OutFile {
                     name: tag[1..].to_string(),
                     matcher: MatchMaker::make(std::str::from_utf8(x)?)?,
@@ -183,7 +184,7 @@ impl Test {
             }
             let mut need_read = true;
             if let Some(x) = line.strip_prefix(b"#command") {
-                let y = skip_leading_white(x);
+                let y = x.trimw_start();
                 self.cmd = y.to_vec();
             } else if self.add_outfile("#stdout", &mut line, &mut reader, &mut need_read)?
                 || self.add_outfile("#stderr", &mut line, &mut reader, &mut need_read)?
@@ -197,10 +198,10 @@ impl Test {
             {
                 /* do nothing */
             } else if let Some(x) = line.strip_prefix(b"#status") {
-                let y = skip_leading_white(x);
+                let y = x.trimw_start();
                 self.code = str_to_i_whole(y)? as i32;
             } else if let Some(x) = line.strip_prefix(b"#infile") {
-                let y = skip_leading_white(x);
+                let y = x.trimw_start();
                 let mut f = InFile {
                     name: String::from_utf8(y.to_vec())?,
                     ..Default::default()
@@ -210,7 +211,7 @@ impl Test {
                 self.in_files.push(f);
             } else if let Some(x) = line.strip_prefix(b"#outfile") {
                 let y = std::str::from_utf8(x)?;
-                let y = skip_leading_white_str(y);
+                let y = y.trimw_start();
                 if let Some((name, matcher)) = y.split_once(' ') {
                     let f = OutFile {
                         name: name.to_string(),

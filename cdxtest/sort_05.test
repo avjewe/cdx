@@ -1,4 +1,4 @@
-#command cdx sort -k2r
+#command cdx sort -k2,rev
 #stdin
  CDX	one	two	three
 stuff	junk	things

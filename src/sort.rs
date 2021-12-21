@@ -7,7 +7,7 @@ add HEADER_MODE and total_size as parameters
 fancier sort
  */
 
-use crate::comp::{Comparator, Item};
+use crate::comp::{Item, LineCompList};
 use crate::{copy, err, get_reader, get_writer, is_cdx, Error, HeaderChecker, Reader, Result};
 use std::cmp::Ordering;
 use std::io::{BufRead, Read, Write};
@@ -17,7 +17,7 @@ use tempdir::TempDir;
 /// merge all the files into w, using tmp
 pub fn merge_t(
     in_files: &[String],
-    cmp: &mut Comparator,
+    cmp: &mut LineCompList,
     w: impl Write,
     unique: bool,
     tmp: &TempDir,
@@ -49,7 +49,7 @@ pub fn merge_t(
 }
 
 /// merge all the files into w
-pub fn merge(files: &[String], cmp: &mut Comparator, w: impl Write, unique: bool) -> Result<()> {
+pub fn merge(files: &[String], cmp: &mut LineCompList, w: impl Write, unique: bool) -> Result<()> {
     let tmp = TempDir::new("merge")?;
     merge_t(files, cmp, w, unique, &tmp)
 }
@@ -58,7 +58,7 @@ pub fn merge(files: &[String], cmp: &mut Comparator, w: impl Write, unique: bool
 pub fn merge_2(
     left: &str,
     right: &str,
-    cmp: &mut Comparator,
+    cmp: &mut LineCompList,
     mut w: impl Write,
     unique: bool,
 ) -> Result<()> {
@@ -126,10 +126,10 @@ pub fn merge_2(
 }
 
 /// Large block of text and pointers to lines therein
-#[derive(Debug)]
+#[allow(missing_debug_implementations)]
 pub struct Sorter {
     ptrs: Vec<Item>,
-    cmp: Comparator,
+    cmp: LineCompList,
     tmp: TempDir,
     tmp_files: Vec<String>,
     unique: bool,
@@ -156,7 +156,7 @@ const MAX_DATA: usize = 0x0ffffff00;
 
 impl Sorter {
     /// new Sorter
-    pub fn new(cmp: Comparator, max_alloc: usize, unique: bool) -> Self {
+    pub fn new(cmp: LineCompList, max_alloc: usize, unique: bool) -> Self {
         let mut data_size = max_alloc / 2;
         if data_size > MAX_DATA {
             data_size = MAX_DATA;
@@ -253,9 +253,7 @@ impl Sorter {
                 item.offset = off as u32;
                 item.size_plus = (iter.0 - off + 1) as u32;
                 off = iter.0 + 1;
-                self.cmp
-                    .comp
-                    .fill_cache_item(&self.cmp, &mut item, &self.data);
+                self.cmp.fill_cache_line(&mut item, &self.data);
                 self.ptrs.push(item);
             }
         }
@@ -285,10 +283,10 @@ impl Sorter {
     /// sort and unique self.ptrs
     fn do_sort(&mut self) {
         self.ptrs
-            .sort_by(|a, b| self.cmp.comp.comp_items(&self.cmp, &self.data, a, b));
+            .sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
         if self.unique {
             self.ptrs
-                .dedup_by(|a, b| self.cmp.comp.equal_items(&self.cmp, &self.data, a, b));
+                .dedup_by(|a, b| self.cmp.equal_items(&self.data, a, b));
         }
     }
     /// All files have been added, write final results
@@ -333,7 +331,7 @@ impl Sorter {
 }
 
 /// Sort all the files together, into w
-pub fn sort<W: Write>(files: &[String], cmp: Comparator, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
+pub fn sort<W: Write>(files: &[String], cmp: LineCompList, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
 {
     let mut s = Sorter::new(cmp, 100000000, unique);
     for fname in files {

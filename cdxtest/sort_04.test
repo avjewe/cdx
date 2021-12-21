@@ -1,4 +1,4 @@
-#command cdx sort --key 2g
+#command cdx sort --key 2,float
 #stdin
  CDX	one	two	three
 aaa	27.5	ccc

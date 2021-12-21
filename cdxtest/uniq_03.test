@@ -1,1 +1,1 @@
-#command cdx uniq -k3g
+#command cdx uniq -k3,float

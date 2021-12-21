@@ -3,7 +3,7 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, arg_pos, args};
 use cdx::binsearch::{equal_range_n, find_end, find_prev, MemMap};
-use cdx::comp::{make_comp, CompareList};
+use cdx::comp::LineCompList;
 use cdx::text::Text;
 use cdx::{err, get_writer, write_all_nl, Error, HeaderChecker, HeaderMode, Result, HEADER_MODE};
 use std::io::Write;
@@ -105,15 +105,15 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut checker = HeaderChecker::new();
     let mut filename: Option<FileNameColumn> = None;
     let mut context = Context::new();
-    let mut subdelim = ',';
-    let mut comp = CompareList::new();
+    let mut subdelim = b',';
+    let mut comp = LineCompList::new();
     let mut pattern: Option<String> = None;
 
     for x in args {
         if x.name == "header" {
             checker.mode = HeaderMode::from_str(&x.value)?;
         } else if x.name == "key" {
-            comp.push(make_comp(&x.value)?);
+            comp.add(&x.value)?;
         } else if x.name == "filename" {
             if filename.is_some() {
                 return err!("You cant use --filename twice");
@@ -124,10 +124,10 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "context" {
             context.set(&x.value)?;
         } else if x.name == "subdelim" {
-            if x.value.num_chars() != 1 {
+            if x.value.len() != 1 {
                 return err!("--sub-delim value must be a single character");
             }
-            subdelim = x.value.first();
+            subdelim = x.value.as_bytes()[0];
         } else if x.name == "pattern" {
             pattern = Some(x.value);
         } else {
@@ -141,9 +141,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         return err!("At least one file is required : you can't binary search stdin.");
     }
     if comp.is_empty() {
-        comp.push(make_comp("1")?);
+        comp.add("1")?;
     }
-    comp.set(&pattern.unwrap(), subdelim)?;
+    comp.set(pattern.unwrap().as_bytes(), subdelim)?;
     let mut w = get_writer("-")?;
     let mut not_header: Vec<u8> = Vec::new();
 

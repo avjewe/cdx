@@ -712,6 +712,10 @@ impl Reader {
     pub const fn curr(&self) -> &TextLine {
         &self.line
     }
+    /// get current line
+    pub const fn curr_line(&self) -> &TextLine {
+        &self.line
+    }
     /// get current line contents, without the trailing newline
     pub fn curr_nl(&self) -> &[u8] {
         &self.line.line[0..self.line.line.len() - 1]

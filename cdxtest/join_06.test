@@ -1,4 +1,4 @@
-#command cdx join -k2.3g $TMP/aaa $TMP/bbb
+#command cdx join -k2.3,float $TMP/aaa $TMP/bbb
 #infile aaa
 aaa	3	ccc
 ddd	20	fff

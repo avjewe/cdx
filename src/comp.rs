@@ -1,15 +1,639 @@
 //! Tools for comparing lines and fields
-//!  * Comparison -- an enum for comparison semantics
-//!  * Compare -- a trait. Roughly one impl per Comparison
-//!  * CompareSettings -- a Comparison, plus a column and other context
-//!  * Comparator -- a CompareSettings, plus an instance of Compare matching the Comparison
+//!
+//!  * [Compare] -- a trait for comparing slices
+//!  * [Comp] -- a struct containing a [Compare], plus some context
+//!  * [CompList] -- an ordered list of [Comp]
+//!
+//!  * LineCompare -- a trait for comparing lines, often implemented in terms of a [Compare]
+//!  * LineComp -- a struct containing a [LineCompare], plus some context
+//!  * LineCompList -- an ordered list of [LineComp]
+//!
 #![allow(clippy::float_cmp)]
 use crate::column::NamedCol;
 use crate::text::Text;
 use crate::{err, Error, Result, TextLine};
+use lazy_static::lazy_static;
 use libm;
 use std::cmp::Ordering;
 use std::fmt;
+use std::sync::Mutex;
+
+/// method of comparing two slices
+pub trait Compare {
+    /// Compare two slices, usually column values
+    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering;
+    /// Compare two slices for equality
+    fn equal(&self, left: &[u8], right: &[u8]) -> bool;
+    /// set cache for this value
+    fn fill_cache(&self, item: &mut Item, value: &[u8]);
+    /// set my value
+    fn set(&mut self, value: &[u8]);
+    /// Compare self to slice
+    fn comp_self(&self, right: &[u8]) -> Ordering;
+    /// Compare self to slice for equality
+    fn equal_self(&self, right: &[u8]) -> bool;
+}
+
+/// method of comparing two lines
+pub trait LineCompare {
+    /// compare lines
+    fn comp_cols(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering;
+    /// which columns are in use for this file
+    fn used_cols(&self, v: &mut Vec<usize>, file_num: usize);
+    /// compare lines
+    fn equal_cols(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool;
+    /// compare lines
+    fn comp_lines(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering;
+    /// compare lines
+    fn equal_lines(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool;
+    /// resolve named columns; illegal to call any of the others with a file that has not been looked up
+    fn lookup(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()>;
+    /// initialize columns in TextLine?
+    fn need_split(&self) -> bool {
+        true
+    }
+    /// set cache for this value
+    fn fill_cache_cols(&self, item: &mut Item, value: &TextLine);
+    /// set cache for this value
+    fn fill_cache_line(&self, item: &mut Item, value: &[u8], delim: u8);
+    /// set my value
+    fn set(&mut self, value: &[u8]);
+    /// Compare self to line
+    fn comp_self_cols(&self, right: &TextLine) -> Ordering;
+    /// Compare self to line for equality
+    fn equal_self_cols(&self, right: &TextLine) -> bool;
+    /// Compare self to line
+    fn comp_self_line(&self, right: &[u8], delim: u8) -> Ordering;
+    /// Compare self to line for equality
+    fn equal_self_line(&self, right: &[u8], delim: u8) -> bool;
+}
+
+/// amount of junk allowed in a number, before falling back to the 'error' value
+#[derive(Debug, Copy, Clone)]
+pub enum JunkType {
+    /// best effort for any input
+    Any,
+    /// best effort, as long as some non-empty prefix is ok
+    Trailing,
+    /// every byte but be part of a valid value
+    None,
+}
+impl Default for JunkType {
+    fn default() -> Self {
+        Self::Any
+    }
+}
+
+/// Value to assign to junk values
+#[derive(Debug, Copy, Clone)]
+pub enum JunkVal {
+    /// if value is just, make is compare less
+    Min,
+    /// if value is just, make is compare greater
+    Max,
+}
+impl Default for JunkVal {
+    fn default() -> Self {
+        Self::Max
+    }
+}
+
+/// What counts as junk, and what to do about it
+#[derive(Debug, Default, Copy, Clone)]
+pub struct Junk {
+    /// what constitutes junk
+    pub junk_type: JunkType,
+    /// what do do with junk
+    pub junk_val: JunkVal,
+}
+
+/// Settings for one Compare object
+#[allow(missing_debug_implementations)]
+pub struct Comp {
+    /// junk allowed, responsibiltiy of inner Compare
+    junk: Junk,
+    /// optional arg to comparison, responsibiltiy of inner Compare
+    pub pattern: String,
+
+    /// type of comparison
+    pub ctype: String,
+    /// reverse comparison?
+    reverse: bool,
+    /// the thing that compares
+    pub comp: Box<dyn Compare>,
+}
+
+impl fmt::Debug for Comp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Comp")
+    }
+}
+
+impl Default for Comp {
+    fn default() -> Self {
+        Self {
+            junk: Junk::default(),
+            pattern: String::default(),
+            ctype: String::default(),
+            reverse: false,
+            comp: Box::new(ComparePlain::new()),
+        }
+    }
+}
+
+impl Comp {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// new
+    pub fn with_line_comp(c: &LineComp) -> Self {
+        Self {
+            junk: c.junk,
+            pattern: c.pattern.clone(),
+            ctype: c.ctype.clone(),
+            reverse: c.reverse,
+            comp: Box::new(ComparePlain::new()),
+        }
+    }
+    /// Compare two slices, usually column values
+    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+        self.comp.comp(left, right)
+    }
+    /// Compare two slices for equality
+    fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+        self.comp.equal(left, right)
+    }
+    /// set cache for this value
+    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+        self.comp.fill_cache(item, value)
+    }
+    /// set my value
+    fn set(&mut self, value: &[u8]) {
+        self.comp.set(value)
+    }
+    /// Compare self to slice
+    fn comp_self(&self, right: &[u8]) -> Ordering {
+        self.comp.comp_self(right)
+    }
+    /// Compare self to slice for equality
+    fn equal_self(&self, right: &[u8]) -> bool {
+        self.comp.equal_self(right)
+    }
+}
+
+/// Settings for one Compare object
+#[allow(missing_debug_implementations)]
+pub struct LineComp {
+    /// junk allowed, responsibiltiy of inner LineCompare
+    junk: Junk,
+    /// optional arg to comparison, responsibiltiy of inner LineCompare
+    pub pattern: String,
+    /// period delimited list of columns, responsibiltiy of inner LineCompare
+    pub cols: String,
+
+    /// type of comparison
+    pub ctype: String,
+    /// reverse comparison?
+    pub reverse: bool,
+    /// column delimiter
+    pub delim: u8,
+    /// the thing that compares
+    pub comp: Box<dyn LineCompare>,
+}
+
+impl fmt::Debug for LineComp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "LineComp")
+    }
+}
+
+impl Default for LineComp {
+    fn default() -> Self {
+        Self {
+            junk: Junk::default(),
+            pattern: String::default(),
+            cols: String::default(),
+
+            ctype: String::new(),
+            reverse: false,
+            delim: b'\t',
+            comp: Box::new(LineCompWhole::new(Comp::default())),
+        }
+    }
+}
+
+/// extract column from line
+pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
+    for (n, s) in data.split(|ch| *ch == delim).enumerate() {
+        if n == col {
+            return if !s.is_empty() && s.last().unwrap() == &b'\n' {
+                &s[0..s.len() - 1]
+            } else {
+                s
+            };
+        }
+    }
+    &data[0..0]
+}
+
+impl LineComp {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// which columns are in use for this file
+    pub fn used_cols(&self, v: &mut Vec<usize>, file_num: usize) {
+        self.comp.used_cols(v, file_num)
+    }
+    /// Compare Items
+    pub fn comp_items(&self, base: &[u8], left: &Item, right: &Item) -> Ordering {
+        self.reverse({
+            if left.cache < right.cache {
+                Ordering::Less
+            } else if left.cache > right.cache {
+                Ordering::Greater
+            } else if left.complete() && right.complete() {
+                Ordering::Equal
+            } else {
+                self.comp_lines(left.get(base), right.get(base))
+            }
+        })
+    }
+    /// Compare Items
+    pub fn equal_items(&self, base: &[u8], left: &Item, right: &Item) -> bool {
+        if left.complete() && right.complete() {
+            left.cache == right.cache
+        } else {
+            self.equal_lines(left.get(base), right.get(base))
+        }
+    }
+    /// reverse the ordering if self.reverse is set
+    pub const fn reverse(&self, x: Ordering) -> Ordering {
+        if self.reverse {
+            x.reverse()
+        } else {
+            x
+        }
+    }
+    /// compare [TextLine]s from a single file
+    pub fn comp_cols(&self, left: &TextLine, right: &TextLine) -> Ordering {
+        self.reverse(self.comp.comp_cols(left, right, 0, 0))
+    }
+    /// compare [TextLine]s from multiple files
+    pub fn comp_cols_n(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
+        self.reverse(self.comp.comp_cols(left, right, left_file, right_file))
+    }
+    /// compare [TextLine]s from a single file
+    pub fn equal_cols(&self, left: &TextLine, right: &TextLine) -> bool {
+        self.comp.equal_cols(left, right, 0, 0)
+    }
+    /// compare [TextLine]s from multiple files
+    pub fn equal_cols_n(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
+        self.comp.equal_cols(left, right, left_file, right_file)
+    }
+    /// compare line from a single file
+    pub fn comp_lines(&self, left: &[u8], right: &[u8]) -> Ordering {
+        self.reverse(self.comp.comp_lines(left, right, self.delim, 0, 0))
+    }
+    /// compare lines from multiple files
+    pub fn comp_lines_n(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
+        self.reverse(
+            self.comp
+                .comp_lines(left, right, self.delim, left_file, right_file),
+        )
+    }
+    /// compare line from a single file
+    pub fn equal_lines(&self, left: &[u8], right: &[u8]) -> bool {
+        self.comp.equal_lines(left, right, self.delim, 0, 0)
+    }
+    /// compare lines from multiple files
+    pub fn equal_lines_n(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
+        self.comp
+            .equal_lines(left, right, self.delim, left_file, right_file)
+    }
+    /// resolve named columns
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.comp.lookup(fieldnames, 0)
+    }
+    /// resolve named columns for the given file
+    pub fn lookup_n(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()> {
+        self.comp.lookup(fieldnames, file_num)
+    }
+    /// do [TextLine]s need their columns to be initialized
+    pub fn need_split(&self) -> bool {
+        self.comp.need_split()
+    }
+    /// set cache of [Item] from [TextLine]
+    pub fn fill_cache_cols(&self, item: &mut Item, value: &TextLine) {
+        self.comp.fill_cache_cols(item, value)
+    }
+    /// set cache of [Item] from line
+    pub fn fill_cache_line(&self, item: &mut Item, value: &[u8]) {
+        self.comp.fill_cache_line(item, value, self.delim)
+    }
+    /// set value for later comparison
+    pub fn set(&mut self, value: &[u8]) {
+        self.comp.set(value)
+    }
+    /// compare self to this line
+    pub fn comp_self_cols(&self, right: &TextLine) -> Ordering {
+        self.reverse(self.comp.comp_self_cols(right))
+    }
+    /// compare self to this line
+    pub fn equal_self_cols(&self, right: &TextLine) -> bool {
+        self.comp.equal_self_cols(right)
+    }
+    /// compare self to this line
+    pub fn comp_self_line(&self, right: &[u8]) -> Ordering {
+        self.reverse(self.comp.comp_self_line(right, self.delim))
+    }
+    /// compare self to this line
+    pub fn equal_self_line(&self, right: &[u8]) -> bool {
+        self.comp.equal_self_line(right, self.delim)
+    }
+}
+
+/// compare the whole line with the [Compare]
+struct LineCompWhole {
+    comp: Comp,
+}
+
+impl LineCompWhole {
+    const fn new(comp: Comp) -> Self {
+        Self { comp }
+    }
+}
+
+impl LineCompare for LineCompWhole {
+    fn used_cols(&self, _v: &mut Vec<usize>, _file_num: usize) {}
+    /// compare lines
+    fn comp_cols(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> Ordering {
+        self.comp.comp(&left.line, &right.line)
+    }
+    /// compare lines
+    fn equal_cols(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> bool {
+        self.comp.equal(&left.line, &right.line)
+    }
+    /// compare lines
+    fn comp_lines(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        _delim: u8,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> Ordering {
+        self.comp.comp(left, right)
+    }
+    /// compare lines
+    fn equal_lines(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        _delim: u8,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> bool {
+        self.comp.equal(left, right)
+    }
+    /// resolve named columns; illegal to call any of the others with a file that has not been looked up
+    fn lookup(&mut self, _fieldnames: &[&str], _file_num: usize) -> Result<()> {
+        Ok(())
+    }
+    fn need_split(&self) -> bool {
+        false
+    }
+
+    fn fill_cache_cols(&self, item: &mut Item, value: &TextLine) {
+        self.comp.fill_cache(item, &value.line)
+    }
+
+    fn fill_cache_line(&self, item: &mut Item, value: &[u8], _delim: u8) {
+        self.comp.fill_cache(item, value)
+    }
+
+    fn set(&mut self, value: &[u8]) {
+        self.comp.set(value)
+    }
+
+    fn comp_self_cols(&self, right: &TextLine) -> Ordering {
+        self.comp.comp_self(&right.line)
+    }
+
+    fn equal_self_cols(&self, right: &TextLine) -> bool {
+        self.comp.equal_self(&right.line)
+    }
+
+    fn comp_self_line(&self, right: &[u8], _delim: u8) -> Ordering {
+        self.comp.comp_self(right)
+    }
+
+    fn equal_self_line(&self, right: &[u8], _delim: u8) -> bool {
+        self.comp.equal_self(right)
+    }
+}
+
+/// compare the whole line with the [Compare]
+struct LineCompCol {
+    cols: Vec<NamedCol>,
+    comp: Comp,
+}
+
+impl LineCompCol {
+    /// cols must not be empty, use LineCompWhole for that
+    fn new(comp: Comp, spec: &str) -> Result<Self> {
+        let mut cols = Vec::new();
+        for x in spec.split('.') {
+            cols.push(NamedCol::new_from(x)?);
+        }
+        Ok(Self { cols, comp })
+    }
+}
+
+impl LineCompare for LineCompCol {
+    fn used_cols(&self, v: &mut Vec<usize>, file_num: usize) {
+        v.push(self.cols[file_num].num);
+    }
+    /// compare lines
+    fn comp_cols(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
+        self.comp.comp(
+            left.get(self.cols[left_file].num),
+            right.get(self.cols[right_file].num),
+        )
+    }
+    /// compare lines
+    fn equal_cols(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
+        self.comp.equal(
+            left.get(self.cols[left_file].num),
+            right.get(self.cols[right_file].num),
+        )
+    }
+    /// compare lines
+    fn comp_lines(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
+        self.comp.comp(
+            get_col(left, self.cols[left_file].num, delim),
+            get_col(right, self.cols[right_file].num, delim),
+        )
+    }
+    /// compare lines
+    fn equal_lines(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
+        self.comp.equal(
+            get_col(left, self.cols[left_file].num, delim),
+            get_col(right, self.cols[right_file].num, delim),
+        )
+    }
+    /// resolve named columns; illegal to call any of the others with a file that has not been looked up
+    fn lookup(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()> {
+        while self.cols.len() < (file_num + 1) {
+            self.cols.push(self.cols[self.cols.len() - 1].clone());
+        }
+        self.cols[file_num].lookup(fieldnames)
+    }
+    fn fill_cache_cols(&self, item: &mut Item, value: &TextLine) {
+        self.comp.fill_cache(item, value.get(self.cols[0].num))
+    }
+
+    fn fill_cache_line(&self, item: &mut Item, value: &[u8], delim: u8) {
+        self.comp
+            .fill_cache(item, get_col(item.get(value), self.cols[0].num, delim))
+    }
+
+    fn set(&mut self, value: &[u8]) {
+        self.comp.set(value)
+    }
+
+    fn comp_self_cols(&self, right: &TextLine) -> Ordering {
+        self.comp.comp_self(right.get(self.cols[0].num))
+    }
+
+    fn equal_self_cols(&self, right: &TextLine) -> bool {
+        self.comp.equal_self(right.get(self.cols[0].num))
+    }
+
+    fn comp_self_line(&self, right: &[u8], delim: u8) -> Ordering {
+        self.comp.comp_self(get_col(right, self.cols[0].num, delim))
+    }
+
+    fn equal_self_line(&self, right: &[u8], delim: u8) -> bool {
+        self.comp
+            .equal_self(get_col(right, self.cols[0].num, delim))
+    }
+}
+
+/*
+    /// Compare lines
+    fn comp_items(&self, base: &[u8], left: &Item, right: &Item) -> Ordering {
+        if left.cache < right.cache {
+            Ordering::Less
+        } else if left.cache > right.cache {
+            Ordering::Greater
+        } else if left.complete() && right.complete() {
+            Ordering::Equal
+        } else {
+            self.comp_lines(left.get(base), right.get(base))
+        }
+    }
+    /// Compare lines
+    fn equal_items(&self, base: &[u8], left: &Item, right: &Item) -> bool {
+        if left.cache != right.cache {
+            return false;
+        }
+        if left.complete() && right.complete() {
+            return true;
+        }
+        self.equal_lines(left.get(base), right.get(base))
+    }
+}
+*/
 
 /// make fixed length array from slice
 pub fn make_array(val: &[u8]) -> [u8; 8] {
@@ -148,8 +772,8 @@ fn num_cmp_unsigned(mut a: &[u8], mut b: &[u8]) -> Ordering {
 }
 
 fn num_cmp_signed(mut a: &[u8], mut b: &[u8]) -> Ordering {
-    a = skip_leading_white(a);
-    b = skip_leading_white(b);
+    a = a.trimw_start();
+    b = b.trimw_start();
 
     let left_minus = if !a.is_empty() && a[0] == b'-' {
         a = &a[1..];
@@ -179,8 +803,8 @@ fn num_cmp_signed(mut a: &[u8], mut b: &[u8]) -> Ordering {
 }
 
 fn ip_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
-    a = skip_leading_white(a);
-    b = skip_leading_white(b);
+    a = a.trimw_start();
+    b = b.trimw_start();
 
     loop {
         let mut a2: usize = 0;
@@ -212,33 +836,6 @@ fn ip_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
         }
         a = &a[a2 + 1..];
         b = &b[b2 + 1..];
-    }
-}
-
-/// skip leading whitespace
-pub fn skip_leading_white(num: &[u8]) -> &[u8] {
-    let mut pos: usize = 0;
-    for ch in num {
-        if *ch <= b' ' {
-            pos += 1;
-        } else {
-            break;
-        }
-    }
-    &num[pos..]
-}
-
-/// skip leading whitespace
-pub fn skip_leading_white_str(mut buf: &str) -> &str {
-    loop {
-        if buf.is_empty() {
-            return buf;
-        }
-        if buf.first().is_whitespace() {
-            buf = buf.skip_first();
-        } else {
-            return buf;
-        }
     }
 }
 
@@ -275,7 +872,7 @@ pub fn str_to_d_whole(num: &[u8]) -> Result<f64> {
 /// Convert bytes to integer, return unused portion
 pub fn str_to_i(num: &[u8]) -> Result<(i64, &[u8])> {
     let mut neg: i64 = 1;
-    let mut curr = skip_leading_white(num);
+    let mut curr = num.trimw_start();
     if !curr.is_empty() {
         if curr[0] == b'+' {
             curr = &curr[1..];
@@ -299,7 +896,7 @@ pub fn str_to_i(num: &[u8]) -> Result<(i64, &[u8])> {
 
 /// Convert bytes to integer, return unused portion
 pub fn str_to_u(num: &[u8]) -> Result<(u64, &[u8])> {
-    let mut curr = skip_leading_white(num);
+    let mut curr = num.trimw_start();
     if !curr.is_empty() && curr[0] == b'+' {
         curr = &curr[1..];
     }
@@ -372,7 +969,7 @@ pub fn str_to_i_lossy(num: &[u8]) -> i64 {
 ///```
 pub fn str_to_d(num: &[u8]) -> Result<(f64, &[u8])> {
     let mut neg: f64 = 1.0;
-    let mut curr = skip_leading_white(num);
+    let mut curr = num.trimw_start();
     if curr.is_empty() {
         return err!(
             "Can't convert empty string to floating point {}",
@@ -468,328 +1065,655 @@ pub struct Item {
 }
 const _: () = assert!(std::mem::size_of::<Item>() == 16);
 
-/// How to compare two slices
-#[derive(Debug, Clone, Copy)]
-pub enum Comparison {
-    /// bytewise comparison of whole line
-    Whole,
-    /// bytewise comparison of one column
-    Plain,
-    /// compare length of data, not contents
-    Length,
-    /// always compares equal
-    Equal,
-    /// parse as f64, and compare that. Needs option for malfomed numbers.
-    Double,
-    /// compare nnn.nnn with no limit on length
-    Numeric,
-    /// IP Address, or section numbers
-    IpAddr,
-    /// Ascii Case Insensitive
-    Lower,
+/*
+    Reverse, // compare right to left
+    LowerUtf, // unicode lowercase
+    NormUtf, // unicode normalized
+    LowerNormUtf, // unicode lowercase normalized
+    Human,  // 2.3K or 4.5G
+    Fuzzy(u32 n), // integer compare, but equal if within n
+    Date(String fmt), // formatted date compare
+    Url, //. Compare backwards from first slash, then forwards from first slash
+    Prefix, // columns are equal if either is a prefix of the other
+    Enum (JAN,FEB,MAR,...)
+*/
+
+type MakerBox = Box<dyn Fn(&Comp) -> Result<Box<dyn Compare>> + Send>;
+/// A named constructor for a [Compare], used by [CompMaker]
+struct CompMakerItem {
+    /// matched against Comparator::ctype
+    tag: &'static str,
+    /// what this matcher does
+    help: &'static str,
+    /// Create a dyn Match from a pattern
+    maker: MakerBox,
+}
+
+type LineMakerBox = Box<dyn Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send>;
+/// A named constructor for a [LineCompare], used by [CompMaker]
+struct LineCompMakerItem {
+    /// matched against Comparator::ctype
+    tag: &'static str,
+    /// what this matcher does
+    help: &'static str,
+    /// Create a dyn Match from a pattern
+    maker: LineMakerBox,
+}
+
+struct CompMakerAlias {
+    old_name: &'static str,
+    new_name: &'static str,
+}
+
+lazy_static! {
+    static ref COMP_MAKER: Mutex<Vec<CompMakerItem>> = Mutex::new(Vec::new());
+    static ref LINE_MAKER: Mutex<Vec<LineCompMakerItem>> = Mutex::new(Vec::new());
+    static ref COMP_ALIAS: Mutex<Vec<CompMakerAlias>> = Mutex::new(Vec::new());
+    static ref MODIFIERS: Vec<&'static str> = vec!["rev", "strict", "trail", "low"];
+}
+
+/// Makes a [Compare or LineComp]
+#[derive(Debug, Clone, Default)]
+pub struct CompMaker {}
+
+impl CompMaker {
+    /// add standard match makers
+    fn init() -> Result<()> {
+        if !COMP_MAKER.lock().unwrap().is_empty() {
+            return Ok(());
+        }
+        Self::do_add_alias("length", "len")?;
+        Self::do_add_alias("plain", "")?;
+        Self::do_push("length", "Sort by length of string", |_p| {
+            Ok(Box::new(CompareLen::new()))
+        })?;
+        Self::do_push("ip", "Sort as IP address or 1.2.3 section numbers", |_p| {
+            Ok(Box::new(CompareIP::new()))
+        })?;
+        Self::do_push("plain", "Sort the plain bytes", |_p| {
+            Ok(Box::new(ComparePlain::new()))
+        })?;
+        Self::do_push("lower", "Sort as the ascii lowercase of the string", |_p| {
+            Ok(Box::new(CompareLower::new()))
+        })?;
+        Self::do_push(
+            "float",
+            "Convert to floating point, and sort the result.",
+            |_p| Ok(Box::new(Comparef64::new())),
+        )?;
+        Self::do_push("numeric", "Convert NNN.nnn of arbitrary length.", |_p| {
+            Ok(Box::new(CompareNumeric::new()))
+        })?;
+        Self::do_push("equal", "Everything always compares equal.", |_p| {
+            Ok(Box::new(CompareEqual {}))
+        })?;
+        Ok(())
+    }
+    /// Add a new Compare. If a Compare already exists by that name, replace it.
+    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    where
+        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send,
+    {
+        Self::init()?;
+        Self::do_push(tag, help, maker)
+    }
+    /// Add a new alias. If an alias already exists by that name, replace it.
+    pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
+        Self::init()?;
+        Self::do_add_alias(old_name, new_name)
+    }
+    /// Return name, replaced by its alias, if any.
+    fn resolve_alias(name: &str) -> &str {
+        let mut mm = COMP_ALIAS.lock().unwrap();
+        for x in mm.iter_mut() {
+            if x.new_name == name {
+                return x.old_name;
+            }
+        }
+        name
+    }
+    fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
+        if MODIFIERS.contains(&new_name) {
+            return err!("You can't add an alias named {} because that is reserved for a modifier");
+        }
+        let m = CompMakerAlias { old_name, new_name };
+        let mut mm = COMP_ALIAS.lock().unwrap();
+        for x in mm.iter_mut() {
+            if x.new_name == m.new_name {
+                *x = m;
+                return Ok(());
+            }
+        }
+        mm.push(m);
+        Ok(())
+    }
+    fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    where
+        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send,
+    {
+        if MODIFIERS.contains(&tag) {
+            return err!(
+                "You can't add a matcher named {} because that is reserved for a modifier"
+            );
+        }
+        let m = CompMakerItem {
+            tag,
+            help,
+            maker: Box::new(maker),
+        };
+        let mut mm = COMP_MAKER.lock().unwrap();
+        for x in mm.iter_mut() {
+            if x.tag == m.tag {
+                *x = m;
+                return Ok(());
+            }
+        }
+        mm.push(m);
+        Ok(())
+    }
+    /// Print all available Matchers to stdout.
+    pub fn help() {
+        println!("Modifers :");
+        println!("rev     reverse to ordering");
+        println!("strict  compare as junk if not exactly right");
+        println!("trail   compare as junk if no leading goodness");
+        println!("low     junk should compare low, rather than high");
+        println!("Methods :");
+        Self::init().unwrap();
+        let mm = COMP_MAKER.lock().unwrap();
+        for x in &*mm {
+            println!("{:12}{}", x.tag, x.help);
+        }
+        let mm = LINE_MAKER.lock().unwrap();
+        for x in &*mm {
+            println!("{:12}{}", x.tag, x.help);
+        }
+        println!("See also https://avjewe.github.io/cdxdoc/Comparator.html.");
+    }
+    /// create Box<dyn Compare> from spec
+    pub fn make_comp_box(spec: &str) -> Result<Box<dyn Compare>> {
+        Ok(Self::make_comp(spec)?.comp)
+    }
+    /// create Box<dyn LineCompare> from spec
+    pub fn make_line_comp_box(spec: &str) -> Result<Box<dyn LineCompare>> {
+        Ok(Self::make_line_comp(spec)?.comp)
+    }
+    /// create Comp from spec
+    pub fn make_comp(spec: &str) -> Result<Comp> {
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::make_comp_parts(a, b)
+        } else {
+            Self::make_comp_parts(spec, "")
+        }
+    }
+    /// create Comp from method and pattern
+    pub fn make_comp_parts(method: &str, pattern: &str) -> Result<Comp> {
+        let mut comp = Comp::new();
+        comp.pattern = pattern.to_string();
+        if !method.is_empty() {
+            for x in method.split('.') {
+                if x.eq_ignore_ascii_case("rev") {
+                    comp.reverse = true;
+                } else if x.eq_ignore_ascii_case("strict") {
+                    comp.junk.junk_type = JunkType::None;
+                } else if x.eq_ignore_ascii_case("trail") {
+                    comp.junk.junk_type = JunkType::Trailing;
+                } else if x.eq_ignore_ascii_case("low") {
+                    comp.junk.junk_val = JunkVal::Min;
+                } else {
+                    comp.ctype = x.to_string();
+                }
+            }
+        }
+        Self::remake_comp(&mut comp)?;
+        Ok(comp)
+    }
+    /// create LineComp from spec
+    pub fn make_line_comp(spec: &str) -> Result<LineComp> {
+        if let Some((a, b)) = spec.split_once(',') {
+            if let Some((c, d)) = b.split_once(',') {
+                Self::make_line_comp_parts(a, c, d)
+            } else {
+                Self::make_line_comp_parts(a, b, "")
+            }
+        } else {
+            Self::make_line_comp_parts(spec, "", "")
+        }
+    }
+    /// create LineComp from columns, method and pattern
+    pub fn make_line_comp_parts(cols: &str, method: &str, pattern: &str) -> Result<LineComp> {
+        let mut comp = LineComp::new();
+        comp.pattern = pattern.to_string();
+        comp.cols = cols.to_string();
+        if !method.is_empty() {
+            for x in method.split('.') {
+                if x.eq_ignore_ascii_case("rev") {
+                    comp.reverse = true;
+                } else if x.eq_ignore_ascii_case("strict") {
+                    comp.junk.junk_type = JunkType::None;
+                } else if x.eq_ignore_ascii_case("trail") {
+                    comp.junk.junk_type = JunkType::Trailing;
+                } else if x.eq_ignore_ascii_case("low") {
+                    comp.junk.junk_val = JunkVal::Min;
+                } else {
+                    comp.ctype = x.to_string();
+                }
+            }
+        }
+        Self::remake_line_comp(&mut comp)?;
+        Ok(comp)
+    }
+    /// reset the Compare inside the Comp
+    pub fn remake_comp(comp: &mut Comp) -> Result<()> {
+        Self::init()?;
+        let ctype = Self::resolve_alias(&comp.ctype);
+        let mm = COMP_MAKER.lock().unwrap();
+        for x in &*mm {
+            if ctype.eq_ignore_ascii_case(x.tag) {
+                comp.comp = (x.maker)(comp)?;
+                return Ok(());
+            }
+        }
+        err!("No such compare type : '{}'", comp.ctype)
+    }
+    /// reset the LineCompare inside the LineComp
+    pub fn remake_line_comp(comp: &mut LineComp) -> Result<()> {
+        Self::init()?;
+        let ctype = Self::resolve_alias(&comp.ctype);
+        let mm = LINE_MAKER.lock().unwrap();
+        for x in &*mm {
+            if ctype.eq_ignore_ascii_case(x.tag) {
+                comp.comp = (x.maker)(comp)?;
+                return Ok(());
+            }
+        }
+        let mm = COMP_MAKER.lock().unwrap();
+        let mut new_comp = Comp::with_line_comp(comp);
+        for x in &*mm {
+            if ctype.eq_ignore_ascii_case(x.tag) {
+                new_comp.comp = (x.maker)(&new_comp)?;
+                if comp.cols.is_empty() {
+                    comp.comp = Box::new(LineCompWhole::new(new_comp));
+                } else {
+                    comp.comp = Box::new(LineCompCol::new(new_comp, &comp.cols)?);
+                }
+                return Ok(());
+            }
+        }
+        err!("No such compare type : '{}'", comp.ctype)
+    }
     /*
-        Reverse, // compare right to left
-        LowerUtf, // unicode lowercase
-        NormUtf, // unicode normalized
-        LowerNormUtf, // unicode lowercase normalized
-        Human,  // 2.3K or 4.5G
-        Fuzzy(u32 n), // integer compare, but equal if within n
-        Date(String fmt), // formatted date compare
-        Url, //. Compare backwards from first slash, then forwards from first slash
-        Prefix, // columns are equal if either is a prefix of the other
-        Enum (JAN,FEB,MAR,...)
+        /// Create a Comparator from separate specs
+        pub fn make3(columns: &str, method: &str, pattern: &str) -> Result<Comparator> {
+            Self::init()?;
+            let mut ret = Comparator::default();
+            if !columns.is_empty() {
+                for x in columns.split('.') {
+                    ret.cols.push(NamedCol::new_from(x)?);
+                }
+            }
+            for x in method.split('.') {
+                // junk types
+                if x.eq_ignore_ascii_case("rev") {
+                    ret.reverse = true;
+                } else {
+                    ret.ctype = x.to_string();
+                }
+            }
+            ret.comp = Self::make_comp(&ret.ctype, pattern)?;
+            Ok(ret)
+        }
+        /// make a Compare from a spec
+        pub fn make_comp(ctype: &str, pattern: &str) -> Result<Box<dyn Compare>> {
+            Self::init()?;
+            let ctype = Self::resolve_alias(ctype);
+            let mm = COMP_MAKER.lock().unwrap();
+            for x in &*mm {
+                if ctype.eq_ignore_ascii_case(x.tag) {
+                    return (x.maker)(pattern);
+                }
+            }
+            err!("No such compare type : '{}'", ctype)
+        }
+        /// Create a Comparator from a full spec, i.e. "Columns,Method,Pattern""
+        pub fn make(spec: &str) -> Result<Comparator> {
+            if let Some((a, b)) = spec.split_once(',') {
+                if let Some((c, d)) = b.split_once(',') {
+                    Self::make3(a, c, d)
+                } else {
+                    Self::make3(a, b, "")
+                }
+            } else {
+                Self::make3(spec, "", "")
+            }
+        }
     */
 }
 
-impl Default for Comparison {
-    fn default() -> Self {
-        Self::Whole
+#[derive(Default, Debug)]
+/// Ordered list of [Comp]
+pub struct CompList {
+    c: Vec<Comp>,
+}
+#[derive(Default, Debug)]
+/// Ordered list of [LineComp]
+pub struct LineCompList {
+    c: Vec<LineComp>,
+}
+
+impl CompList {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
     }
-}
-
-/// Settings for one compare object
-#[derive(Debug, Clone, Default)]
-pub struct CompareSettings {
-    /// type of comparison
-    pub kind: Comparison,
-    /// column to compare
-    pub left_col: NamedCol,
-    /// column to compare
-    pub right_col: NamedCol,
-    /// reverse comparison?
-    pub reverse: bool,
-    /// column delimiter
-    pub delim: u8,
-    // failure 0, -inf +inf
-    // Vec<CompareSettings>
-    // stable: bool
-}
-
-/// CompareSettings, with 'kind' turned into an actual object
-pub struct Comparator {
-    /// the Compare Settings
-    pub mode: CompareSettings,
-    /// Compare made from Comparison
-    pub comp: Box<dyn Compare>,
-}
-
-impl fmt::Debug for Comparator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Comparator {:?}", self.mode)
+    /// any [Comp]s in the list?
+    pub fn is_empty(&self) -> bool {
+        self.c.is_empty()
     }
-}
-
-impl CompareSettings {
-    /// new CompareSettings
-    pub const fn new() -> Self {
-        Self {
-            kind: Comparison::Plain,
-            left_col: NamedCol::new(),
-            right_col: NamedCol::new(),
-            reverse: false,
-            delim: b'\t', // FIXME - set this somehow
-        }
+    /// add
+    pub fn push(&mut self, x: Comp) {
+        self.c.push(x);
     }
-    /// extract column from line
-    pub fn get<'a>(&self, data: &'a [u8]) -> &'a [u8] {
-        for (n, s) in data.split(|ch| *ch == self.delim).enumerate() {
-            if n == self.left_col.num {
-                return if !s.is_empty() && s.last().unwrap() == &b'\n' {
-                    &s[0..s.len() - 1]
-                } else {
-                    s
-                };
+    /// add
+    pub fn add(&mut self, x: &str) -> Result<()> {
+        self.c.push(CompMaker::make_comp(x)?);
+        Ok(())
+    }
+    /// Compare two slices, usually column values
+    pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+        for x in &self.c {
+            let ret = x.comp(left, right);
+            if ret != Ordering::Equal {
+                return ret;
             }
         }
-        &data[0..0]
+        Ordering::Equal
     }
-    /// reverse a comparison, if reverse flag is set
-    pub const fn do_reverse(&self, x: Ordering) -> Ordering {
-        if self.reverse {
-            x.reverse()
+    /// Compare two slices for equality
+    pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+        for x in &self.c {
+            if !x.comp.equal(left, right) {
+                return false;
+            }
+        }
+        true
+    }
+    /// set cache for this value
+    pub fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+        if !self.c.is_empty() {
+            self.c[0].fill_cache(item, value);
+        }
+    }
+    /// set my value
+    pub fn set(&mut self, value: &[u8], delim: u8) -> Result<()> {
+        if self.c.len() == 1 {
+            self.c[0].set(value);
         } else {
-            x
+            let values: Vec<&[u8]> = value.split(|ch| *ch == delim).collect();
+            if values.len() != self.c.len() {
+                return err!(
+                    "Tried to use a {} part value for a {} part Comparison",
+                    values.len(),
+                    self.c.len()
+                );
+            }
+            for (n, x) in self.c.iter_mut().enumerate() {
+                x.set(values[n]);
+            }
         }
-    }
-    /// Resolve any named columns
-    pub fn lookup_left(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.left_col.lookup(fieldnames)
-    }
-    /// Resolve any named columns
-    pub fn lookup_right(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.right_col.lookup(fieldnames)
-    }
-    /// Resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.left_col.lookup(fieldnames)?;
-        self.right_col.lookup(fieldnames)
-    }
-    /// make Compare from Comparison
-    fn make_box(&self) -> Box<dyn Compare> {
-        match self.kind {
-            Comparison::Whole => Box::new(CompareWhole::new()),
-            Comparison::Plain => Box::new(ComparePlain::new()),
-            Comparison::Length => Box::new(CompareLen::new()),
-            Comparison::Double => Box::new(Comparef64::new()),
-            Comparison::Equal => Box::new(CompareEqual {}),
-            Comparison::Numeric => Box::new(CompareNumeric::new()),
-            Comparison::IpAddr => Box::new(CompareIP::new()),
-            Comparison::Lower => Box::new(CompareLower::new()),
-        }
-    }
-    /// make Comparator
-    pub fn make_comp(&self) -> Comparator {
-        Comparator::new(self.clone(), self.make_box())
-    }
-}
-
-impl Default for Comparator {
-    fn default() -> Self {
-        Self {
-            mode: CompareSettings::default(),
-            comp: Box::new(CompareWhole::new()),
-        }
-    }
-}
-impl Comparator {
-    /// new Comparator
-    pub fn new(mode: CompareSettings, comp: Box<dyn Compare>) -> Self {
-        Self { mode, comp }
-    }
-    /// Set value of self
-    pub fn set(&mut self, value: &[u8]) {
-        self.comp.set(value);
-    }
-    /// compare self to line for equality
-    pub fn equal_self_line(&self, right: &[u8]) -> bool {
-        self.comp.equal_self_line(right, &self.mode)
-    }
-    /// compare self to line
-    pub fn comp_self_line(&self, right: &[u8]) -> Ordering {
-        self.comp.comp_self_line(right, &self.mode)
+        Ok(())
     }
     /// Compare self to slice
     pub fn comp_self(&self, right: &[u8]) -> Ordering {
-        self.comp.comp_self(right)
+        for x in &self.c {
+            let ret = x.comp_self(right);
+            if ret != Ordering::Equal {
+                return ret;
+            }
+        }
+        Ordering::Equal
     }
     /// Compare self to slice for equality
     pub fn equal_self(&self, right: &[u8]) -> bool {
-        self.comp.equal_self(right)
-    }
-    /// compare two lines for equality
-    pub fn equal_cols(&self, left: &TextLine, right: &TextLine) -> bool {
-        self.comp.equal_cols(self, left, right)
-    }
-    /// compare two lines
-    pub fn comp_cols(&self, left: &TextLine, right: &TextLine) -> Ordering {
-        self.comp.comp_cols(self, left, right)
-    }
-    /// compare two lines for equality
-    pub fn equal_lines(&self, left: &[u8], right: &[u8]) -> bool {
-        self.comp.equal_lines(left, right, &self.mode)
-    }
-    /// compare two lines
-    pub fn comp_lines(&self, left: &[u8], right: &[u8]) -> Ordering {
-        self.comp.comp_lines(left, right, &self.mode)
-    }
-    /// resolve any named columns
-    pub fn lookup_left(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.mode.lookup_left(fieldnames)
-    }
-    /// resolve any named columns
-    pub fn lookup_right(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.mode.lookup_right(fieldnames)
-    }
-    /// resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.mode.lookup(fieldnames)
-    }
-    /// Does comparison require line split into columns
-    pub fn need_split(&self) -> bool {
-        self.comp.need_split()
-    }
-    /// Get the column out of an unparsed line
-    /// FIXME - need delim
-    /// FIXME - need left vs right
-    pub fn get_col<'a>(&self, line: &'a [u8]) -> &'a [u8] {
-        let col = self.mode.left_col.num;
-        let mut curr_col = 0;
-        let mut start = 0;
-        for x in line.iter().enumerate() {
-            if x.1 == &b'\t' {
-                if curr_col == col {
-                    return &line[start..x.0];
-                }
-                curr_col += 1;
-                start = x.0 + 1;
+        for x in &self.c {
+            if !x.equal_self(right) {
+                return false;
             }
         }
-        &line[0..0]
-    }
-}
-
-/// method of comparing two slices
-pub trait Compare {
-    /// Compare two slices, usually column values
-    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering;
-    /// Compare two slices for equality
-    fn equal(&self, left: &[u8], right: &[u8]) -> bool;
-    /// set cache for this value
-    fn fill_cache(&self, item: &mut Item, value: &[u8]);
-    /// set my value
-    fn set(&mut self, value: &[u8]);
-    /// Compare self to slice
-    fn comp_self(&self, right: &[u8]) -> Ordering;
-    /// Compare self to slice for equality
-    fn equal_self(&self, right: &[u8]) -> bool;
-
-    /// return true if TextLine comparisons need line split into columns
-    fn need_split(&self) -> bool {
         true
     }
-    /// Compare two columns
-    fn comp_cols(&self, spec: &Comparator, left: &TextLine, right: &TextLine) -> Ordering {
-        spec.mode.do_reverse(self.comp(
-            left.get(spec.mode.left_col.num),
-            right.get(spec.mode.right_col.num),
-        ))
-    }
-    /// Compare two columns for equality
-    fn equal_cols(&self, spec: &Comparator, left: &TextLine, right: &TextLine) -> bool {
-        self.equal(
-            left.get(spec.mode.left_col.num),
-            right.get(spec.mode.right_col.num),
-        )
-    }
-    /// Compare two items
-    fn comp_items(&self, spec: &Comparator, base: &[u8], left: &Item, right: &Item) -> Ordering {
-        spec.mode.do_reverse({
-            if left.cache < right.cache {
-                Ordering::Less
-            } else if left.cache > right.cache {
-                Ordering::Greater
-            } else if left.complete() && right.complete() {
-                Ordering::Equal
-            } else {
-                self.comp(left.get(base), right.get(base))
-            }
-        })
-    }
-    /// Compare two Items for equality
-    fn equal_items(&self, _spec: &Comparator, base: &[u8], left: &Item, right: &Item) -> bool {
-        if left.cache != right.cache {
-            return false;
-        }
-        if left.complete() && right.complete() {
-            return true;
-        }
-        self.equal(left.get(base), right.get(base))
-    }
-    /// set cache for this item
-    fn fill_cache_item(&self, spec: &Comparator, item: &mut Item, base: &[u8]) {
-        let line = item.get(base);
-        let col = spec.get_col(line);
-        self.fill_cache(item, col);
-    }
-    /// compare two lines for equality
-    fn equal_lines(&self, left: &[u8], right: &[u8], mode: &CompareSettings) -> bool {
-        self.equal(mode.get(left), mode.get(right))
-    }
-    /// compare two lines
-    fn comp_lines(&self, left: &[u8], right: &[u8], mode: &CompareSettings) -> Ordering {
-        self.comp(mode.get(left), mode.get(right))
-    }
-    /// compare self to line for equality
-    fn equal_self_line(&self, right: &[u8], mode: &CompareSettings) -> bool {
-        self.equal_self(mode.get(right))
-    }
-    /// compare self to line
-    fn comp_self_line(&self, right: &[u8], mode: &CompareSettings) -> Ordering {
-        self.comp_self(mode.get(right))
-    }
 }
 
-/// Compare for a list of compares
-/// should implement same interface as Comparator, but I don't think it should be a trait.
-#[derive(Default)]
-pub struct CompareList {
-    c: Vec<Comparator>,
-}
-impl fmt::Debug for CompareList {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CompareList")
+impl LineCompList {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// any [ListComp]s in the list?
+    pub fn is_empty(&self) -> bool {
+        self.c.is_empty()
+    }
+    /// which columns used as part of key?
+    pub fn used_cols(&self, file_num: usize) -> Vec<usize> {
+        let mut v = Vec::new();
+        for x in &self.c {
+            x.used_cols(&mut v, file_num);
+        }
+        v
+    }
+    /// add
+    pub fn add(&mut self, x: &str) -> Result<()> {
+        self.c.push(CompMaker::make_line_comp(x)?);
+        Ok(())
+    }
+    /// add
+    pub fn push(&mut self, x: LineComp) {
+        self.c.push(x);
+    }
+    /// compare [Item]s
+    pub fn comp_items(&self, base: &[u8], left: &Item, right: &Item) -> Ordering {
+        if self.c.is_empty() {
+            return Ordering::Equal;
+        }
+        let ret = self.c[0].comp_items(base, left, right);
+        if ret != Ordering::Equal {
+            return ret;
+        }
+        for x in self.c.iter().skip(1) {
+            let ret = x.comp_lines(left.get(base), right.get(base));
+            if ret != Ordering::Equal {
+                return ret;
+            }
+        }
+        Ordering::Equal
+    }
+    /// compare [Item]s
+    pub fn equal_items(&self, base: &[u8], left: &Item, right: &Item) -> bool {
+        if self.c.is_empty() {
+            return true;
+        }
+        if !self.c[0].equal_items(base, left, right) {
+            return false;
+        }
+        for x in self.c.iter().skip(1) {
+            if !x.equal_lines(left.get(base), right.get(base)) {
+                return false;
+            }
+        }
+        true
+    }
+    /// compare [TextLine]s in the same file
+    pub fn comp_cols(&self, left: &TextLine, right: &TextLine) -> Ordering {
+        self.comp_cols_n(left, right, 0, 0)
+    }
+    /// compare [TextLine]s in different files
+    pub fn comp_cols_n(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
+        for x in &self.c {
+            let ret = x.comp_cols_n(left, right, left_file, right_file);
+            if ret != Ordering::Equal {
+                return ret;
+            }
+        }
+        Ordering::Equal
+    }
+    /// compare [TextLine]s in the same file
+    pub fn equal_cols(&self, left: &TextLine, right: &TextLine) -> bool {
+        self.equal_cols_n(left, right, 0, 0)
+    }
+    /// compare [TextLine]s in different files
+    pub fn equal_cols_n(
+        &self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
+        for x in &self.c {
+            if !x.equal_cols_n(left, right, left_file, right_file) {
+                return false;
+            }
+        }
+        true
+    }
+    /// compare liness from the same
+    pub fn comp_lines(&self, left: &[u8], right: &[u8]) -> Ordering {
+        self.comp_lines_n(left, right, 0, 0)
+    }
+    /// compare lines from different files
+    pub fn comp_lines_n(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
+        for x in &self.c {
+            let ret = x.comp_lines_n(left, right, left_file, right_file);
+            if ret != Ordering::Equal {
+                return ret;
+            }
+        }
+        Ordering::Equal
+    }
+    /// compare lines from the same file
+    pub fn equal_lines(&self, left: &[u8], right: &[u8]) -> bool {
+        self.equal_lines_n(left, right, 0, 0)
+    }
+    /// compare lines from different files
+    pub fn equal_lines_n(
+        &self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
+        for x in &self.c {
+            if !x.equal_lines_n(left, right, left_file, right_file) {
+                return false;
+            }
+        }
+        true
+    }
+    /// resolve named columns
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.lookup_n(fieldnames, 0)
+    }
+    /// resolve named columns in the given file
+    pub fn lookup_n(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()> {
+        for x in &mut self.c {
+            x.lookup_n(fieldnames, file_num)?
+        }
+        Ok(())
+    }
+    /// do [TextLine]s need their columns initialized
+    pub fn need_split(&self) -> bool {
+        for x in &self.c {
+            if x.need_split() {
+                return true;
+            }
+        }
+        false
+    }
+    /// fill [Item]'s cache
+    pub fn fill_cache_cols(&self, item: &mut Item, value: &TextLine) {
+        if !self.c.is_empty() {
+            self.c[0].fill_cache_cols(item, value);
+        }
+    }
+    /// fill [Item]'s cache
+    pub fn fill_cache_line(&self, item: &mut Item, value: &[u8]) {
+        if !self.c.is_empty() {
+            self.c[0].fill_cache_line(item, value);
+        }
+    }
+    /// set value fo later comparison
+    pub fn set(&mut self, value: &[u8], delim: u8) -> Result<()> {
+        if self.c.len() == 1 {
+            self.c[0].set(value);
+        } else {
+            let values: Vec<&[u8]> = value.split(|ch| *ch == delim).collect();
+            if values.len() != self.c.len() {
+                return err!(
+                    "Tried to use a {} part value for a {} part Comparison",
+                    values.len(),
+                    self.c.len()
+                );
+            }
+            for (n, x) in self.c.iter_mut().enumerate() {
+                x.set(values[n]);
+            }
+        }
+        Ok(())
+    }
+    /// compare my value to this line
+    pub fn comp_self_cols(&self, right: &TextLine) -> Ordering {
+        for x in &self.c {
+            let ret = x.comp_self_cols(right);
+            if ret != Ordering::Equal {
+                return ret;
+            }
+        }
+        Ordering::Equal
+    }
+    /// compare my value to this line
+    pub fn equal_self_cols(&self, right: &TextLine) -> bool {
+        for x in &self.c {
+            if !x.equal_self_cols(right) {
+                return false;
+            }
+        }
+        true
+    }
+    /// compare my value to this line
+    pub fn comp_self_line(&self, right: &[u8]) -> Ordering {
+        for x in &self.c {
+            let ret = x.comp_self_line(right);
+            if ret != Ordering::Equal {
+                return ret;
+            }
+        }
+        Ordering::Equal
+    }
+    /// compare my value to this line
+    pub fn equal_self_line(&self, right: &[u8]) -> bool {
+        for x in &self.c {
+            if !x.equal_self_line(right) {
+                return false;
+            }
+        }
+        true
     }
 }
 
 /// IP Address Comparison
 #[derive(Default, Debug)]
 pub struct CompareIP {
-    value: Vec<u8>,
-}
-
-/// Whole Line comparison
-#[derive(Default, Debug)]
-pub struct CompareWhole {
     value: Vec<u8>,
 }
 
@@ -839,12 +1763,6 @@ impl CompareNumeric {
     }
 }
 
-impl CompareWhole {
-    const fn new() -> Self {
-        Self { value: Vec::new() }
-    }
-}
-
 impl ComparePlain {
     const fn new() -> Self {
         Self { value: Vec::new() }
@@ -866,186 +1784,6 @@ impl CompareIP {
 impl CompareLen {
     const fn new() -> Self {
         Self { value: 0 }
-    }
-}
-
-impl CompareList {
-    /// new
-    pub fn new() -> Self {
-        Self::default()
-    }
-    /// add
-    pub fn push(&mut self, x: Comparator) {
-        self.c.push(x);
-    }
-    /// is empty?
-    pub fn is_empty(&self) -> bool {
-        self.c.is_empty()
-    }
-    /// set value
-    pub fn set(&mut self, values: &str, delim: char) -> Result<()> {
-        let parts: Vec<&str> = values.split(delim).collect();
-        if parts.len() != self.c.len() {
-            return err!(
-                "Comparator had {} parts, but trying to use a key with {} parts : {}",
-                self.c.len(),
-                parts.len(),
-                values
-            );
-        }
-        for (i, part) in parts.iter().enumerate() {
-            self.c[i].set(part.as_bytes());
-        }
-        Ok(())
-    }
-    /// compare self to line for equality
-    pub fn equal_self_line(&self, right: &[u8]) -> bool {
-        for x in &self.c {
-            if !x.equal_self_line(right) {
-                return false;
-            }
-        }
-        true
-    }
-    /// compare self to line
-    pub fn comp_self_line(&self, right: &[u8]) -> Ordering {
-        for x in &self.c {
-            let cmp = x.comp_self_line(right);
-            if cmp != Ordering::Equal {
-                return cmp;
-            }
-        }
-        Ordering::Equal
-    }
-    /// Compare self to slice
-    pub fn comp_self(&self, right: &[u8]) -> Ordering {
-        for x in &self.c {
-            let cmp = x.comp_self(right);
-            if cmp != Ordering::Equal {
-                return cmp;
-            }
-        }
-        Ordering::Equal
-    }
-    /// Compare self to slice for equality
-    pub fn equal_self(&self, right: &[u8]) -> bool {
-        for x in &self.c {
-            if !x.equal_self(right) {
-                return false;
-            }
-        }
-        true
-    }
-    /// compare two lines for equality
-    pub fn equal_cols(&self, left: &TextLine, right: &TextLine) -> bool {
-        for x in &self.c {
-            if !x.equal_cols(left, right) {
-                return false;
-            }
-        }
-        true
-    }
-    /// compare two lines
-    pub fn comp_cols(&self, left: &TextLine, right: &TextLine) -> Ordering {
-        for x in &self.c {
-            let cmp = x.comp_cols(left, right);
-            if cmp != Ordering::Equal {
-                return cmp;
-            }
-        }
-        Ordering::Equal
-    }
-    /// compare two lines for equality
-    pub fn equal_lines(&self, left: &[u8], right: &[u8]) -> bool {
-        for x in &self.c {
-            if !x.equal_lines(left, right) {
-                return false;
-            }
-        }
-        true
-    }
-    /// compare two lines
-    pub fn comp_lines(&self, left: &[u8], right: &[u8]) -> Ordering {
-        for x in &self.c {
-            let cmp = x.comp_lines(left, right);
-            if cmp != Ordering::Equal {
-                return cmp;
-            }
-        }
-        Ordering::Equal
-    }
-    /// return Vec of column numbers refered to in the right file
-    pub fn right_cols(&self) -> Vec<usize> {
-        let mut v = Vec::new();
-        for x in &self.c {
-            v.push(x.mode.right_col.num);
-        }
-        v
-    }
-    /// resolve any named columns
-    pub fn lookup_left(&mut self, fieldnames: &[&str]) -> Result<()> {
-        for x in &mut self.c {
-            x.lookup_left(fieldnames)?;
-        }
-        Ok(())
-    }
-    /// resolve any named columns
-    pub fn lookup_right(&mut self, fieldnames: &[&str]) -> Result<()> {
-        for x in &mut self.c {
-            x.lookup_right(fieldnames)?;
-        }
-        Ok(())
-    }
-    /// resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        for x in &mut self.c {
-            x.lookup(fieldnames)?;
-        }
-        Ok(())
-    }
-    /// Does comparison require line split into columns
-    pub fn need_split(&self) -> bool {
-        for x in &self.c {
-            if x.need_split() {
-                return true;
-            }
-        }
-        false
-    }
-}
-
-impl Compare for CompareWhole {
-    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
-        left.cmp(right)
-    }
-    fn equal(&self, left: &[u8], right: &[u8]) -> bool {
-        left == right
-    }
-    fn fill_cache(&self, _item: &mut Item, _value: &[u8]) {
-        unreachable!();
-    }
-    fn fill_cache_item(&self, _spec: &Comparator, item: &mut Item, base: &[u8]) {
-        let line = item.get(base);
-        item.cache = u64::from_be_bytes(make_array(line));
-        item.assign_complete(line.len() <= 8);
-    }
-    fn set(&mut self, value: &[u8]) {
-        self.value = value.to_vec();
-    }
-    fn comp_self(&self, right: &[u8]) -> Ordering {
-        self.value[..].cmp(right)
-    }
-    fn equal_self(&self, right: &[u8]) -> bool {
-        self.value == right
-    }
-    fn comp_cols(&self, spec: &Comparator, left: &TextLine, right: &TextLine) -> Ordering {
-        spec.mode.do_reverse(self.comp(&left.line, &right.line))
-    }
-    fn equal_cols(&self, _spec: &Comparator, left: &TextLine, right: &TextLine) -> bool {
-        self.equal(&left.line, &right.line)
-    }
-    fn need_split(&self) -> bool {
-        false
     }
 }
 
@@ -1221,47 +1959,6 @@ impl Compare for CompareLen {
     fn equal_self(&self, right: &[u8]) -> bool {
         self.value == right.len() as u32
     }
-}
-
-/// construct Comparator from text specification
-pub fn make_comp(spec: &str) -> Result<Comparator> {
-    let mut c = CompareSettings::new();
-    if spec.is_empty() {
-        c.kind = Comparison::Whole;
-    } else {
-        // FIXME - need 'column from left file' vs 'column from right file'
-        let mut rest = c.left_col.parse(spec)?;
-        if !rest.is_empty() && rest.first() == '.' {
-            rest = rest.skip_first();
-            rest = c.right_col.parse(rest)?;
-        } else {
-            c.right_col = c.left_col.clone();
-        }
-        let mut rest = rest.as_bytes();
-        if !rest.is_empty() && (rest[0] == b':') {
-            rest = &rest[1..];
-        }
-        for ch in rest {
-            match ch {
-                b'r' => {
-                    c.reverse = true;
-                }
-                b'L' => {
-                    c.kind = Comparison::Length;
-                }
-                b'g' => {
-                    c.kind = Comparison::Double;
-                }
-                b'n' => {
-                    c.kind = Comparison::Numeric;
-                }
-                _ => {
-                    return err!("Bad parse of compare spec for {}", spec);
-                }
-            }
-        }
-    }
-    Ok(c.make_comp())
 }
 
 impl Item {

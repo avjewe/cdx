@@ -1189,7 +1189,7 @@ impl Default for Writer {
 }
 
 /// a column, by name or number
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NamedCol {
     /// the column name. Empty if using column by number
     pub name: String,
@@ -1199,13 +1199,32 @@ pub struct NamedCol {
     pub from_end: usize,
 }
 
+impl fmt::Display for NamedCol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Column {}", self.num)?;
+        if !self.name.is_empty() {
+            write!(f, " from {}", self.name)
+        } else if self.from_end != 0 {
+            write!(f, " from +{}", self.from_end)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 impl NamedCol {
     /// new named column
-    pub const fn new() -> Self {
-        Self {
-            name: String::new(),
-            num: 0,
-            from_end: 0,
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// new column from spec
+    pub fn new_from(spec: &str) -> Result<Self> {
+        let mut x = Self::default();
+        let rest = x.parse(spec)?;
+        if rest.is_empty() {
+            Ok(x)
+        } else {
+            err!("Extra stuff {} at the end of column spec {}", rest, spec)
         }
     }
     /// Resolve the column name
@@ -1272,12 +1291,6 @@ impl NamedCol {
         } else {
             err!("Bad parse of compare spec for {}", spec)
         }
-    }
-}
-
-impl Default for NamedCol {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

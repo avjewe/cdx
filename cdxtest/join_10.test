@@ -1,4 +1,4 @@
-#command cdx join -ktwo:g $TMP/aaa $TMP/bbb
+#command cdx join -ktwo,float $TMP/aaa $TMP/bbb
 #infile aaa
  CDX	one	two	three
 aaa	3	ccc

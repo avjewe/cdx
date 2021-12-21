@@ -1,5 +1,34 @@
 //! Test if a [TextLine], `str` or `&[u8]` matches a pattern
-
+//!
+//! A `Matcher` is a generalization of a Regular Expression.
+//! It answers "does a pattern match a target", but you supply a
+//! method, in addition to a pattern. The `regex` crate provides
+//! one such method, but many other, simpler, methods are also available.
+//! See <https://avjewe.github.io/cdxdoc/Matcher.html> for a list of matchers,
+//! and other details about the syntax for specifying lagauges,
+//!
+//! Most uses will involve [Matcher]s, collected into [MultiMatcher]s, or
+//!
+//!```
+//! use cdx::matcher::*;
+//! use cdx::Reader;
+//! let matcher = MatchMaker::make("prefix,abc")?;
+//! assert!(matcher.umatch(b"abcdef"));
+//! assert!(!matcher.umatch(b"bcdef"));
+//! assert!(matcher.smatch("abcdef"));
+//! assert!(!matcher.smatch("bcdef"));
+//!
+//! let mut list = MultiLineMatcher::new(MultiMode::And);
+//! list.push(Box::new(ColMatcher::new("two,glob,b*")?));
+//! let input = "<< CDX\tone\ttwo\naaa\tbbb\nccc\tddd\n";
+//! let mut reader = Reader::new();
+//! reader.open(input);
+//! list.lookup(&reader.names())?;
+//! assert!(list.ok(reader.curr_line()));
+//! reader.getline()?;
+//! assert!(!list.ok(reader.curr_line()));
+//! # Ok::<(), cdx::Error>(())
+//!```
 use crate::column::NamedCol;
 use crate::text::{Case, Text};
 use crate::{err, Error, Reader, Result, TextLine};
@@ -13,16 +42,79 @@ use std::sync::Mutex;
 pub trait LineMatch {
     /// Is this line ok?
     fn ok(&self, line: &TextLine) -> bool;
+    /// Is this line ok? If not, write explanation to stderr
+    fn ok_verbose(&self, line: &TextLine, negate: bool) -> bool;
     /// Resolve any named columns.
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
+    /// Human readable desription
+    fn show(&self) -> String;
+}
+
+const fn not_str(negate: bool) -> &'static str {
+    if negate {
+        "not-"
+    } else {
+        ""
+    }
 }
 
 /// Match against `str` or `&[u8]`
-pub trait BufMatch {
+pub trait Match {
     /// Are these characters ok?
     fn smatch(&self, buff: &str) -> bool;
     /// Are these bytes ok?
     fn umatch(&self, buff: &[u8]) -> bool;
+    /// Human readable desription
+    fn show(&self) -> String {
+        format!("stuff {}", 27)
+    }
+    /// smatch, but print to stderr if fail
+    fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
+        let res = self.smatch(buff);
+        if res != negate {
+            eprintln!(
+                "Failed to {}match {} against {}",
+                not_str(negate),
+                buff,
+                self.show()
+            );
+        }
+        res
+    }
+    /// umatch, but print to stderr if fail
+    fn verbose_umatch(&self, buff: &[u8], negate: bool) -> bool {
+        let res = self.umatch(buff);
+        if res != negate {
+            eprintln!(
+                "Failed to {}match {} against {}",
+                not_str(negate),
+                String::from_utf8_lossy(buff),
+                self.show()
+            );
+        }
+        res
+    }
+}
+
+impl fmt::Debug for dyn Match + '_ {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.show())
+    }
+}
+impl fmt::Display for dyn Match + '_ {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.show())
+    }
+}
+impl fmt::Debug for dyn LineMatch + '_ {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.show())
+    }
+}
+impl fmt::Display for dyn LineMatch + '_ {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.show())
+    }
 }
 
 /// pattern is prefix of string
@@ -37,32 +129,29 @@ impl PrefixMatch {
         }
     }
 }
-impl BufMatch for PrefixMatch {
+impl Match for PrefixMatch {
     fn smatch(&self, buff: &str) -> bool {
         buff.starts_with(&self.data)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
         buff.starts_with(self.data.as_bytes())
     }
-}
-
-fn str_to_lower(data: &str, unicode: bool) -> String {
-    if unicode {
-        data.to_lowercase()
-    } else {
-        String::from_utf8(data.as_bytes().to_ascii_lowercase()).unwrap()
+    fn show(&self) -> String {
+        format!("Prefix Match of {}", self.data)
     }
 }
 
 #[derive(Debug, Clone)]
 /// pattern is prefix of string, case insensitive
 struct PrefixMatchC {
-    data: String,
+    s_data: String,
+    u_data: Vec<u8>,
 }
 impl PrefixMatchC {
-    fn new(data: &str, unicode: bool) -> Self {
+    fn new(data: &str) -> Self {
         Self {
-            data: str_to_lower(data, unicode),
+            s_data: data.to_lowercase(),
+            u_data: data.as_bytes().to_ascii_lowercase().to_vec(),
         }
     }
 }
@@ -133,12 +222,15 @@ fn scase_suffix(haystack: &str, needle: &str) -> bool {
     true
 }
 
-impl BufMatch for PrefixMatchC {
+impl Match for PrefixMatchC {
     fn smatch(&self, buff: &str) -> bool {
-        scase_prefix(buff, &self.data)
+        scase_prefix(buff, &self.s_data)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
-        bcase_prefix(buff, self.data.as_bytes())
+        bcase_prefix(buff, &self.u_data)
+    }
+    fn show(&self) -> String {
+        format!("Case-insensitive refix Match of {}", self.s_data)
     }
 }
 
@@ -154,142 +246,147 @@ impl SuffixMatch {
         }
     }
 }
-impl BufMatch for SuffixMatch {
+impl Match for SuffixMatch {
     fn smatch(&self, buff: &str) -> bool {
         buff.ends_with(&self.data)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
         buff.ends_with(self.data.as_bytes())
     }
+    fn show(&self) -> String {
+        format!("Suffix Match of {}", self.data)
+    }
 }
 
 #[derive(Debug, Clone)]
 /// pattern is suffix of string, case insensitive
 struct SuffixMatchC {
-    data: String,
+    s_data: String,
+    u_data: Vec<u8>,
 }
 impl SuffixMatchC {
-    fn new(data: &str, unicode: bool) -> Self {
+    fn new(data: &str) -> Self {
         Self {
-            data: str_to_lower(data, unicode),
+            s_data: data.to_lowercase(),
+            u_data: data.as_bytes().to_ascii_lowercase().to_vec(),
         }
     }
 }
-impl BufMatch for SuffixMatchC {
+impl Match for SuffixMatchC {
     fn smatch(&self, buff: &str) -> bool {
-        scase_suffix(buff, &self.data)
+        scase_suffix(buff, &self.s_data)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
-        bcase_suffix(buff, self.data.as_bytes())
+        bcase_suffix(buff, &self.u_data)
+    }
+    fn show(&self) -> String {
+        format!("Case-insensitive suffix Match of {}", self.s_data)
     }
 }
 
 #[derive(Debug, Clone)]
 /// pattern is substring of string, case insensitive
 struct InfixMatchC {
-    data: String,
+    s_data: String,
+    u_data: Vec<u8>,
 }
 impl InfixMatchC {
-    fn new(data: &str, unicode: bool) -> Self {
+    fn new(data: &str) -> Self {
         Self {
-            data: str_to_lower(data, unicode),
+            s_data: data.to_lowercase(),
+            u_data: data.as_bytes().to_ascii_lowercase().to_vec(),
         }
     }
 }
-impl BufMatch for InfixMatchC {
+impl Match for InfixMatchC {
     fn smatch(&self, buff: &str) -> bool {
-        buff.to_lowercase().contains(&self.data) // PERF allocation
+        buff.to_lowercase().contains(&self.s_data) // PERF allocation
     }
     fn umatch(&self, buff: &[u8]) -> bool {
-        find(&buff.to_ascii_lowercase(), self.data.as_bytes()).is_some() // PERF allocation
+        find(&buff.to_ascii_lowercase(), &self.u_data).is_some() // PERF allocation
+    }
+    fn show(&self) -> String {
+        format!("Case insensitive substring Match of {}", self.s_data)
     }
 }
 
 #[derive(Debug, Clone)]
 /// pattern is substring of string
 struct InfixMatch {
-    needle: Vec<u8>,
+    needle: String,
 }
 impl InfixMatch {
     fn new(data: &str) -> Self {
         Self {
-            needle: data.as_bytes().to_vec(),
+            needle: data.to_string(),
         }
     }
 }
-impl BufMatch for InfixMatch {
+impl Match for InfixMatch {
     fn smatch(&self, haystack: &str) -> bool {
-        find(haystack.as_bytes(), &self.needle).is_some()
+        find(haystack.as_bytes(), self.needle.as_bytes()).is_some()
     }
     fn umatch(&self, haystack: &[u8]) -> bool {
-        find(haystack, &self.needle).is_some()
+        find(haystack, self.needle.as_bytes()).is_some()
+    }
+    fn show(&self) -> String {
+        format!("Substring Match of {}", self.needle)
     }
 }
 
 #[derive(Debug, Clone)]
 /// bytes regex
-struct RegexMatchB {
-    data: regex::bytes::Regex,
+struct RegexMatch {
+    s_data: regex::Regex,
+    u_data: regex::bytes::Regex,
+    pattern: String,
 }
-impl RegexMatchB {
+impl RegexMatch {
     fn new(data: &str, case: Case) -> Result<Self> {
         Ok(Self {
-            data: regex::bytes::RegexBuilder::new(data)
+            s_data: regex::RegexBuilder::new(data)
                 .case_insensitive(case == Case::Insens)
                 .build()?,
+            u_data: regex::bytes::RegexBuilder::new(data)
+                .case_insensitive(case == Case::Insens)
+                .build()?,
+            pattern: data.to_string(),
         })
     }
 }
-impl BufMatch for RegexMatchB {
-    fn smatch(&self, _buff: &str) -> bool {
-        unimplemented!()
+impl Match for RegexMatch {
+    fn smatch(&self, buff: &str) -> bool {
+        self.s_data.is_match(buff)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
-        self.data.is_match(buff)
+        self.u_data.is_match(buff)
     }
-}
-
-#[derive(Debug, Clone)]
-/// utf8 regex
-struct RegexMatchS {
-    data: regex::Regex,
-}
-impl RegexMatchS {
-    fn new(data: &str, case: Case) -> Result<Self> {
-        Ok(Self {
-            data: regex::RegexBuilder::new(data)
-                .case_insensitive(case == Case::Insens)
-                .build()?,
-        })
-    }
-}
-impl BufMatch for RegexMatchS {
-    fn smatch(&self, buff: &str) -> bool {
-        self.data.is_match(buff)
-    }
-    fn umatch(&self, _buff: &[u8]) -> bool {
-        unimplemented!()
+    fn show(&self) -> String {
+        format!("Regex Match of {}", self.pattern)
     }
 }
 
 #[derive(Debug, Clone)]
 /// string exactly matches pattern
 struct ExactMatch {
-    data: Vec<u8>,
+    data: String,
 }
 impl ExactMatch {
     fn new(data: &str) -> Self {
         Self {
-            data: data.as_bytes().to_vec(),
+            data: data.to_string(),
         }
     }
 }
-impl BufMatch for ExactMatch {
+impl Match for ExactMatch {
     fn smatch(&self, buff: &str) -> bool {
-        self.data == buff.as_bytes()
+        self.data == buff
     }
     fn umatch(&self, buff: &[u8]) -> bool {
-        self.data == buff
+        self.data.as_bytes() == buff
+    }
+    fn show(&self) -> String {
+        format!("Exact Match of {}", self.data)
     }
 }
 
@@ -316,20 +413,27 @@ fn load_hashset(data: &mut HashSet<Vec<u8>>, fname: &str) -> Result<()> {
 /// pattern is file name. String exactly matches one line of file.
 struct FileExactMatch {
     data: HashSet<Vec<u8>>,
+    file_name: String,
 }
 impl FileExactMatch {
-    fn new(data: &str) -> Result<Self> {
+    fn new(file_name: &str) -> Result<Self> {
         let mut d = HashSet::new();
-        load_hashset(&mut d, data)?;
-        Ok(Self { data: d })
+        load_hashset(&mut d, file_name)?;
+        Ok(Self {
+            data: d,
+            file_name: file_name.to_string(),
+        })
     }
 }
-impl BufMatch for FileExactMatch {
+impl Match for FileExactMatch {
     fn smatch(&self, buff: &str) -> bool {
         self.data.contains(buff.as_bytes())
     }
     fn umatch(&self, buff: &[u8]) -> bool {
         self.data.contains(buff)
+    }
+    fn show(&self) -> String {
+        format!("Exact Match of one line in file {}", self.file_name)
     }
 }
 
@@ -364,20 +468,30 @@ fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Re
 /// pattern is file name. String exactly matches one line of file, case insensitive
 struct FileExactMatchC {
     data: HashSet<Vec<u8>>,
+    file_name: String,
 }
 impl FileExactMatchC {
-    fn new(data: &str, unicode: bool) -> Result<Self> {
+    fn new(file_name: &str, unicode: bool) -> Result<Self> {
         let mut d = HashSet::new();
-        load_hashset_c(&mut d, data, unicode)?;
-        Ok(Self { data: d })
+        load_hashset_c(&mut d, file_name, unicode)?;
+        Ok(Self {
+            data: d,
+            file_name: file_name.to_string(),
+        })
     }
 }
-impl BufMatch for FileExactMatchC {
+impl Match for FileExactMatchC {
     fn smatch(&self, buff: &str) -> bool {
         self.data.contains(&buff.new_lower().into_bytes()) // PERF allocation
     }
     fn umatch(&self, buff: &[u8]) -> bool {
         self.data.contains(&buff.new_lower()) // PERF allocation
+    }
+    fn show(&self) -> String {
+        format!(
+            "Case insensitive match of one line in file {}",
+            self.file_name
+        )
     }
 }
 
@@ -395,62 +509,73 @@ impl GlobMatch {
         }
     }
 }
-impl BufMatch for GlobMatch {
+impl Match for GlobMatch {
     fn smatch(&self, buff: &str) -> bool {
         buff.glob(&self.data, self.ic)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
         buff.glob(self.data.as_bytes(), self.ic)
     }
+    fn show(&self) -> String {
+        let prefix = if self.ic == Case::Insens { "in" } else { "" };
+        format!("Case {}sensitive match of glob {}", prefix, self.data)
+    }
 }
 
 #[derive(Debug, Clone)]
 /// string exactly matches pattern, case insensitive
 struct ExactMatchC {
-    data: String,
+    s_data: String,
+    u_data: Vec<u8>,
 }
 
 impl ExactMatchC {
-    fn new(data: &str, unicode: bool) -> Result<Self> {
+    fn new(data: &str) -> Result<Self> {
         Ok(Self {
-            data: if unicode {
-                data.new_lower()
-            } else {
-                String::from_utf8(data.as_bytes().new_lower())?
-            },
+            s_data: data.new_lower(),
+            u_data: data.as_bytes().new_lower(),
         })
     }
 }
-impl BufMatch for ExactMatchC {
+impl Match for ExactMatchC {
     fn smatch(&self, buff: &str) -> bool {
-        buff.equal_insens_quick(&self.data)
+        buff.equal_insens_quick(&self.s_data)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
-        buff.equal_insens_quick(self.data.as_bytes())
+        buff.equal_insens_quick(&self.u_data)
+    }
+    fn show(&self) -> String {
+        format!("Case insensitive exact match of {}", self.s_data)
     }
 }
 
 #[derive(Debug, Clone, Default, Copy)]
 /// Always Matches
 struct YesMatch {}
-impl BufMatch for YesMatch {
+impl Match for YesMatch {
     fn smatch(&self, _buff: &str) -> bool {
         true
     }
     fn umatch(&self, _buff: &[u8]) -> bool {
         true
+    }
+    fn show(&self) -> String {
+        "Always Matches".to_string()
     }
 }
 
 #[derive(Debug, Clone, Default, Copy)]
 /// Never Matches
 struct NoMatch {}
-impl BufMatch for NoMatch {
+impl Match for NoMatch {
     fn smatch(&self, _buff: &str) -> bool {
         false
     }
     fn umatch(&self, _buff: &[u8]) -> bool {
         false
+    }
+    fn show(&self) -> String {
+        "Never Matches".to_string()
     }
 }
 
@@ -486,7 +611,7 @@ impl LengthMatch {
     */
 }
 
-impl BufMatch for LengthMatch {
+impl Match for LengthMatch {
     fn smatch(&self, buff: &str) -> bool {
         let len = buff.chars().count();
         if len < self.min {
@@ -507,6 +632,18 @@ impl BufMatch for LengthMatch {
         }
         len <= self.max.unwrap()
     }
+    fn show(&self) -> String {
+        if let Some(max) = self.max {
+            format!(
+                "String of at least {}, but no more than {}  bytes",
+                self.min, max
+            )
+        } else if self.min == 0 {
+            "Empty String".to_string()
+        } else {
+            format!("String of at least {} bytes", self.min)
+        }
+    }
 }
 
 /// Mode for combining parts of a multi-match
@@ -517,6 +654,14 @@ pub enum MultiMode {
     /// matches only if all match
     And,
 }
+impl fmt::Display for MultiMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Or => Ok(write!(f, "OR")?),
+            Self::And => Ok(write!(f, "AND")?),
+        }
+    }
+}
 
 impl Default for MultiMode {
     fn default() -> Self {
@@ -524,8 +669,8 @@ impl Default for MultiMode {
     }
 }
 
-/// Does a particular column of a line match a pattern
-#[allow(missing_debug_implementations)]
+/// Does a particular column of a line match a pattern. Implements LineMatch
+#[derive(Debug)]
 pub struct ColMatcher {
     matcher: Matcher,
     col: NamedCol,
@@ -554,6 +699,9 @@ impl ColMatcher {
 
 // LineMatch::matcher could return Result<bool> and then we can put strict back
 impl LineMatch for ColMatcher {
+    fn ok_verbose(&self, line: &TextLine, _negate: bool) -> bool {
+        self.ok(line)
+    }
     fn ok(&self, line: &TextLine) -> bool {
         self.matcher.negate
             ^ if self.matcher.string {
@@ -567,27 +715,30 @@ impl LineMatch for ColMatcher {
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.col.lookup(fieldnames)
     }
+    fn show(&self) -> String {
+        format!("Matching column {} against {}", self.col, self.matcher)
+    }
 }
 
 /// List of [LineMatch], combined with AND or OR
 #[derive(Default)]
-pub struct LineMatchMulti {
+pub struct MultiLineMatcher {
     /// the mode
     pub multi: MultiMode,
     /// the matchers
     pub matchers: Vec<Box<dyn LineMatch>>,
 }
-impl fmt::Debug for LineMatchMulti {
+impl fmt::Debug for MultiLineMatcher {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LineMatchMulti {:?}", self.multi)
+        write!(f, "MultiLineMatcher {}", self.multi)
     }
 }
 
-impl LineMatchMulti {
+impl MultiLineMatcher {
     /// new
-    pub fn new() -> Self {
+    pub fn new(multi: MultiMode) -> Self {
         Self {
-            multi: MultiMode::And,
+            multi,
             matchers: Vec::new(),
         }
     }
@@ -595,11 +746,22 @@ impl LineMatchMulti {
     pub fn push(&mut self, item: Box<dyn LineMatch>) {
         self.matchers.push(item)
     }
+    /// is empty list?
+    pub fn is_empty(&self) -> bool {
+        self.matchers.is_empty()
+    }
     /// ok, with supplied MultiMode
     pub fn ok_tagged(&self, line: &TextLine, multi: MultiMode) -> bool {
         match multi {
             MultiMode::And => self.ok_and(line),
             MultiMode::Or => self.ok_or(line),
+        }
+    }
+    /// ok_verbose, with supplied MultiMode
+    pub fn ok_verbose_tagged(&self, line: &TextLine, multi: MultiMode, negate: bool) -> bool {
+        match multi {
+            MultiMode::And => self.ok_verbose_and(line, negate),
+            MultiMode::Or => self.ok_verbose_or(line, negate),
         }
     }
     /// ok, with AND
@@ -611,6 +773,17 @@ impl LineMatchMulti {
         }
         true
     }
+    /// ok_verbose, with AND
+    pub fn ok_verbose_and(&self, line: &TextLine, negate: bool) -> bool {
+        for x in &self.matchers {
+            if !x.ok(line) {
+                if !negate {}
+                return false;
+            }
+        }
+        if negate {}
+        true
+    }
     /// ok, with OR
     pub fn ok_or(&self, line: &TextLine) -> bool {
         for x in &self.matchers {
@@ -620,11 +793,25 @@ impl LineMatchMulti {
         }
         false
     }
+    /// ok, with OR
+    pub fn ok_verbose_or(&self, line: &TextLine, negate: bool) -> bool {
+        for x in &self.matchers {
+            if x.ok(line) {
+                if negate {}
+                return true;
+            }
+        }
+        if !negate {}
+        false
+    }
 }
 
-impl LineMatch for LineMatchMulti {
+impl LineMatch for MultiLineMatcher {
     fn ok(&self, line: &TextLine) -> bool {
         self.ok_tagged(line, self.multi)
+    }
+    fn ok_verbose(&self, line: &TextLine, negate: bool) -> bool {
+        self.ok_verbose_tagged(line, self.multi, negate)
     }
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -633,29 +820,41 @@ impl LineMatch for LineMatchMulti {
         }
         Ok(())
     }
+    fn show(&self) -> String {
+        if self.is_empty() {
+            format!("Empty {} MultiLineMatcher", self.multi)
+        } else if self.matchers.len() == 1 {
+            format!(
+                "Single element {} MultiLineMatcher : {}",
+                self.multi, self.matchers[0]
+            )
+        } else {
+            let mut ret = format!("{}", self.matchers[0]);
+            for x in self.matchers.iter().skip(1) {
+                ret.push_str(&format!("{} {}", self.multi, x));
+            }
+            ret
+        }
+    }
 }
 
 /// List of [Matcher], combined with AND or OR
 #[derive(Default)]
-pub struct MatchMulti {
+pub struct MultiMatcher {
     /// the mode
     pub multi: MultiMode,
     /// the matchers
     pub matchers: Vec<Matcher>,
 }
-impl fmt::Debug for MatchMulti {
+impl fmt::Debug for MultiMatcher {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MatchOr {:?}", self.multi)
+        write!(f, "MultiMatcher {}", self.multi)
     }
 }
 
-impl MatchMulti {
-    /// new, default mode
-    pub fn new() -> Self {
-        Self::default()
-    }
-    /// new, explicit mode
-    pub const fn with_tag(multi: MultiMode) -> Self {
+impl MultiMatcher {
+    /// new MultiMatcher with given mode
+    pub const fn new(multi: MultiMode) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
@@ -715,18 +914,46 @@ impl MatchMulti {
     }
 }
 
-impl BufMatch for MatchMulti {
+impl Match for MultiMatcher {
     fn smatch(&self, buff: &str) -> bool {
         self.smatch_tagged(buff, self.multi)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
         self.umatch_tagged(buff, self.multi)
     }
+    fn show(&self) -> String {
+        if self.is_empty() {
+            format!("Empty {} MultiMatcher", self.multi)
+        } else if self.matchers.len() == 1 {
+            format!(
+                "Single element {} MultiMatcher : {}",
+                self.multi, self.matchers[0]
+            )
+        } else {
+            let mut ret = format!("{}", self.matchers[0]);
+            for x in self.matchers.iter().skip(1) {
+                ret.push_str(&format!("{} {}", self.multi, x));
+            }
+            ret
+        }
+    }
+    /// smatch, but print to stderr if fail
+    fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
+        let res = self.smatch(buff);
+        if res != negate {
+            eprintln!(
+                "Failed to {}match {} against {}",
+                not_str(negate),
+                buff,
+                self.show()
+            );
+        }
+        res
+    }
 }
 
 /// Match a pattern against a target
-//#[derive(Debug, Clone, Default)]
-#[allow(missing_debug_implementations)]
+#[derive(Debug)]
 pub struct Matcher {
     /// general type, e.g. "regex"
     ctype: String,
@@ -745,7 +972,22 @@ pub struct Matcher {
     /// for multi-matches, combine with AND or OR
     multi_mode: Option<MultiMode>,
     /// the matching object
-    matcher: Box<dyn BufMatch>,
+    matcher: Box<dyn Match>,
+}
+
+impl fmt::Display for Matcher {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.trim {
+            write!(f, "trimmed ")?;
+        }
+        if self.negate {
+            write!(f, "negated ")?;
+        }
+        if self.empty {
+            write!(f, "empty-accepting  ")?;
+        }
+        write!(f, "{}", self.matcher)
+    }
 }
 
 impl Default for Matcher {
@@ -825,31 +1067,20 @@ impl Matcher {
     }
 }
 
-type MakerBox = Box<dyn Fn(&mut Matcher, &str) -> Result<Box<dyn BufMatch>> + Send>;
-/// A named constructor for a [BufMatch], used by [MatchMaker]
-#[allow(missing_debug_implementations)]
-pub struct MatchMakerItem {
+type MakerBox = Box<dyn Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send>;
+/// A named constructor for a [Match], used by [MatchMaker]
+struct MatchMakerItem {
     /// matched against Matcher::ctype
-    pub tag: &'static str,
+    tag: &'static str,
     /// what this matcher does
-    pub help: &'static str,
-    /// Create a dyn BufMatch from a pattern
-    pub maker: MakerBox,
+    help: &'static str,
+    /// Create a dyn Match from a pattern
+    maker: MakerBox,
 }
 
 struct MatchMakerAlias {
     old_name: &'static str,
     new_name: &'static str,
-}
-
-macro_rules! mm {
-    ($a:expr,$b:expr,$c:expr) => {
-        MatchMakerItem {
-            tag: $a,
-            help: $b,
-            maker: Box::new($c),
-        }
-    };
 }
 
 lazy_static! {
@@ -872,117 +1103,122 @@ impl MatchMaker {
         Self::do_add_alias("infix", "substr")?;
         Self::do_add_alias("infix", "substring")?;
         Self::do_add_alias("file-exact", "fileexact")?;
-        Self::do_push(mm!(
+        Self::do_push(
             "prefix",
             "Is the pattern a prefix of the target?",
-            |m, p| Ok(if m.case == Case::Insens {
-                Box::new(PrefixMatchC::new(p, m.string))
-            } else {
-                Box::new(PrefixMatch::new(p))
-            })
-        ))?;
-        Self::do_push(mm!(
+            |m, p| {
+                Ok(if m.case == Case::Insens {
+                    Box::new(PrefixMatchC::new(p))
+                } else {
+                    Box::new(PrefixMatch::new(p))
+                })
+            },
+        )?;
+        Self::do_push(
             "regex",
             "Interpret the pattern as a regex, as per the eponymous crate",
-            |m, p| Ok(if m.string {
-                Box::new(RegexMatchS::new(p, m.case)?)
-            } else {
-                Box::new(RegexMatchB::new(p, m.case)?)
-            })
-        ))?;
-        Self::do_push(mm!(
+            |m, p| Ok(Box::new(RegexMatch::new(p, m.case)?)),
+        )?;
+        Self::do_push(
             "file-exact",
             "Is the target exactly one one the lines in this file?",
-            |m, p| Ok(if m.case == Case::Insens {
-                Box::new(FileExactMatchC::new(p, m.string)?)
-            } else {
-                Box::new(FileExactMatch::new(p)?)
-            })
-        ))?;
-        Self::do_push(mm!(
+            |m, p| {
+                Ok(if m.case == Case::Insens {
+                    Box::new(FileExactMatchC::new(p, m.string)?)
+                } else {
+                    Box::new(FileExactMatch::new(p)?)
+                })
+            },
+        )?;
+        Self::do_push(
             "exact",
             "Does the target exactly match the pattern",
-            |m, p| Ok(if m.case == Case::Insens {
-                Box::new(ExactMatchC::new(p, m.string)?)
-            } else {
-                Box::new(ExactMatch::new(p))
-            })
-        ))?;
-        Self::do_push(mm!(
+            |m, p| {
+                Ok(if m.case == Case::Insens {
+                    Box::new(ExactMatchC::new(p)?)
+                } else {
+                    Box::new(ExactMatch::new(p))
+                })
+            },
+        )?;
+        Self::do_push(
             "length",
             "For the pattern X,Y, length is between X and Y inclusive",
-            |_m, p| Ok(Box::new(LengthMatch::new(p)?))
-        ))?;
-        Self::do_push(mm!("yes", "always matches", |_m, _p| Ok(Box::new(
-            YesMatch {}
-        ))))?;
-        Self::do_push(mm!(
+            |_m, p| Ok(Box::new(LengthMatch::new(p)?)),
+        )?;
+        Self::do_push("yes", "always matches", |_m, _p| Ok(Box::new(YesMatch {})))?;
+        Self::do_push(
             "suffix",
             "Is the pattern a suffix of the target?",
-            |m, p| Ok(if m.case == Case::Insens {
-                Box::new(SuffixMatchC::new(p, m.string))
-            } else {
-                Box::new(SuffixMatch::new(p))
-            })
-        ))?;
-        Self::do_push(mm!(
+            |m, p| {
+                Ok(if m.case == Case::Insens {
+                    Box::new(SuffixMatchC::new(p))
+                } else {
+                    Box::new(SuffixMatch::new(p))
+                })
+            },
+        )?;
+        Self::do_push(
             "infix",
             "Is the pattern a substring of the target?",
-            |m, p| Ok(if m.case == Case::Insens {
-                Box::new(InfixMatchC::new(p, m.string))
-            } else {
-                Box::new(InfixMatch::new(p))
-            })
-        ))?;
-        Self::do_push(mm!("glob", "Treat the pattern as a shell glob", |m, p| Ok(
-            Box::new(GlobMatch::new(p, m.case))
-        )))?;
-        Self::do_push(mm!(
-            "empty",
-            "Is the target empty, i.e. zero bytes",
-            |_m, _p| Ok(Box::new(LengthMatch::new("0,0")?))
-        ))?;
-        Self::do_push(mm!(
+            |m, p| {
+                Ok(if m.case == Case::Insens {
+                    Box::new(InfixMatchC::new(p))
+                } else {
+                    Box::new(InfixMatch::new(p))
+                })
+            },
+        )?;
+        Self::do_push("glob", "Treat the pattern as a shell glob", |m, p| {
+            Ok(Box::new(GlobMatch::new(p, m.case)))
+        })?;
+        Self::do_push("empty", "Is the target empty, i.e. zero bytes", |_m, _p| {
+            Ok(Box::new(LengthMatch::new("0,0")?))
+        })?;
+        Self::do_push(
             "blank",
             "Is the target made entirely of white space",
             |m, _p| {
                 m.trim = true;
                 m.empty = true;
                 Ok(Box::new(NoMatch {}))
-            }
-        ))?;
-        Self::do_push(mm!(
+            },
+        )?;
+        Self::do_push(
             "comment",
             "Is the target white space followed by the pattern?",
             |m, p| {
                 m.trim = true;
                 m.empty = true;
                 Ok(Box::new(PrefixMatch::new(p)))
-            }
-        ))?;
-        Self::do_push(mm!(
+            },
+        )?;
+        Self::do_push(
             "hash",
             "Is the target white space folled by the # character?",
             |m, _p| {
                 m.trim = true;
                 m.empty = true;
                 Ok(Box::new(PrefixMatch::new("#")))
-            }
-        ))?;
-        Self::do_push(mm!(
+            },
+        )?;
+        Self::do_push(
             "slash",
             "Is the target white space followed by //",
             |m, _p| {
                 m.trim = true;
                 m.empty = true;
                 Ok(Box::new(PrefixMatch::new("//")))
-            }
-        ))
+            },
+        )
     }
     /// Add a new matcher. If a Matcher already exists by that name, replace it.
-    pub fn push(m: MatchMakerItem) -> Result<()> {
+    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    where
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send,
+    {
         Self::init()?;
-        Self::do_push(m)
+        Self::do_push(tag, help, maker)
     }
     /// Add a new alias. If an alias already exists by that name, replace it.
     pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
@@ -1014,12 +1250,20 @@ impl MatchMaker {
         mm.push(m);
         Ok(())
     }
-    fn do_push(m: MatchMakerItem) -> Result<()> {
-        if MODIFIERS.contains(&m.tag) {
+    fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    where
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send,
+    {
+        if MODIFIERS.contains(&tag) {
             return err!(
                 "You can't add a matcher named {} because that is reserved for a modifier"
             );
         }
+        let m = MatchMakerItem {
+            tag,
+            help,
+            maker: Box::new(maker),
+        };
         let mut mm = MATCH_MAKER.lock().unwrap();
         for x in mm.iter_mut() {
             if x.tag == m.tag {
@@ -1032,19 +1276,21 @@ impl MatchMaker {
     }
     /// Print all available Matchers to stdout.
     pub fn help() {
+        println!("Modifers :");
+        println!("utf8  Operations are on utf8 strings, rather than the default u8 bytes.");
+        println!("not   Treat a match as a non-match, and vice versa.");
+        println!("case  Ignore case. Exact behavior depends on 'utf8' setting.");
+        println!("trim  Remove leading and trailing whitespce before checking.");
+        println!("null  An empty string also matches. This check happens after trimming.");
+        println!("and   Interpret pattern as a multi-pattern, Match with AND.");
+        println!("or    Interpret pattern as a multi-pattern, Match with OR.\n");
+        println!("Methods :");
         Self::init().unwrap();
         let mm = MATCH_MAKER.lock().unwrap();
         for x in &*mm {
             println!("{:12}{}", x.tag, x.help);
         }
-    }
-    /// Call pr for every Matcher.
-    pub fn help1(pr: &dyn Fn(&str, &str)) {
-        Self::init().unwrap();
-        let mm = MATCH_MAKER.lock().unwrap();
-        for x in &*mm {
-            pr(x.tag, x.help);
-        }
+        println!("See also https://avjewe.github.io/cdxdoc/Matcher.html.");
     }
     /// Create a Matcher from a matcher spec and a pattern
     pub fn make2(matcher: &str, pattern: &str) -> Result<Matcher> {
@@ -1072,8 +1318,7 @@ impl MatchMaker {
             m.ctype = Self::resolve_alias(m.ctype);
         }
         if let Some(mm) = m.multi_mode {
-            let mut outer = Box::new(MatchMulti::new());
-            outer.multi = mm;
+            let mut outer = Box::new(MultiMatcher::new(mm));
             let mut pattern = pattern;
             let delim = pattern.first();
             pattern = pattern.skip_first();
@@ -1097,7 +1342,7 @@ impl MatchMaker {
             Self::make2(spec, "")
         }
     }
-    /// Remake the dyn BufMatch based on current contents.
+    /// Remake the dyn Match based on current contents.
     pub fn remake(m: &mut Matcher, pattern: &str) -> Result<()> {
         Self::init()?;
         let mm = MATCH_MAKER.lock().unwrap();

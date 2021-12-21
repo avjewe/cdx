@@ -1,6 +1,6 @@
 //! binary search in text files
 
-use crate::comp::CompareList;
+use crate::comp::LineCompList;
 use crate::{is_cdx, Result, StringLine};
 use memmap;
 use std::cmp::Ordering;
@@ -102,22 +102,22 @@ pub const fn find_prev(data: &[u8], start: usize) -> usize {
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// CompareList holds the value against which we are comparing
-pub fn lower_bound<'a>(data: &'a [u8], comp: &CompareList) -> &'a [u8] {
+/// LineCompList holds the value against which we are comparing
+pub fn lower_bound<'a>(data: &'a [u8], comp: &LineCompList) -> &'a [u8] {
     let (start, stop) = lower_bound_n(data, comp);
     &data[start..stop]
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// CompareList holds the value against which we are comparing
-pub fn equal_range<'a>(data: &'a [u8], comp: &CompareList) -> &'a [u8] {
+/// LineCompList holds the value against which we are comparing
+pub fn equal_range<'a>(data: &'a [u8], comp: &LineCompList) -> &'a [u8] {
     let (start, stop) = equal_range_n(data, comp);
     &data[start..stop]
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// CompareList holds the value against which we are comparing
-pub fn equal_range_n(data: &[u8], comp: &CompareList) -> (usize, usize) {
+/// LineCompList holds the value against which we are comparing
+pub fn equal_range_n(data: &[u8], comp: &LineCompList) -> (usize, usize) {
     let (start1, stop1) = lower_bound_n(data, comp);
     if start1 == stop1 {
         (start1, stop1)
@@ -127,8 +127,8 @@ pub fn equal_range_n(data: &[u8], comp: &CompareList) -> (usize, usize) {
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// CompareList holds the value against which we are comparing
-pub fn lower_bound_n(data: &[u8], comp: &CompareList) -> (usize, usize) {
+/// LineCompList holds the value against which we are comparing
+pub fn lower_bound_n(data: &[u8], comp: &LineCompList) -> (usize, usize) {
     let mut trapped = false; // to exit a possible infinite loop
     let mut begin: usize = 0; // start of range under consideration
     let mut end: usize = data.len(); // end of range under consideration
@@ -169,7 +169,7 @@ pub fn lower_bound_n(data: &[u8], comp: &CompareList) -> (usize, usize) {
 }
 
 /// return start of first line that is greater than comp
-pub fn upper_bound_n(data: &[u8], comp: &CompareList) -> usize {
+pub fn upper_bound_n(data: &[u8], comp: &LineCompList) -> usize {
     let mut begin: usize = 0; // start of range under consideration
     let mut end: usize = data.len(); // end of range under consideration
     while begin < end {
@@ -201,9 +201,9 @@ mod tests {
 
     #[test]
     fn test_lower() {
-        let mut comp = crate::comp::CompareList::new();
-        comp.push(crate::comp::make_comp("1").unwrap());
-        comp.set("bbb", ',').unwrap();
+        let mut comp = crate::comp::LineCompList::new();
+        comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
+        comp.set(b"bbb", b',').unwrap();
         assert_eq!(lower_bound(b"aaa\nbbb\nccc\n", &comp), b"bbb\n");
         assert_eq!(lower_bound(b"bbb\nccc\n", &comp), b"bbb\n");
         assert_eq!(lower_bound(b"aaa\nbbb\n", &comp), b"bbb\n");

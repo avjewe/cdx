@@ -1,4 +1,4 @@
-#command cdx uniq -k3g
+#command cdx uniq -k3,float
 #stdin
  CDX	one	two	three
 stuff	junk	1.0

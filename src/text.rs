@@ -85,6 +85,8 @@ pub trait Text {
     fn as_bytes(&self) -> &[u8];
     /// trim whitespace
     fn trimw(&self) -> &Self;
+    /// trim whitespace at start of slice
+    fn trimw_start(&self) -> &Self;
 
     /// match in glob format
     fn glob(&self, in_wild: &Self, ic: Case) -> bool {
@@ -220,6 +222,9 @@ impl Text for str {
     fn trimw(&self) -> &Self {
         self.trim()
     }
+    fn trimw_start(&self) -> &Self {
+        self.trim_start()
+    }
     fn skip_first(&self) -> &Self {
         debug_assert!(!self.is_empty());
         &self[self.chars().next().unwrap().len_utf8()..]
@@ -351,6 +356,12 @@ impl Text for [u8] {
         };
         let to = self.iter().rposition(|x| *x > b' ').unwrap();
         &self[from..=to]
+    }
+    fn trimw_start(&self) -> &Self {
+        match self.iter().position(|x| *x > b' ') {
+            Some(i) => &self[i..],
+            None => &self[0..0],
+        }
     }
     fn skip_first(&self) -> &[u8] {
         debug_assert!(!self.is_empty());

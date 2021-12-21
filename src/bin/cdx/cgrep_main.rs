@@ -1,9 +1,7 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::matcher::*;
-use cdx::{
-    get_writer, prerr, Error, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE,
-};
+use cdx::{get_writer, Error, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE};
 use std::str::FromStr;
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -17,7 +15,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     let (args, files) = args::parse(&prog, &A, argv);
 
     let mut checker = HeaderChecker::new();
-    let mut list = LineMatchMulti::new();
+    let mut list = MultiLineMatcher::new(MultiMode::And);
     for x in args {
         if x.name == "header" {
             checker.mode = HeaderMode::from_str(&x.value)?;
@@ -71,9 +69,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else {
             let mut fails = 0;
             loop {
-                if !list.ok(f.curr_line()) {
-                    prerr(&[b"Line did not match", &f.curr_line().line]);
-                    // list.explain()???
+                if !list.ok_verbose(f.curr_line(), false) {
                     fails += 1;
                     if fails >= max_fails {
                         break;
