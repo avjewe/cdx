@@ -1,7 +1,7 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
-use crate::comp::str_to_u_whole;
+use crate::num::str_to_u_whole;
 use crate::text::{Case, Text};
 use crate::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
@@ -66,6 +66,20 @@ pub fn validate_column_name(name: &str) -> Result<()> {
     } else {
         Ok(())
     }
+}
+
+/// extract column from line
+pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
+    for (n, s) in data.split(|ch| *ch == delim).enumerate() {
+        if n == col {
+            return if !s.is_empty() && s.last().unwrap() == &b'\n' {
+                &s[0..s.len() - 1]
+            } else {
+                s
+            };
+        }
+    }
+    &data[0..0]
 }
 
 impl ColumnHeader {

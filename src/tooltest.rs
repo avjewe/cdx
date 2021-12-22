@@ -1,5 +1,5 @@
 //! parse and run tooltest files
-use crate::comp::str_to_i_whole;
+use crate::num::str_to_i_whole;
 use crate::matcher::{MatchMaker, Matcher};
 use crate::text::Text;
 use crate::{err, get_reader, get_writer, prerr, Error, Infile, Result};

@@ -46,6 +46,7 @@ pub mod comp;
 pub mod expr;
 pub mod join;
 pub mod matcher;
+pub mod num;
 pub mod sort;
 pub mod text;
 pub mod tooltest;

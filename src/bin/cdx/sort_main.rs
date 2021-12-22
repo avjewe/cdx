@@ -24,7 +24,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             merge = true;
         } else if x.name == "unique" {
             unique = true;
-        } else if x.name == "help" {
+        } else if x.name == "show-comp" {
             CompMaker::help();
             return Ok(());
         } else {

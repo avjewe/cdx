@@ -1,19 +1,33 @@
 //! Tools for comparing lines and fields
 //!
-//!  * [Compare] -- a trait for comparing slices
-//!  * [Comp] -- a struct containing a [Compare], plus some context
-//!  * [CompList] -- an ordered list of [Comp]
+//!  For plain buffers, there is a trait [Compare], which is usually wrapped in a struct [Comp]
+//!  which is usually aggregated into a [CompList]
 //!
-//!  * LineCompare -- a trait for comparing lines, often implemented in terms of a [Compare]
-//!  * LineComp -- a struct containing a [LineCompare], plus some context
-//!  * LineCompList -- an ordered list of [LineComp]
+//!  For whole lines, there is a trait [LineCompare], which is usually wrapped in a struct [LineComp]
+//!  which is usually aggregated into a [LineCompList]
 //!
+//! ```
+//! use cdx::comp::LineCompList;
+//! use cdx::LookbackReader; 
+//! let mut comp = LineCompList::new();
+//! comp.add("price,float")?;
+//! comp.add("quant,num")?;
+//! let input = "<< CDX\tname\tquant\tprice\naaa\t42\t1.23\nbbb\t12\t2.34\nccc\t12\t2.34\n";
+//! let mut reader = LookbackReader::new(2);
+//! reader.open(input);
+//! comp.lookup(&reader.names())?;
+//! reader.getline()?;
+//! reader.getline()?;
+//! assert_eq!(comp.comp_cols(reader.curr_line(), reader.prev_line(1)), std::cmp::Ordering::Equal);
+//! assert_eq!(comp.comp_cols(reader.prev_line(2), reader.prev_line(1)), std::cmp::Ordering::Less);
+//! # Ok::<(), cdx::Error>(())
+//! ```
 #![allow(clippy::float_cmp)]
-use crate::column::NamedCol;
+use crate::column::{NamedCol, get_col};
+use crate::num::{str_to_d_lossy, fcmp, ulp_to_ulong, Junk, JunkVal, JunkType};
 use crate::text::Text;
 use crate::{err, Error, Result, TextLine};
 use lazy_static::lazy_static;
-use libm;
 use std::cmp::Ordering;
 use std::fmt;
 use std::sync::Mutex;
@@ -92,45 +106,6 @@ pub trait LineCompare {
     fn comp_self_line(&self, right: &[u8], delim: u8) -> Ordering;
     /// Compare self to line for equality
     fn equal_self_line(&self, right: &[u8], delim: u8) -> bool;
-}
-
-/// amount of junk allowed in a number, before falling back to the 'error' value
-#[derive(Debug, Copy, Clone)]
-pub enum JunkType {
-    /// best effort for any input
-    Any,
-    /// best effort, as long as some non-empty prefix is ok
-    Trailing,
-    /// every byte but be part of a valid value
-    None,
-}
-impl Default for JunkType {
-    fn default() -> Self {
-        Self::Any
-    }
-}
-
-/// Value to assign to junk values
-#[derive(Debug, Copy, Clone)]
-pub enum JunkVal {
-    /// if value is just, make is compare less
-    Min,
-    /// if value is just, make is compare greater
-    Max,
-}
-impl Default for JunkVal {
-    fn default() -> Self {
-        Self::Max
-    }
-}
-
-/// What counts as junk, and what to do about it
-#[derive(Debug, Default, Copy, Clone)]
-pub struct Junk {
-    /// what constitutes junk
-    pub junk_type: JunkType,
-    /// what do do with junk
-    pub junk_val: JunkVal,
 }
 
 /// Settings for one Compare object
@@ -247,20 +222,6 @@ impl Default for LineComp {
             comp: Box::new(LineCompWhole::new(Comp::default())),
         }
     }
-}
-
-/// extract column from line
-pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
-    for (n, s) in data.split(|ch| *ch == delim).enumerate() {
-        if n == col {
-            return if !s.is_empty() && s.last().unwrap() == &b'\n' {
-                &s[0..s.len() - 1]
-            } else {
-                s
-            };
-        }
-    }
-    &data[0..0]
 }
 
 impl LineComp {
@@ -636,7 +597,7 @@ impl LineCompare for LineCompCol {
 */
 
 /// make fixed length array from slice
-pub fn make_array(val: &[u8]) -> [u8; 8] {
+fn make_array(val: &[u8]) -> [u8; 8] {
     let mut res = [0; 8];
     match val.len() {
         0 => {}
@@ -660,14 +621,6 @@ fn make_array(val: &[u8]) -> [u8; 8] {
     result
 }
 */
-
-const fn is_e(ch: u8) -> bool {
-    (ch == b'e') || (ch == b'E')
-}
-
-const fn is_exp_char(ch: u8) -> bool {
-    ch.is_ascii_digit() || (ch == b'+') || (ch == b'-')
-}
 
 fn skip_comma_zero(mut a: &[u8]) -> &[u8] {
     while !a.is_empty() && (a[0] == b'0' || a[0] == b',') {
@@ -839,221 +792,7 @@ fn ip_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
     }
 }
 
-// https://doc.rust-lang.org/std/primitive.f64.html
-/// Standard Rust parsing with str_to_d interface
-pub fn str_to_d_native(n: &str) -> f64 {
-    n.parse().unwrap()
-}
-
-/// str_to_d, but always return best guess
-pub fn str_to_d_lossy(num: &[u8]) -> f64 {
-    match str_to_d(num) {
-        Err(_x) => 0.0,
-        Ok((x, _y)) => x,
-    }
-}
-
-/// str_to_d, but fail if any text remains
-pub fn str_to_d_whole(num: &[u8]) -> Result<f64> {
-    match str_to_d(num) {
-        Err(x) => Err(x),
-        Ok((x, y)) => {
-            if !y.is_empty() {
-                return err!(
-                    "Extra stuff after number : {}",
-                    String::from_utf8_lossy(num)
-                );
-            }
-            Ok(x)
-        }
-    }
-}
-
-/// Convert bytes to integer, return unused portion
-pub fn str_to_i(num: &[u8]) -> Result<(i64, &[u8])> {
-    let mut neg: i64 = 1;
-    let mut curr = num.trimw_start();
-    if !curr.is_empty() {
-        if curr[0] == b'+' {
-            curr = &curr[1..];
-        } else if curr[0] == b'-' {
-            curr = &curr[1..];
-            neg = -1;
-        }
-    }
-    let mut ret: i64 = 0;
-    if curr.is_empty() || !curr[0].is_ascii_digit() {
-        return err!("Malformed Integer {}", String::from_utf8_lossy(num));
-    }
-    while !curr.is_empty() && curr[0].is_ascii_digit() {
-        ret *= 10;
-        ret += (curr[0] - b'0') as i64;
-        curr = &curr[1..];
-    }
-    ret *= neg;
-    Ok((ret, curr))
-}
-
-/// Convert bytes to integer, return unused portion
-pub fn str_to_u(num: &[u8]) -> Result<(u64, &[u8])> {
-    let mut curr = num.trimw_start();
-    if !curr.is_empty() && curr[0] == b'+' {
-        curr = &curr[1..];
-    }
-    let mut ret: u64 = 0;
-    if curr.is_empty() || !curr[0].is_ascii_digit() {
-        return err!("Malformed Integer {}", String::from_utf8_lossy(num));
-    }
-    while !curr.is_empty() && curr[0].is_ascii_digit() {
-        ret *= 10;
-        ret += (curr[0] - b'0') as u64;
-        curr = &curr[1..];
-    }
-    Ok((ret, curr))
-}
-
-/// Convert bytes to integer, fail if unused bytes
-pub fn str_to_u_whole(num: &[u8]) -> Result<u64> {
-    let x = str_to_u(num)?;
-    if !x.1.is_empty() {
-        return err!(
-            "Extra stuff after number : {}",
-            String::from_utf8_lossy(num)
-        );
-    }
-    Ok(x.0)
-}
-
-/// Convert bytes to integer, fail if unused bytes
-pub fn str_to_i_whole(num: &[u8]) -> Result<i64> {
-    let x = str_to_i(num)?;
-    if !x.1.is_empty() {
-        return err!(
-            "Extra stuff after number : {}",
-            String::from_utf8_lossy(num)
-        );
-    }
-    Ok(x.0)
-}
-
-/// Convert bytes to integer, ignore unused bytes and errors
-pub fn str_to_u_lossy(num: &[u8]) -> u64 {
-    let x = str_to_u(num);
-    if x.is_err() {
-        return 0;
-    }
-    x.unwrap().0
-}
-
-/// Convert bytes to integer, ignore unused bytes and errors
-pub fn str_to_i_lossy(num: &[u8]) -> i64 {
-    let x = str_to_i(num);
-    if x.is_err() {
-        return 0;
-    }
-    x.unwrap().0
-}
-
-/// turn text into f64, return unused portion of text
-///```
-/// use cdx::comp::str_to_d;
-/// let (x, y) = str_to_d(b"123.456xyz").unwrap();
-/// assert_eq!(x, 123.456);
-/// assert_eq!(y, b"xyz");
-/// let (x, y) = str_to_d(b"123e2").unwrap();
-/// assert_eq!(y, b"");
-/// assert_eq!(x, 123e2);
-/// let (x, y) = str_to_d(b"123e-27").unwrap();
-/// assert_eq!(y, b"");
-/// assert_eq!(x, 123e-27);
-///```
-pub fn str_to_d(num: &[u8]) -> Result<(f64, &[u8])> {
-    let mut neg: f64 = 1.0;
-    let mut curr = num.trimw_start();
-    if curr.is_empty() {
-        return err!(
-            "Can't convert empty string to floating point {}",
-            String::from_utf8_lossy(num)
-        );
-    }
-    if curr[0] == b'+' {
-        curr = &curr[1..];
-    } else if curr[0] == b'-' {
-        curr = &curr[1..];
-        neg = -1.0;
-    }
-    let mut saw_digit = false;
-    let mut ret: f64 = 0.0;
-    while !curr.is_empty() && curr[0].is_ascii_digit() {
-        saw_digit = true;
-        ret *= 10.0;
-        ret += (curr[0] - b'0') as f64;
-        curr = &curr[1..];
-    }
-    if !curr.is_empty() && (curr[0] == b'.') {
-        curr = &curr[1..];
-        let mut place = 0.1;
-        while !curr.is_empty() && curr[0].is_ascii_digit() {
-            saw_digit = true;
-            ret += place * (curr[0] - b'0') as f64;
-            place *= 0.1;
-            curr = &curr[1..];
-        }
-    }
-    if (curr.len() > 1) && is_e(curr[0]) && is_exp_char(curr[1]) {
-        curr = &curr[1..];
-        let mut neg_exp: i32 = 1;
-        if !curr.is_empty() {
-            if curr[0] == b'+' {
-                curr = &curr[1..];
-            } else if curr[0] == b'-' {
-                neg_exp = -1;
-                curr = &curr[1..];
-            }
-        }
-        let mut exponent: i32 = 0;
-        while !curr.is_empty() && curr[0].is_ascii_digit() {
-            saw_digit = true;
-            exponent *= 10;
-            exponent += (curr[0] - b'0') as i32;
-            curr = &curr[1..];
-        }
-        exponent *= neg_exp;
-        match exponent {
-            -2 => {
-                ret *= 0.01;
-            }
-            -1 => {
-                ret *= 0.1;
-            }
-            0 => {}
-            1 => {
-                ret *= 10.0;
-            }
-            2 => {
-                ret *= 100.0;
-            }
-            3 => {
-                ret *= 1000.0;
-            }
-            //  	    These two lose accuracy
-            //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LOG2_10).exp2();},
-            //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LN_10).exp();},
-            _ => {
-                ret *= libm::exp10(exponent as f64);
-            }
-        }
-    }
-    if !saw_digit {
-        return err!(
-            "Malformed floating point number {}",
-            String::from_utf8_lossy(num)
-        );
-    }
-    Ok((neg * ret, curr))
-}
-
-/// One line in a buffer of text
+/// One line in a buffer of text, suitable for sorting
 #[derive(Debug, Clone, Copy)]
 pub struct Item {
     /// offset from beginning of buffer
@@ -1122,6 +861,7 @@ impl CompMaker {
         if !COMP_MAKER.lock().unwrap().is_empty() {
             return Ok(());
         }
+        Self::do_add_alias("numeric", "num")?;
         Self::do_add_alias("length", "len")?;
         Self::do_add_alias("plain", "")?;
         Self::do_push("length", "Sort by length of string", |_p| {
@@ -1489,7 +1229,7 @@ impl LineCompList {
     pub fn new() -> Self {
         Self::default()
     }
-    /// any [ListComp]s in the list?
+    /// any [LineComp]s in the list?
     pub fn is_empty(&self) -> bool {
         self.c.is_empty()
     }
@@ -1713,35 +1453,35 @@ impl LineCompList {
 
 /// IP Address Comparison
 #[derive(Default, Debug)]
-pub struct CompareIP {
+struct CompareIP {
     value: Vec<u8>,
 }
 
 /// Default comparison
 #[derive(Default, Debug)]
-pub struct ComparePlain {
+struct ComparePlain {
     value: Vec<u8>,
 }
 
 /// Default comparison
 #[derive(Default, Debug)]
-pub struct CompareLower {
+struct CompareLower {
     value: Vec<u8>,
 }
 
 /// Compare by length of string
 #[derive(Default, Debug)]
-pub struct CompareLen {
+struct CompareLen {
     value: u32,
 }
 
 /// always equal comparison
 #[derive(Default, Debug)]
-pub struct CompareEqual {}
+struct CompareEqual {}
 
 /// f64 comparison
 #[derive(Default, Debug)]
-pub struct Comparef64 {
+struct Comparef64 {
     value: f64,
 }
 
@@ -1753,7 +1493,7 @@ impl Comparef64 {
 
 /// nnn.nnn comparison
 #[derive(Default, Debug)]
-pub struct CompareNumeric {
+struct CompareNumeric {
     value: Vec<u8>,
 }
 
@@ -1854,25 +1594,6 @@ impl Compare for CompareIP {
     }
     fn equal_self(&self, right: &[u8]) -> bool {
         ip_cmp(&self.value, right) == Ordering::Equal
-    }
-}
-
-fn fcmp(x: f64, y: f64) -> Ordering {
-    if x == y {
-        return Ordering::Equal;
-    }
-    if x > y {
-        return Ordering::Greater;
-    }
-    Ordering::Less
-}
-
-fn ulp_to_ulong(d: f64) -> u64 {
-    let x = u64::from_ne_bytes(d.to_ne_bytes());
-    if (x & 0x8000000000000000u64) != 0 {
-        x ^ 0xffffffffffffffffu64
-    } else {
-        x | 0x8000000000000000u64
     }
 }
 

@@ -9,7 +9,7 @@ use std::fs;
 // lower - first that is not less
 // upper - fist that is greater
 
-/// binary search in text files
+/// memory map a file, extract CDX header
 #[derive(Debug)]
 pub struct MemMap {
     map: memmap::Mmap,
@@ -44,11 +44,11 @@ impl MemMap {
             delim,
         })
     }
-    /// get underlying map
+    /// get underlying memmap data
     pub fn get(&self) -> &[u8] {
         &self.map[..]
     }
-    /// get underlying map
+    /// get column delimiter
     pub const fn get_delim(&self) -> u8 {
         self.delim
     }
@@ -67,6 +67,7 @@ impl MemMap {
 }
 
 /// return the position after the next newline after start
+/// that is, starting in the middle of a line, find the start of the next line
 pub const fn find_end(data: &[u8], mut start: usize) -> usize {
     while (start < data.len()) && (data[start] != b'\n') {
         start += 1;
@@ -78,7 +79,7 @@ pub const fn find_end(data: &[u8], mut start: usize) -> usize {
 }
 
 /// return the position after the first newline before start
-/// that is, starting in the middle of a line, find the start
+/// that is, starting in the middle of a line, find the start of it
 pub const fn find_start(data: &[u8], mut start: usize) -> usize {
     while (start > 0) && (data[start] != b'\n') {
         start -= 1;
