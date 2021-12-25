@@ -6,8 +6,9 @@ use std::str::FromStr;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    const A: [ArgSpec; 4] = [
+    const A: [ArgSpec; 5] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
+        arg! {"expr", "e", "Expr", "Select lines where this arithmetic expression nis non-zero."},
         arg! {"show-matchers", "s", "", "Print available matchers"},
         arg! {"or", "o", "", "A line matches if any of the matchers matches."},
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
@@ -21,6 +22,8 @@ pub fn main(argv: &[String]) -> Result<()> {
             checker.mode = HeaderMode::from_str(&x.value)?;
         } else if x.name == "pattern" {
             list.push(Box::new(ColMatcher::new(&x.value)?));
+        } else if x.name == "expr" {
+            list.push(Box::new(ExprMatcher::new(&x.value)?));
         } else if x.name == "show-matchers" {
             MatchMaker::help();
             return Ok(());

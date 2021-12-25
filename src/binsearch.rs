@@ -104,21 +104,21 @@ pub const fn find_prev(data: &[u8], start: usize) -> usize {
 
 /// return first line that matches (with newline) or empty slice if none
 /// LineCompList holds the value against which we are comparing
-pub fn lower_bound<'a>(data: &'a [u8], comp: &LineCompList) -> &'a [u8] {
+pub fn lower_bound<'a>(data: &'a [u8], comp: &mut LineCompList) -> &'a [u8] {
     let (start, stop) = lower_bound_n(data, comp);
     &data[start..stop]
 }
 
 /// return first line that matches (with newline) or empty slice if none
 /// LineCompList holds the value against which we are comparing
-pub fn equal_range<'a>(data: &'a [u8], comp: &LineCompList) -> &'a [u8] {
+pub fn equal_range<'a>(data: &'a [u8], comp: &mut LineCompList) -> &'a [u8] {
     let (start, stop) = equal_range_n(data, comp);
     &data[start..stop]
 }
 
 /// return first line that matches (with newline) or empty slice if none
 /// LineCompList holds the value against which we are comparing
-pub fn equal_range_n(data: &[u8], comp: &LineCompList) -> (usize, usize) {
+pub fn equal_range_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
     let (start1, stop1) = lower_bound_n(data, comp);
     if start1 == stop1 {
         (start1, stop1)
@@ -129,7 +129,7 @@ pub fn equal_range_n(data: &[u8], comp: &LineCompList) -> (usize, usize) {
 
 /// return first line that matches (with newline) or empty slice if none
 /// LineCompList holds the value against which we are comparing
-pub fn lower_bound_n(data: &[u8], comp: &LineCompList) -> (usize, usize) {
+pub fn lower_bound_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
     let mut trapped = false; // to exit a possible infinite loop
     let mut begin: usize = 0; // start of range under consideration
     let mut end: usize = data.len(); // end of range under consideration
@@ -170,7 +170,7 @@ pub fn lower_bound_n(data: &[u8], comp: &LineCompList) -> (usize, usize) {
 }
 
 /// return start of first line that is greater than comp
-pub fn upper_bound_n(data: &[u8], comp: &LineCompList) -> usize {
+pub fn upper_bound_n(data: &[u8], comp: &mut LineCompList) -> usize {
     let mut begin: usize = 0; // start of range under consideration
     let mut end: usize = data.len(); // end of range under consideration
     while begin < end {

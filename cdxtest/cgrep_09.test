@@ -1,0 +1,13 @@
+#command cdx cgrep -e three<two
+#stdin
+ CDX	one	two	three	four
+aaa	2	3	bbb
+ccc	3	2	ddd
+eee	100	50	fff
+ggg	1.2e5	2.3e4	hhh
+iii	555	666	jjj
+#stdout
+ CDX	one	two	three	four
+ccc	3	2	ddd
+eee	100	50	fff
+ggg	1.2e5	2.3e4	hhh

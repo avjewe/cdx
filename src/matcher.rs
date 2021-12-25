@@ -30,6 +30,7 @@
 //! # Ok::<(), cdx::Error>(())
 //!```
 use crate::column::NamedCol;
+use crate::expr::Expr;
 use crate::text::{Case, Text};
 use crate::{err, Error, Reader, Result, TextLine};
 use lazy_static::lazy_static;
@@ -41,9 +42,9 @@ use std::sync::Mutex;
 /// Match against [TextLine]
 pub trait LineMatch {
     /// Is this line ok?
-    fn ok(&self, line: &TextLine) -> bool;
+    fn ok(&mut self, line: &TextLine) -> bool;
     /// Is this line ok? If not, write explanation to stderr
-    fn ok_verbose(&self, line: &TextLine, negate: bool) -> bool;
+    fn ok_verbose(&mut self, line: &TextLine, negate: bool) -> bool;
     /// Resolve any named columns.
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
     /// Human readable desription
@@ -699,10 +700,10 @@ impl ColMatcher {
 
 // LineMatch::matcher could return Result<bool> and then we can put strict back
 impl LineMatch for ColMatcher {
-    fn ok_verbose(&self, line: &TextLine, _negate: bool) -> bool {
+    fn ok_verbose(&mut self, line: &TextLine, _negate: bool) -> bool {
         self.ok(line)
     }
-    fn ok(&self, line: &TextLine) -> bool {
+    fn ok(&mut self, line: &TextLine) -> bool {
         self.matcher.negate
             ^ if self.matcher.string {
                 self.matcher
@@ -751,22 +752,22 @@ impl MultiLineMatcher {
         self.matchers.is_empty()
     }
     /// ok, with supplied MultiMode
-    pub fn ok_tagged(&self, line: &TextLine, multi: MultiMode) -> bool {
+    pub fn ok_tagged(&mut self, line: &TextLine, multi: MultiMode) -> bool {
         match multi {
             MultiMode::And => self.ok_and(line),
             MultiMode::Or => self.ok_or(line),
         }
     }
     /// ok_verbose, with supplied MultiMode
-    pub fn ok_verbose_tagged(&self, line: &TextLine, multi: MultiMode, negate: bool) -> bool {
+    pub fn ok_verbose_tagged(&mut self, line: &TextLine, multi: MultiMode, negate: bool) -> bool {
         match multi {
             MultiMode::And => self.ok_verbose_and(line, negate),
             MultiMode::Or => self.ok_verbose_or(line, negate),
         }
     }
     /// ok, with AND
-    pub fn ok_and(&self, line: &TextLine) -> bool {
-        for x in &self.matchers {
+    pub fn ok_and(&mut self, line: &TextLine) -> bool {
+        for x in &mut self.matchers {
             if !x.ok(line) {
                 return false;
             }
@@ -774,8 +775,8 @@ impl MultiLineMatcher {
         true
     }
     /// ok_verbose, with AND
-    pub fn ok_verbose_and(&self, line: &TextLine, negate: bool) -> bool {
-        for x in &self.matchers {
+    pub fn ok_verbose_and(&mut self, line: &TextLine, negate: bool) -> bool {
+        for x in &mut self.matchers {
             if !x.ok(line) {
                 if !negate {}
                 return false;
@@ -785,8 +786,8 @@ impl MultiLineMatcher {
         true
     }
     /// ok, with OR
-    pub fn ok_or(&self, line: &TextLine) -> bool {
-        for x in &self.matchers {
+    pub fn ok_or(&mut self, line: &TextLine) -> bool {
+        for x in &mut self.matchers {
             if x.ok(line) {
                 return true;
             }
@@ -794,8 +795,8 @@ impl MultiLineMatcher {
         false
     }
     /// ok, with OR
-    pub fn ok_verbose_or(&self, line: &TextLine, negate: bool) -> bool {
-        for x in &self.matchers {
+    pub fn ok_verbose_or(&mut self, line: &TextLine, negate: bool) -> bool {
+        for x in &mut self.matchers {
             if x.ok(line) {
                 if negate {}
                 return true;
@@ -807,10 +808,10 @@ impl MultiLineMatcher {
 }
 
 impl LineMatch for MultiLineMatcher {
-    fn ok(&self, line: &TextLine) -> bool {
+    fn ok(&mut self, line: &TextLine) -> bool {
         self.ok_tagged(line, self.multi)
     }
-    fn ok_verbose(&self, line: &TextLine, negate: bool) -> bool {
+    fn ok_verbose(&mut self, line: &TextLine, negate: bool) -> bool {
         self.ok_verbose_tagged(line, self.multi, negate)
     }
     /// resolve any named columns
@@ -1353,5 +1354,39 @@ impl MatchMaker {
             }
         }
         err!("Unknown matcher : {}", m.ctype)
+    }
+}
+
+/// macth if arithmetic expression is non-zero
+#[derive(Debug)]
+pub struct ExprMatcher {
+    con: Expr,
+}
+
+impl ExprMatcher {
+    /// new from expression
+    pub fn new(ex: &str) -> Result<Self> {
+        Ok(Self {
+            con: Expr::new(ex)?,
+        })
+    }
+}
+
+impl LineMatch for ExprMatcher {
+    fn ok(&mut self, line: &TextLine) -> bool {
+        self.con.eval(line) != 0.0
+    }
+    fn ok_verbose(&mut self, line: &TextLine, _negate: bool) -> bool {
+        self.con.eval(line) != 0.0
+    }
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.con.lookup(fieldnames)
+    }
+
+    fn show(&self) -> String {
+        format!(
+            "Floating Point Expression must be non-zero : {}",
+            self.con.expr()
+        )
     }
 }

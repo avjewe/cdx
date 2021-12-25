@@ -1,0 +1,11 @@
+#command cdx sort -k ,expr.rev,two+three
+#stdin
+ CDX	one	two	three	four
+aaa	1	2	bbb
+bbb	2	3	ccc
+ddd	-2	3	eee
+#stdout
+ CDX	one	two	three	four
+bbb	2	3	ccc
+aaa	1	2	bbb
+ddd	-2	3	eee

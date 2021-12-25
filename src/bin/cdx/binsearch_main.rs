@@ -163,7 +163,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             w.write_all(&not_header)?;
         }
         comp.lookup(&m.names())?;
-        let (mut start, mut stop) = equal_range_n(m.get(), &comp);
+        let (mut start, mut stop) = equal_range_n(m.get(), &mut comp);
         let (before, after) = context.get(start == stop);
         for _x in 0..before {
             if start == 0 {

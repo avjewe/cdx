@@ -628,6 +628,22 @@ pub struct InfileContext {
     pub has_header: bool,
 }
 
+/// create appropriate header from first line of file
+pub fn make_header(line: &[u8]) -> StringLine {
+    let mut s = StringLine::new();
+    if is_cdx(line) {
+        s.line = String::from_utf8_lossy(&line[5..]).to_string();
+    } else {
+        s.line = String::new();
+        for x in 1..=line.split(|ch| *ch == b'\t').count() {
+            s.line.push_str(&format!("c{}\t", x));
+        }
+        s.line.pop();
+    }
+    s.split(b'\t');
+    s
+}
+
 // FIXME -- specify delimiter
 // if CDX and specified and different, then strip header
 /// Reader header line, if any, and first line of text

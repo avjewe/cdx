@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 #![allow(clippy::float_cmp)]
 
+use crate::column::get_col;
 use crate::num;
 use crate::shunting_yard::*;
 use crate::tokenizer::*;
@@ -11,15 +12,8 @@ use std::f64::consts;
 
 /// calc
 pub fn calc(expr: &str) -> Result<()> {
-    eprintln!("{}", expr);
-    let tokens = tokenize(expr)?;
-    eprintln!("{:?}", tokens);
-    let rpn = to_rpn(&tokens)?;
-    eprintln!("{:?}", rpn);
-    let mut c = ExprContext::new();
-    let pos = c.rpn_to_expr(&rpn)?;
-    eprintln!("{:?}", c.e[pos]);
-    let val = c.eval(pos);
+    let mut c = Expr::new(expr)?;
+    let val = c.eval_plain();
     eprintln!("{}", val);
     Ok(())
 }
@@ -166,23 +160,19 @@ enum Node {
     Func(FuncOp, usize),
 }
 
-type Expr = Vec<Node>;
-
-struct ColMap {
-    col_num: usize,
-    var_num: usize,
-}
+#[derive(Default, Debug)]
 struct VarMap {
     name: String,
     val: f64,
+    col: Option<usize>, //  associated column number
 }
-
-#[derive(Default)]
-struct ExprContext {
-    map: Vec<ColMap>,
-    vals: Vec<VarMap>,
-    e: Vec<Expr>,
-    stack: Vec<f64>,
+#[derive(Default, Debug)]
+/// A floating point expression
+pub struct Expr {
+    expr_str: String,
+    expr: Vec<Node>,
+    vars: Vec<VarMap>,
+    stack: Vec<f64>, // temp space for eval
 }
 
 const fn to_f(x: bool) -> f64 {
@@ -241,44 +231,73 @@ fn apply_binary(op: BinaryOp, left: f64, right: f64) -> f64 {
     }
 }
 
-impl ExprContext {
-    fn new() -> Self {
-        Self::default()
+impl Expr {
+    /// create Expr from expression
+    pub fn new(expr: &str) -> Result<Self> {
+        let mut s = Self {
+            expr_str: expr.to_string(),
+            ..Self::default()
+        };
+        let tokens = tokenize(expr)?;
+        let rpn = to_rpn(&tokens)?;
+        s.rpn_to_expr(&rpn)?;
+        Ok(s)
     }
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        'outer: for (j, y) in self.vals.iter().enumerate() {
+    /// which columns are in use
+    pub fn used_cols(&self, v: &mut Vec<usize>) {
+        for x in &self.vars {
+            if let Some(c) = x.col {
+                v.push(c);
+            }
+        }
+    }
+    /// original text string
+    pub fn expr(&self) -> &str {
+        &self.expr_str
+    }
+    /// resolve named columns
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        'outer: for y in &mut self.vars {
             for (i, x) in fieldnames.iter().enumerate() {
                 if *x == y.name {
-                    self.map.push(ColMap {
-                        col_num: i,
-                        var_num: j,
-                    });
+                    y.col = Some(i);
                     continue 'outer;
                 }
             }
+            // FIXME - some way to declare other variables
             return err!("Undefined variable {}", y.name);
         }
         Ok(())
     }
     fn prepare(&mut self, t: &TextLine) {
-        for x in &mut self.map {
-            self.vals[x.var_num].val = num::str_to_d_lossy(t.get(x.col_num));
+        for x in &mut self.vars {
+            if let Some(c) = x.col {
+                x.val = num::str_to_d_lossy(t.get(c));
+            }
+        }
+    }
+    fn prepare_line(&mut self, t: &[u8], delim: u8) {
+        for x in &mut self.vars {
+            if let Some(c) = x.col {
+                x.val = num::str_to_d_lossy(get_col(t, c, delim));
+            }
         }
     }
     fn find_var(&mut self, name: &str) -> usize {
-        for (i, x) in self.vals.iter().enumerate() {
+        for (i, x) in self.vars.iter().enumerate() {
             if x.name == name {
                 return i;
             }
         }
-        self.vals.push(VarMap {
+        self.vars.push(VarMap {
             name: name.to_string(),
             val: 0.0,
+            col: None,
         });
-        self.vals.len() - 1
+        self.vars.len() - 1
     }
-    fn rpn_to_expr(&mut self, rpn: &[Token]) -> Result<usize> {
-        let mut e: Expr = Vec::new();
+    fn rpn_to_expr(&mut self, rpn: &[Token]) -> Result<()> {
+        let mut e = Vec::new();
         for x in rpn {
             match x {
                 Token::Binary(op) => {
@@ -337,15 +356,30 @@ impl ExprContext {
                 }
             }
         }
-        self.e.push(e);
-        Ok(self.e.len() - 1)
+        self.expr = e;
+        Ok(())
     }
-    fn eval(&mut self, e_num: usize) -> f64 {
+    /// evaluate constant expression
+    pub fn eval_plain(&mut self) -> f64 {
+        // Error if variables?
+        self.do_eval()
+    }
+    /// evaluate expression with values from line
+    pub fn eval(&mut self, line: &TextLine) -> f64 {
+        self.prepare(line);
+        self.do_eval()
+    }
+    /// evaluate expression with values from line
+    pub fn eval_line(&mut self, line: &[u8], delim: u8) -> f64 {
+        self.prepare_line(line, delim);
+        self.do_eval()
+    }
+    fn do_eval(&mut self) -> f64 {
         self.stack.clear();
-        for x in &self.e[e_num] {
+        for x in &self.expr {
             match x {
                 Node::Value(v) => self.stack.push(*v),
-                Node::Var(v) => self.stack.push(self.vals[*v].val),
+                Node::Var(v) => self.stack.push(self.vars[*v].val),
                 Node::Unary(op) => {
                     let top = self.stack.len() - 1;
                     self.stack[top] = apply_unary(*op, self.stack[top]);

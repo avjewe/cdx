@@ -8,7 +8,9 @@ fancier sort
  */
 
 use crate::comp::{Item, LineCompList};
-use crate::{copy, err, get_reader, get_writer, is_cdx, Error, HeaderChecker, Reader, Result};
+use crate::{
+    copy, err, get_reader, get_writer, is_cdx, make_header, Error, HeaderChecker, Reader, Result,
+};
 use std::cmp::Ordering;
 use std::io::{BufRead, Read, Write};
 use std::mem;
@@ -320,6 +322,8 @@ impl Sorter {
             return Ok(());
         }
         if self.checker.check(&first_line, fname)? {
+            let s = make_header(&first_line);
+            self.cmp.lookup(&s.vec())?;
             if is_cdx(&first_line) {
                 w.write_all(&first_line)?;
             } else {
