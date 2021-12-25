@@ -8,7 +8,7 @@
 //!
 //! ```
 //! use cdx::comp::LineCompList;
-//! use cdx::LookbackReader; 
+//! use cdx::LookbackReader;
 //! let mut comp = LineCompList::new();
 //! comp.add("price,float")?;
 //! comp.add("quant,num")?;
@@ -23,8 +23,8 @@
 //! # Ok::<(), cdx::Error>(())
 //! ```
 #![allow(clippy::float_cmp)]
-use crate::column::{NamedCol, get_col};
-use crate::num::{str_to_d_lossy, fcmp, ulp_to_ulong, Junk, JunkVal, JunkType};
+use crate::column::{get_col, NamedCol};
+use crate::num::{fcmp, str_to_d_lossy, ulp_to_ulong, Junk, JunkType, JunkVal};
 use crate::text::Text;
 use crate::{err, Error, Result, TextLine};
 use lazy_static::lazy_static;

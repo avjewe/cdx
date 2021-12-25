@@ -3,6 +3,7 @@ use std::env;
 
 mod args;
 mod binsearch_main;
+mod calc_main;
 mod cat_main;
 mod cdxmain;
 mod cgrep_main;

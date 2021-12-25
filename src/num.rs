@@ -247,7 +247,7 @@ pub fn str_to_u(num: &[u8]) -> (u64, &[u8]) {
     }
     let mut ret: u64 = 0;
     if curr.is_empty() || !curr[0].is_ascii_digit() {
-	return (0, num)
+        return (0, num);
     }
     while !curr.is_empty() && curr[0].is_ascii_digit() {
         ret *= 10;

@@ -28,6 +28,7 @@
     clippy::cargo,
 )]
 #![allow(clippy::multiple_crate_versions)]
+#![allow(clippy::redundant_pub_crate)]
 
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
@@ -47,8 +48,10 @@ pub mod expr;
 pub mod join;
 pub mod matcher;
 pub mod num;
+mod shunting_yard;
 pub mod sort;
 pub mod text;
+mod tokenizer;
 pub mod tooltest;
 
 use crate::text::Text;
