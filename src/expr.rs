@@ -7,10 +7,12 @@ use crate::num;
 use crate::shunting_yard::*;
 use crate::tokenizer::*;
 use crate::{err, Error, Result, TextLine};
+use lazy_static::lazy_static;
+use libm;
+use regex::Regex;
 use std::f64::consts;
-//use libm;
 
-/// calc
+/// evaluate a constant arithmetic expression
 pub fn calc(expr: &str) -> Result<()> {
     let mut c = Expr::new(expr)?;
     let val = c.eval_plain();
@@ -38,10 +40,60 @@ fn find_func(x: &str) -> Result<FuncOp> {
 
 #[derive(Debug, Copy, Clone)]
 enum FuncOp {
-    Abs,
+    Acos,
+    Acosh,
+    Asin,
+    Asinh,
+    Atan,
+    Atan2,
+    Atanh,
+    Cbrt,
+    Ceil,
+    Copysign,
+    Cos,
+    Cosh,
+    Erf,
+    Exp,
+    Exp2,
+    Exp10,
+    Expm1,
+    Fabs,
+    Fdim,
+    Floor,
+    Fma,
+    Fmax,
+    Fmin,
+    Fmod,
+    Hypot,
+    J0,
+    J1,
+    Jn,
+    Ldexp,
+    Lgamma,
+    Log,
+    Log1p,
+    Log2,
+    Log10,
+    Nextafter,
+    Pow,
+    Remainder,
+    Round,
+    Scalbn,
     Sin,
-    Max,
+    Sinh,
+    Sqrt,
+    Tan,
+    Tanh,
+    Tgamma,
+    Trunc,
+    Y0,
+    Y1,
+    Yn,
+    Abs,
     If,
+    Max,
+    Min,
+    Avg,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -49,67 +101,34 @@ struct ConstDef {
     name: &'static str,
     val: f64,
 }
-const CONSTS: [ConstDef; 15] = [
-    ConstDef {
-        name: "pi",
-        val: consts::PI,
-    },
-    ConstDef {
-        name: "e",
-        val: consts::E,
-    },
-    ConstDef {
-        name: "M_E",
-        val: consts::E,
-    },
-    ConstDef {
-        name: "M_LOG2E",
-        val: consts::LOG2_E,
-    },
-    ConstDef {
-        name: "M_LOG10E",
-        val: consts::LOG10_E,
-    },
-    ConstDef {
-        name: "M_LN2",
-        val: consts::LN_2,
-    },
-    ConstDef {
-        name: "M_LN10",
-        val: consts::LN_10,
-    },
-    ConstDef {
-        name: "M_PI",
-        val: consts::PI,
-    },
-    ConstDef {
-        name: "M_PI_2",
-        val: consts::FRAC_PI_2,
-    },
-    ConstDef {
-        name: "M_PI_4",
-        val: consts::FRAC_PI_4,
-    },
-    ConstDef {
-        name: "M_1_PI",
-        val: consts::FRAC_1_PI,
-    },
-    ConstDef {
-        name: "M_2_PI",
-        val: consts::FRAC_2_PI,
-    },
-    ConstDef {
-        name: "M_2_SQRTPI",
-        val: consts::FRAC_2_SQRT_PI,
-    },
-    ConstDef {
-        name: "M_SQRT2",
-        val: consts::SQRT_2,
-    },
-    ConstDef {
-        name: "M_SQRT1_2",
-        val: consts::FRAC_1_SQRT_2,
-    },
+
+macro_rules! con {
+    ($a:expr,$b:expr) => {
+        ConstDef { name: $a, val: $b }
+    };
+}
+
+const CONSTS: [ConstDef; 20] = [
+    con!("pi", consts::PI),
+    con!("e", consts::E),
+    con!("M_E", consts::E),
+    con!("M_LOG2E", consts::LOG2_E),
+    con!("M_LOG10E", consts::LOG10_E),
+    con!("M_LN2", consts::LN_2),
+    con!("M_LN10", consts::LN_10),
+    con!("M_PI", consts::PI),
+    con!("M_PI_2", consts::FRAC_PI_2),
+    con!("M_PI_4", consts::FRAC_PI_4),
+    con!("M_1_PI", consts::FRAC_1_PI),
+    con!("M_2_PI", consts::FRAC_2_PI),
+    con!("M_2_SQRTPI", consts::FRAC_2_SQRT_PI),
+    con!("M_SQRT2", consts::SQRT_2),
+    con!("M_SQRT1_2", consts::FRAC_1_SQRT_2),
+    con!("M_INF", f64::INFINITY),
+    con!("M_NEG_INF", f64::NEG_INFINITY),
+    con!("M_MAX", f64::MAX),
+    con!("M_MIN", f64::MIN),
+    con!("M_MIN_POS", f64::MIN_POSITIVE),
 ];
 
 #[derive(Debug, Copy, Clone)]
@@ -117,36 +136,87 @@ struct FuncDef {
     name: &'static str,
     val: FuncOp,
 }
-const FUNCS: [FuncDef; 4] = [
-    FuncDef {
-        name: "abs",
-        val: FuncOp::Abs,
-    },
-    FuncDef {
-        name: "sin",
-        val: FuncOp::Sin,
-    },
-    FuncDef {
-        name: "max",
-        val: FuncOp::Max,
-    },
-    FuncDef {
-        name: "if",
-        val: FuncOp::If,
-    },
+
+macro_rules! fun {
+    ($a:expr,$b:expr) => {
+        FuncDef { name: $a, val: $b }
+    };
+}
+
+const FUNCS: [FuncDef; 54] = [
+    fun!("acos", FuncOp::Acos),
+    fun!("acosh", FuncOp::Acosh),
+    fun!("asin", FuncOp::Asin),
+    fun!("asinh", FuncOp::Asinh),
+    fun!("atan", FuncOp::Atan),
+    fun!("atan2", FuncOp::Atan2),
+    fun!("atanh", FuncOp::Atanh),
+    fun!("cbrt", FuncOp::Cbrt),
+    fun!("ceil", FuncOp::Ceil),
+    fun!("copysign", FuncOp::Copysign),
+    fun!("cos", FuncOp::Cos),
+    fun!("cosh", FuncOp::Cosh),
+    fun!("erf", FuncOp::Erf),
+    fun!("exp", FuncOp::Exp),
+    fun!("exp2", FuncOp::Exp2),
+    fun!("exp10", FuncOp::Exp10),
+    fun!("expm1", FuncOp::Expm1),
+    fun!("fabs", FuncOp::Fabs),
+    fun!("fdim", FuncOp::Fdim),
+    fun!("floor", FuncOp::Floor),
+    fun!("fma", FuncOp::Fma),
+    fun!("fmax", FuncOp::Fmax),
+    fun!("fmin", FuncOp::Fmin),
+    fun!("fmod", FuncOp::Fmod),
+    fun!("hypot", FuncOp::Hypot),
+    fun!("j0", FuncOp::J0),
+    fun!("j1", FuncOp::J1),
+    fun!("jn", FuncOp::Jn),
+    fun!("ldexp", FuncOp::Ldexp),
+    fun!("lgamma", FuncOp::Lgamma),
+    fun!("log", FuncOp::Log),
+    fun!("log1p", FuncOp::Log1p),
+    fun!("log2", FuncOp::Log2),
+    fun!("log10", FuncOp::Log10),
+    fun!("nextafter", FuncOp::Nextafter),
+    fun!("pow", FuncOp::Pow),
+    fun!("remainder", FuncOp::Remainder),
+    fun!("round", FuncOp::Round),
+    fun!("scalbn", FuncOp::Scalbn),
+    fun!("sin", FuncOp::Sin),
+    fun!("sinh", FuncOp::Sinh),
+    fun!("sqrt", FuncOp::Sqrt),
+    fun!("tan", FuncOp::Tan),
+    fun!("tanh", FuncOp::Tanh),
+    fun!("tgamma", FuncOp::Tgamma),
+    fun!("trunc", FuncOp::Trunc),
+    fun!("y0", FuncOp::Y0),
+    fun!("y1", FuncOp::Y1),
+    fun!("yn", FuncOp::Yn),
+    fun!("abs", FuncOp::Abs),
+    fun!("if", FuncOp::If),
+    fun!("max", FuncOp::Max),
+    fun!("min", FuncOp::Min),
+    fun!("avg", FuncOp::Avg),
 ];
 
 const fn min_args(f: FuncOp) -> usize {
+    use FuncOp::*;
     match f {
-        FuncOp::If => 2,
+        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
+        | Remainder | Scalbn | Pow | Yn => 2,
+        Fma | If => 3,
         _ => 1,
     }
 }
 
 const fn max_args(f: FuncOp) -> usize {
+    use FuncOp::*;
     match f {
-        FuncOp::If => 2,
-        FuncOp::Max => 0,
+        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
+        | Remainder | Scalbn | Pow | Yn => 2,
+        Fma | If => 3,
+        Min | Max | Avg => 0,
         _ => 1,
     }
 }
@@ -192,10 +262,68 @@ fn apply_unary(op: UnaryOp, x: f64) -> f64 {
 }
 
 fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
+    use FuncOp::*;
     match op {
-        FuncOp::Abs => args[0].abs(),
-        FuncOp::Sin => args[0].sin(),
-        FuncOp::Max => {
+        Acos => args[0].abs(),
+        Acosh => args[0].acosh(),
+        Asinh => args[0].asinh(),
+        Asin => args[0].asin(),
+        Atan => args[0].atan(),
+        Atan2 => args[0].atan2(args[1]),
+        Atanh => args[0].atanh(),
+        Cbrt => args[0].cbrt(),
+        Ceil => args[0].ceil(),
+        // clamp classify
+        Copysign => args[0].copysign(args[1]),
+        Cos => args[0].cos(),
+        Cosh => args[0].cosh(),
+        // div_euclid
+        Erf => libm::erf(args[0]),
+        Exp => args[0].exp(),
+        Exp2 => args[0].exp2(),
+        Exp10 => libm::exp10(args[0]),
+        Expm1 => args[0].exp_m1(),
+        Fabs => args[0].abs(),
+        Fdim => libm::fdim(args[0], args[1]),
+        Floor => args[0].floor(),
+        // fract
+        Fma => args[0].mul_add(args[1], args[2]),
+        Fmax => args[0].max(args[1]),
+        Fmin => args[0].min(args[1]),
+        Fmod => libm::fmod(args[0], args[1]),
+        Hypot => args[0].hypot(args[1]),
+        // is_*
+        J0 => libm::j0(args[0]),
+        J1 => libm::j1(args[0]),
+        Jn => libm::jn(args[0] as i32, args[1]),
+        Ldexp => libm::ldexp(args[0], args[1] as i32),
+        Lgamma => libm::lgamma(args[0]),
+        // log(x, y)
+        Log => args[0].ln(),
+        Log1p => args[0].ln_1p(),
+        Log2 => args[0].log2(),
+        Log10 => args[0].log10(),
+        Nextafter => libm::nextafter(args[0], args[1]),
+        Pow => args[0].powf(args[1]),
+        // recip
+        // rem_euclid
+        Remainder => libm::remainder(args[0], args[1]),
+        Round => args[0].round(),
+        Scalbn => libm::scalbn(args[0], args[1] as i32),
+        // signum
+        Sin => args[0].sin(),
+        Sinh => args[0].sinh(),
+        Sqrt => args[0].sqrt(),
+        Tan => args[0].tan(),
+        Tanh => args[0].tanh(),
+        // to_degreees to_radians
+        Tgamma => libm::tgamma(args[0]),
+        Trunc => args[0].trunc(),
+        Y0 => libm::y0(args[0]),
+        Y1 => libm::y1(args[0]),
+        Yn => libm::yn(args[0] as i32, args[1]),
+        Abs => args[0].abs(),
+        Max => {
             let mut v: f64 = args[0];
             for x in &args[1..] {
                 if *x > v {
@@ -204,7 +332,23 @@ fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
             }
             v
         }
-        FuncOp::If => {
+        Min => {
+            let mut v: f64 = args[0];
+            for x in &args[1..] {
+                if *x < v {
+                    v = *x;
+                }
+            }
+            v
+        }
+        Avg => {
+            let mut v: f64 = 0.0;
+            for x in args {
+                v += *x;
+            }
+            v / (args.len() as f64)
+        }
+        If => {
             if args[0] != 0.0 {
                 args[1]
             } else {
@@ -263,6 +407,13 @@ impl Expr {
                     y.col = Some(i);
                     continue 'outer;
                 }
+            }
+            lazy_static! {
+                static ref CN: Regex = Regex::new("^c[0-9]+$").unwrap();
+            }
+            if let Some(cn) = CN.captures(&y.name) {
+                y.col = Some(cn.get(1).unwrap().as_str().parse::<usize>().unwrap());
+                continue;
             }
             // FIXME - some way to declare other variables
             return err!("Undefined variable {}", y.name);

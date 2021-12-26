@@ -1,0 +1,9 @@
+#command cdx sort -k ,expr.rev,c2+c3
+#stdin
+aaa	1	2	bbb
+bbb	2	3	ccc
+ddd	-2	3	eee
+#stdout
+bbb	2	3	ccc
+aaa	1	2	bbb
+ddd	-2	3	eee
