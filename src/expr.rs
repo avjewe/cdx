@@ -13,11 +13,9 @@ use regex::Regex;
 use std::f64::consts;
 
 /// evaluate a constant arithmetic expression
-pub fn calc(expr: &str) -> Result<()> {
+pub fn calc(expr: &str) -> Result<f64> {
     let mut c = Expr::new(expr)?;
-    let val = c.eval_plain();
-    eprintln!("{}", val);
-    Ok(())
+    Ok(c.eval_plain())
 }
 
 fn find_const(x: &str) -> Option<f64> {

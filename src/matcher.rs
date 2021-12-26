@@ -19,7 +19,7 @@
 //! assert!(!matcher.smatch("bcdef"));
 //!
 //! let mut list = MultiLineMatcher::new(MultiMode::And);
-//! list.push(Box::new(ColMatcher::new("two,glob,b*")?));
+//! list.push_spec("two,glob,b*")?;
 //! let input = "<< CDX\tone\ttwo\naaa\tbbb\nccc\tddd\n";
 //! let mut reader = Reader::new();
 //! reader.open(input);
@@ -680,19 +680,11 @@ pub struct ColMatcher {
 impl ColMatcher {
     /// Column,Spec,Pattern
     /// Pattern may have additional commas
-    pub fn new(spec: &str) -> Result<Self> {
-        let parts = spec.split_once(',');
-        if parts.is_none() {
-            return err!(
-                "Column Pattern has no commas : should be Column,Spec,Pattern : {}",
-                spec
-            );
-        }
-        let parts = parts.unwrap();
+    pub fn new(cols: &str, method: &str, pattern: &str) -> Result<Self> {
         let mut nc = NamedCol::new();
-        nc.parse(parts.0)?;
+        nc.parse(cols)?;
         Ok(Self {
-            matcher: MatchMaker::make(parts.1)?,
+            matcher: MatchMaker::make2(method, pattern)?,
             col: nc,
         })
     }
@@ -746,6 +738,11 @@ impl MultiLineMatcher {
     /// add Matcher to list
     pub fn push(&mut self, item: Box<dyn LineMatch>) {
         self.matchers.push(item)
+    }
+    /// add Matcher to list
+    pub fn push_spec(&mut self, item: &str) -> Result<()> {
+        self.matchers.push(MatchMaker::make_line(item)?);
+        Ok(())
     }
     /// is empty list?
     pub fn is_empty(&self) -> bool {
@@ -1341,6 +1338,30 @@ impl MatchMaker {
             Self::make2(a, b)
         } else {
             Self::make2(spec, "")
+        }
+    }
+    /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
+    pub fn make_line3(cols: &str, method: &str, pattern: &str) -> Result<Box<dyn LineMatch>> {
+        if method == "expr" {
+            if !cols.is_empty() {
+                err!("'expr' matcher spec does not take any columns")
+            } else {
+                Ok(Box::new(ExprMatcher::new(pattern)?))
+            }
+        } else {
+            Ok(Box::new(ColMatcher::new(cols, method, pattern)?))
+        }
+    }
+    /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
+    pub fn make_line(spec: &str) -> Result<Box<dyn LineMatch>> {
+        if let Some((a, b)) = spec.split_once(',') {
+            if let Some((c, d)) = b.split_once(',') {
+                Self::make_line3(a, c, d)
+            } else {
+                Self::make_line3(a, b, "")
+            }
+        } else {
+            Self::make_line3(spec, "", "")
         }
     }
     /// Remake the dyn Match based on current contents.

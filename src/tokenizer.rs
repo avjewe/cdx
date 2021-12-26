@@ -255,7 +255,7 @@ enum ParenState {
 /// # Failure
 ///
 /// Returns `Err` if the expression is not well-formed.
-pub(crate) fn tokenize<S: AsRef<str>>(input: S) -> Result<Vec<Token>> {
+pub(crate) fn tokenize<S: AsRef<str>>(x_input: S) -> Result<Vec<Token>> {
     use self::TokenizerState::*;
     //    use nom::IResult::*;
     let mut state = LExpr;
@@ -264,7 +264,7 @@ pub(crate) fn tokenize<S: AsRef<str>>(input: S) -> Result<Vec<Token>> {
 
     let mut res = vec![];
 
-    let input = input.as_ref().as_bytes();
+    let input = x_input.as_ref().as_bytes();
     let mut s = input;
 
     while !s.is_empty() {
@@ -300,7 +300,11 @@ pub(crate) fn tokenize<S: AsRef<str>>(input: S) -> Result<Vec<Token>> {
             }
             IResult::Error(Err::Position(_, _p)) => {
                 //                let (i, _) = slice_to_offsets(input, p);
-                return err!("Unexpected Token");
+                return err!(
+                    "Unexpected Token parsing '{}' at '{}'",
+                    x_input.as_ref(),
+                    String::from_utf8_lossy(s)
+                );
             }
             _ => {
                 panic!(
@@ -314,8 +318,8 @@ pub(crate) fn tokenize<S: AsRef<str>>(input: S) -> Result<Vec<Token>> {
     }
 
     match state {
-        LExpr => err!("Missing Argument"),
-        _ if !paren_stack.is_empty() => err!("Missing Right Paren"),
+        LExpr => err!("Missing Argument in '{}'", x_input.as_ref()),
+        _ if !paren_stack.is_empty() => err!("Missing Right Paren in '{}'", x_input.as_ref()),
         _ => Ok(res),
     }
 }

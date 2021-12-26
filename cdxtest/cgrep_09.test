@@ -1,4 +1,4 @@
-#command cdx cgrep -e three<two
+#command cdx cgrep -p ,expr,three<two
 #stdin
  CDX	one	two	three	four
 aaa	2	3	bbb

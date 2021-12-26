@@ -28,7 +28,10 @@ pub fn main(argv: &[String]) -> Result<()> {
             continue;
         }
         loop {
-            calc(&String::from_utf8_lossy(f.curr_nl()))?;
+            match calc(&String::from_utf8_lossy(f.curr_nl())) {
+                Ok(v) => println!("{}", v),
+                Err(e) => eprintln!("{}", e),
+            }
             if f.getline()? {
                 break;
             }

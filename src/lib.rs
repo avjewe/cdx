@@ -127,7 +127,7 @@ err_type!(std::num::ParseFloatError, Error::ParseFloatError);
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Error(s) => write!(f, "Cdx Error : {}", s)?,
+            Error::Error(s) => write!(f, "{}", s)?,
             Error::ParseIntError(s) => write!(f, "ParseIntError : {}", s)?,
             Error::ParseFloatError(s) => write!(f, "ParseFloatError : {}", s)?,
             Error::IoError(s) => write!(f, "IoError : {}", s)?,
