@@ -744,6 +744,14 @@ impl Reader {
     pub const fn header(&self) -> &StringLine {
         &self.cont.header
     }
+    /// get header
+    pub const fn header_line(&self) -> &String {
+        &self.cont.header.line
+    }
+    /// has header
+    pub const fn has_header(&self) -> bool {
+        self.cont.has_header
+    }
     /// get column names
     pub fn names(&self) -> Vec<&str> {
         self.cont.header.vec()
@@ -756,6 +764,10 @@ impl Reader {
     /// was the file zero bytes?
     pub const fn is_empty(&self) -> bool {
         self.cont.is_empty
+    }
+    /// get delimiter
+    pub const fn delim(&self) -> u8 {
+        self.cont.delim
     }
     /// have we read all the lines?
     pub const fn is_done(&self) -> bool {
@@ -810,6 +822,10 @@ impl LookbackReader {
             curr: 0,
         }
     }
+    /// get delimiter
+    pub const fn delim(&self) -> u8 {
+        self.cont.delim
+    }
     /// get column names
     pub fn names(&self) -> Vec<&str> {
         self.cont.header.vec()
@@ -820,7 +836,7 @@ impl LookbackReader {
         self.cont.read_header(&mut *self.file, &mut self.lines[0])
     }
     /// The full text of the header, without the trailing newline
-    pub const fn header(&self) -> &String {
+    pub const fn header_line(&self) -> &String {
         &self.cont.header.line
     }
     /// was file zero bytes?
@@ -865,10 +881,23 @@ impl LookbackReader {
         w.write_all(&self.curr_line().line)?;
         Ok(())
     }
+    /// write previous text line with newline
+    pub fn write_prev(&self, w: &mut impl Write, lookback : usize) -> Result<()> {
+        w.write_all(&self.prev_line(lookback).line)?;
+        Ok(())
+    }
     /// write header
     pub fn write_header(&self, w: &mut impl Write) -> Result<()> {
         w.write_all(self.cont.header.line.as_bytes())?;
         Ok(())
+    }
+    /// write header
+    pub const fn header(&self) -> &StringLine {
+        &self.cont.header
+    }
+    /// write header
+    pub const fn has_header(&self) -> bool {
+        self.cont.has_header
     }
 }
 

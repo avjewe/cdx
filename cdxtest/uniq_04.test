@@ -1,0 +1,13 @@
+#command cdx uniq --last -k ,expr,one+two
+#stdin
+ CDX	one	two
+1	2
+2	1
+3	2
+4	1
+5	1
+#stdout
+ CDX	one	two
+2	1
+4	1
+5	1

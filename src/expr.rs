@@ -129,6 +129,26 @@ const CONSTS: [ConstDef; 20] = [
     con!("M_MIN_POS", f64::MIN_POSITIVE),
 ];
 
+/// write all the constants to stdout
+pub fn show_const() {
+    for (i, x) in CONSTS.iter().enumerate() {
+	print!("{:12}", x.name);
+	if i%4 == 3 {
+	    println!();
+	}
+    }
+}
+
+/// write all the constants to stdout
+pub fn show_func() {
+    for (i, x) in FUNCS.iter().enumerate() {
+	print!("{:12}", x.name);
+	if i%6 == 5 {
+	    println!();
+	}
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 struct FuncDef {
     name: &'static str,

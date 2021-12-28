@@ -1,14 +1,17 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
+use cdx::expr;
 use cdx::matcher::*;
 use cdx::{get_writer, Error, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE};
 use std::str::FromStr;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    const A: [ArgSpec; 4] = [
+    const A: [ArgSpec; 6] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
         arg! {"show-matchers", "s", "", "Print available matchers"},
+        arg! {"show-const", "", "", "Print available constants"},
+        arg! {"show-func", "", "", "Print available functions"},
         arg! {"or", "o", "", "A line matches if any of the matchers matches."},
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
     ];
@@ -26,6 +29,12 @@ pub fn main(argv: &[String]) -> Result<()> {
             return Ok(());
         } else if x.name == "or" {
             list.multi = MultiMode::Or;
+        } else if x.name == "show-const" {
+	    expr::show_const();
+	    return Ok(());
+        } else if x.name == "show-func" {
+	    expr::show_func();
+	    return Ok(());
         } else {
             unreachable!();
         }

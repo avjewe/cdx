@@ -150,7 +150,7 @@ impl ColumnHeader {
         res
     }
 
-    /// get new string, which nis the column names joined
+    /// get new string, which is the column names joined
     pub fn get_head_short(&self, delim: u8) -> String {
         let mut res = String::with_capacity(self.get_size());
         self.add_head(&mut res, delim);
