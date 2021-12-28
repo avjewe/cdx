@@ -132,20 +132,20 @@ const CONSTS: [ConstDef; 20] = [
 /// write all the constants to stdout
 pub fn show_const() {
     for (i, x) in CONSTS.iter().enumerate() {
-	print!("{:12}", x.name);
-	if i%4 == 3 {
-	    println!();
-	}
+        print!("{:12}", x.name);
+        if i % 4 == 3 {
+            println!();
+        }
     }
 }
 
 /// write all the constants to stdout
 pub fn show_func() {
     for (i, x) in FUNCS.iter().enumerate() {
-	print!("{:12}", x.name);
-	if i%6 == 5 {
-	    println!();
-	}
+        print!("{:12}", x.name);
+        if i % 6 == 5 {
+            println!();
+        }
     }
 }
 

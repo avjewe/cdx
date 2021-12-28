@@ -30,11 +30,11 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "or" {
             list.multi = MultiMode::Or;
         } else if x.name == "show-const" {
-	    expr::show_const();
-	    return Ok(());
+            expr::show_const();
+            return Ok(());
         } else if x.name == "show-func" {
-	    expr::show_func();
-	    return Ok(());
+            expr::show_func();
+            return Ok(());
         } else {
             unreachable!();
         }
