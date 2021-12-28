@@ -1,4 +1,4 @@
-#command cdx uniq --last -k ,expr,c1+c2
+#command cdx uniq -w last -k ,expr,c1+c2
 #stdin
 1	2
 2	1

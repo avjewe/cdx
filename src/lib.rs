@@ -228,6 +228,13 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
 }
 
 impl TextLine {
+    /// assign TextLine into existing TextLine, avoiding allocation if possible
+    pub fn assign(&mut self, x : &Self) {
+	self.line.clear();
+	self.line.extend_from_slice(&x.line[..]);
+	self.parts.clear();
+	self.parts.extend_from_slice(&x.parts[..]);
+    }
     /// make a new TextLine
     pub const fn new() -> Self {
         Self {

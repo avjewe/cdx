@@ -1,0 +1,13 @@
+#command cdx uniq -k two -w min,three -c count,last
+#stdin
+ CDX	one	two	three
+aaa	bbb	ccc
+ddd	bbb	eee
+fff	bbb	ggg
+hhh	ccc	iii
+jjj	ccc	kkk
+lll	ccc	aaa
+#stdout
+ CDX	one	two	three	count
+aaa	bbb	ccc	3
+lll	ccc	aaa	3
