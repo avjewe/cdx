@@ -407,6 +407,49 @@ pub trait ColumnFun {
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
 }
 
+/// write a single column
+#[derive(Debug, Default)]
+pub struct ColumnSingle {
+    col: NamedCol,
+    new_name: String,
+}
+
+impl ColumnSingle {
+    /// new from NamedCol
+    pub fn with_named_col(col: &NamedCol) -> Self {
+        Self {
+            col: col.clone(),
+            new_name: String::new(),
+        }
+    }
+    /// new from name
+    pub fn with_name(col: &str) -> Result<Self> {
+        Ok(Self {
+            col: NamedCol::new_from(col)?,
+            new_name: String::new(),
+        })
+    }
+}
+
+impl ColumnFun for ColumnSingle {
+    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+        if self.new_name.is_empty() {
+            w.push(&head[self.col.num])
+        } else {
+            w.push(&self.new_name)
+        }
+    }
+    /// write the column values (called many times)
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+        w.write_all(&line[self.col.num])?;
+        Ok(())
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.col.lookup(fieldnames)
+    }
+}
+
 /// write the whole line
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ColumnWhole;
@@ -427,7 +470,7 @@ impl ColumnFun for ColumnWhole {
     }
 }
 
-/// write the whole line
+/// write an increasing count, e.g. cat -n
 #[derive(Debug, Default, Clone)]
 pub struct ColumnCount {
     num: i64,
@@ -461,7 +504,7 @@ impl ColumnFun for ColumnCount {
     }
 }
 
-/// write the whole line
+/// write a fixed value
 #[derive(Debug, Default, Clone)]
 pub struct ColumnLiteral {
     value: Vec<u8>,

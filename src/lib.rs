@@ -41,6 +41,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::{fmt, str};
 
+pub mod agg;
 pub mod binsearch;
 pub mod column;
 pub mod comp;
