@@ -1,5 +1,4 @@
 //! Floating Point expressions
-#![allow(dead_code)]
 #![allow(clippy::float_cmp)]
 
 use crate::column::get_col;

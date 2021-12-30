@@ -1,0 +1,10 @@
+#command cdx uniq -k two -a three,merge --agg-post four,three,merge,sort.uniq --agg-post five,three,merge,D,..max_parts:5 --agg-post six,3,merge,count.uniq -c zero
+#stdin
+ CDX	one	two	three
+qax	aaa	1,2
+wsx	aaa	3,4
+edc	aaa	4,5
+rfv	aaa	0,3
+#stdout
+ CDX	zero	one	two	three	four	five	six
+4	qax	aaa	1,2,3,4,4,5,0,3	0,1,2,3,4,5	1.2.3.4.4	7

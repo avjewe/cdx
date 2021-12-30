@@ -1,0 +1,13 @@
+#command cdx uniq -k two -a three,min
+#stdin
+ CDX	one	two	three
+aaa	bbb	ccc
+ddd	bbb	eee
+fff	bbb	ggg
+hhh	ccc	iii
+jjj	ccc	kkk
+lll	ccc	111
+#stdout
+ CDX	one	two	three
+aaa	bbb	ccc
+hhh	ccc	111

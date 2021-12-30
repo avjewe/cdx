@@ -1,5 +1,5 @@
 clean:
-	rm -f *~ */*~ */*/*~ */*/*/*~
+	rm -rf *~ */*~ */*/*~ */*/*/*~ tmp
 
 update:
 	cargo update

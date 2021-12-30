@@ -1,0 +1,13 @@
+#command cdx uniq -k two --agg-pre three_sum,three,sum --agg-post one_mean,one,mean
+#stdin
+ CDX	one	two	three
+1.0	bbb	10
+2.0	bbb	20
+3.0	bbb	30
+4.0	ccc	40
+5.0	ccc	50
+6.0	ccc	60
+#stdout
+ CDX	three_sum	one	two	three	one_mean
+60	1.0	bbb	10	2
+150	4.0	ccc	40	5

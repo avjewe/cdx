@@ -1,7 +1,8 @@
 use crate::arg;
 use crate::args;
 use crate::args::ArgSpec;
-use cdx::column::ColumnHeader;
+use cdx::agg::{AggList, AggMaker};
+use cdx::column::{ColumnHeader, Writer};
 use cdx::comp::{CompMaker, LineComp, LineCompList};
 use cdx::{err, get_writer, Error, LookbackReader, Result, TextLine};
 use std::cmp::Ordering;
@@ -126,10 +127,16 @@ impl Count {
             } else {
                 self.name = a.to_string();
             }
-            Ok(())
         } else {
-            err!("No comma found in '{}'. Format for Count is ColName,Position")
+	    self.pos = CountPos::Begin;
+	    if spec.is_empty() {
+                self.name = "count".to_string();
+	    }
+	    else {
+		self.name = spec.to_string();
+	    }
         }
+        Ok(())
     }
     fn assign(&mut self, tmp: &mut TextLine, new: &TextLine) {
         match self.which {
@@ -154,13 +161,18 @@ impl Count {
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);
-    const A: [ArgSpec; 3] = [
+    const A: [ArgSpec; 7] = [
+        arg! {"agg", "a", "Col,Spec", "Merge value from this column, in place."},
+        arg! {"agg-pre", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, before other columns."},
+        arg! {"agg-post", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, after other columns."},
         arg! {"key", "k", "Spec", "How to compare adjacent lines"},
-        arg! {"count", "c", "ColName,Position", "Write the count of matchingn lines."},
+        arg! {"count", "c", "ColName,Position", "Write the count of matching line."},
         arg! {"which", "w", "(First,Last,Min,Max)[,LineCompare]", "Which of the matching lines should be printed."},
+        arg! {"agg-help", "", "", "Print help for aggregators"},
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
+    let mut agg = AggList::new();
     let mut comp = LineCompList::new();
     let mut count = Count::default();
     for x in args {
@@ -170,6 +182,15 @@ pub fn main(argv: &[String]) -> Result<()> {
             count.get_count(&x.value)?;
         } else if x.name == "which" {
             count.get_which(&x.value)?;
+        } else if x.name == "agg" {
+            agg.push_replace(&x.value)?;
+        } else if x.name == "agg-post" {
+            agg.push_append(&x.value)?;
+        } else if x.name == "agg-pre" {
+            agg.push_prefix(&x.value)?;
+        } else if x.name == "agg-help" {
+	    AggMaker::help();
+	    return Ok(());
         } else {
             unreachable!();
         }
@@ -182,16 +203,34 @@ pub fn main(argv: &[String]) -> Result<()> {
     if f.is_empty() {
         return Ok(());
     }
+    comp.lookup(&f.names())?;
+    count.lookup(&f.names())?;
+    let mut c_write = Writer::new(f.delim());
+    if !agg.is_empty() {
+	if count.pos == CountPos::Begin {
+	    agg.push_first_prefix(&format!("{},1,count", count.name))?;
+	}
+	if count.pos == CountPos::End {
+	    agg.push_append(&format!("{},1,count", count.name))?;
+	}
+        agg.lookup(&f.names())?;
+        agg.fill(&mut c_write, f.header());
+        c_write.lookup(&f.names())?;
+    }
 
     let mut w = get_writer("-")?;
     if f.has_header() {
         let mut ch = ColumnHeader::new();
-        if count.pos == CountPos::Begin {
-            ch.push(&count.name)?;
-        }
-        ch.push_all(f.header())?;
-        if count.pos == CountPos::End {
-            ch.push(&count.name)?;
+        if agg.is_empty() {
+            if count.pos == CountPos::Begin {
+                ch.push(&count.name)?;
+            }
+            ch.push_all(f.header())?;
+            if count.pos == CountPos::End {
+                ch.push(&count.name)?;
+            }
+        } else {
+            c_write.add_names(&mut ch, f.header())?;
         }
         w.write_all(ch.get_head(f.delim()).as_bytes())?;
     }
@@ -199,11 +238,27 @@ pub fn main(argv: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    comp.lookup(&f.names())?;
-    count.lookup(&f.names())?;
     f.do_split = comp.need_split();
     let mut matches = 1;
-    if count.which == Which::Last {
+    if !agg.is_empty() {
+        agg.add(f.curr_line());
+        let mut tmp = f.curr_line().clone();
+        loop {
+            if f.getline()? {
+                c_write.write(&mut w, &tmp)?;
+                break;
+            }
+            if comp.equal_cols(f.prev_line(1), f.curr_line()) {
+                count.assign(&mut tmp, f.curr_line());
+                agg.add(f.curr_line());
+            } else {
+                c_write.write(&mut w, &tmp)?;
+                tmp.assign(f.curr_line());
+                agg.reset();
+                agg.add(f.curr_line());
+            }
+        }
+    } else if count.which == Which::Last {
         loop {
             if f.getline()? {
                 count.write(&mut w, matches, &f.prev_line(1).line, f.delim())?;

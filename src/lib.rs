@@ -151,6 +151,20 @@ pub struct FakeSlice {
     begin: u32,
     end: u32,
 }
+impl FakeSlice {
+    /// get slice from FakeSlice
+    pub fn get<'a>(&self, data : &'a [u8]) -> &'a[u8] {
+	&data[self.begin as usize..self.end as usize]
+    }
+    /// len
+    pub const fn len(&self) -> usize {
+	(self.end-self.begin) as usize
+    }
+    /// is empty?
+    pub const fn is_empty(&self) -> bool {
+	self.begin == self.end
+    }
+}
 
 /// A line of a text file, broken into fields.
 /// Access to the `lines` and `parts` is allowed, but should seldom be necessary
@@ -302,10 +316,11 @@ impl TextLine {
             end += 1;
         }
         if begin != end {
-            self.parts.push(FakeSlice {
-                begin,
-                end: end - 1,
-            });
+	    let mut f = FakeSlice{begin,end};
+	    if self.line[(end-1) as usize] == b'\n' {
+		f.end -= 1;
+	    }
+            self.parts.push(f);
         }
     }
     /// return all parts as a vector

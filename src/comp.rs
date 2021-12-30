@@ -159,27 +159,27 @@ impl Comp {
         }
     }
     /// Compare two slices, usually column values
-    fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+    pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
         self.comp.comp(left, right)
     }
     /// Compare two slices for equality
-    fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+    pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         self.comp.equal(left, right)
     }
     /// set cache for this value
-    fn fill_cache(&self, item: &mut Item, value: &[u8]) {
+    pub fn fill_cache(&self, item: &mut Item, value: &[u8]) {
         self.comp.fill_cache(item, value)
     }
     /// set my value
-    fn set(&mut self, value: &[u8]) {
+    pub fn set(&mut self, value: &[u8]) {
         self.comp.set(value)
     }
     /// Compare self to slice
-    fn comp_self(&self, right: &[u8]) -> Ordering {
+    pub fn comp_self(&self, right: &[u8]) -> Ordering {
         self.comp.comp_self(right)
     }
     /// Compare self to slice for equality
-    fn equal_self(&self, right: &[u8]) -> bool {
+    pub fn equal_self(&self, right: &[u8]) -> bool {
         self.comp.equal_self(right)
     }
 }
