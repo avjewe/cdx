@@ -33,5 +33,6 @@ pub const MAINLIST: &[OneMain] = &[
     proc! {"join",  "Join files on a matching column",  join_main::main},
     proc! {"sort", "Sort files.", sort_main::main},
     proc! {"tooltest", "Test command line tools.", tooltest_main::main},
-    proc! {"uniq", "Remove duplicate lines.", uniq_main::main},
+    proc! {"uniq", "Merge duplicate lines.", uniq_main::main},
+    proc! {"verify", "Verify the contents of a file.", verify_main::main},
 ];

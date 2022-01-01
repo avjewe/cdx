@@ -3,7 +3,7 @@ use crate::{arg, arg_enum, args};
 use cdx::column::{
     ColumnClump, ColumnHeader, ColumnSet, CompositeColumn, DupColHandling, ReaderColumns, Writer,
 };
-use cdx::{get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
+use cdx::util::{get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
 use std::io::Write;
 use std::str::FromStr;
 

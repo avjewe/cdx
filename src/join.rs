@@ -2,7 +2,7 @@
 
 use crate::column::{self, ColumnSet, OutCol, ScopedValue};
 use crate::comp::{CompMaker, LineCompList};
-use crate::{err, get_writer, Error, Outfile, Reader, Result};
+use crate::util::{err, get_writer, Error, Outfile, Reader, Result};
 use std::cmp::Ordering;
 use std::fmt;
 use std::io::Write;

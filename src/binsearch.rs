@@ -1,7 +1,7 @@
 //! binary search in text files
 
 use crate::comp::LineCompList;
-use crate::{is_cdx, Result, StringLine};
+use crate::util::{is_cdx, Result, StringLine};
 use memmap;
 use std::cmp::Ordering;
 use std::fs;

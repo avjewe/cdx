@@ -11,7 +11,7 @@
 //!
 //!```
 //! use cdx::matcher::*;
-//! use cdx::Reader;
+//! use cdx::util::Reader;
 //! let matcher = MatchMaker::make("prefix,abc")?;
 //! assert!(matcher.umatch(b"abcdef"));
 //! assert!(!matcher.umatch(b"bcdef"));
@@ -27,12 +27,12 @@
 //! assert!(list.ok(reader.curr_line()));
 //! reader.getline()?;
 //! assert!(!list.ok(reader.curr_line()));
-//! # Ok::<(), cdx::Error>(())
+//! # Ok::<(), cdx::util::Error>(())
 //!```
 use crate::column::NamedCol;
 use crate::expr::Expr;
 use crate::text::{Case, Text};
-use crate::{err, Error, Reader, Result, TextLine};
+use crate::util::{err, Error, Reader, Result, TextLine};
 use lazy_static::lazy_static;
 use memchr::memmem::find;
 use std::collections::HashSet;
@@ -43,12 +43,18 @@ use std::sync::Mutex;
 pub trait LineMatch {
     /// Is this line ok?
     fn ok(&mut self, line: &TextLine) -> bool;
-    /// Is this line ok? If not, write explanation to stderr
-    fn ok_verbose(&mut self, line: &TextLine, negate: bool) -> bool;
     /// Resolve any named columns.
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
     /// Human readable desription
     fn show(&self) -> String;
+    /// Is this line ok? If not, write explanation to stderr
+    fn ok_verbose(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
+	let ret = self.ok(line);
+	if !ret {
+	    eprintln!("Line {} of {} failed to {}", line_num, fname, self.show());
+	}
+	ret
+    }
 }
 
 const fn not_str(negate: bool) -> &'static str {
@@ -692,9 +698,6 @@ impl ColMatcher {
 
 // LineMatch::matcher could return Result<bool> and then we can put strict back
 impl LineMatch for ColMatcher {
-    fn ok_verbose(&mut self, line: &TextLine, _negate: bool) -> bool {
-        self.ok(line)
-    }
     fn ok(&mut self, line: &TextLine) -> bool {
         self.matcher.negate
             ^ if self.matcher.string {
@@ -709,7 +712,7 @@ impl LineMatch for ColMatcher {
         self.col.lookup(fieldnames)
     }
     fn show(&self) -> String {
-        format!("Matching column {} against {}", self.col, self.matcher)
+        format!("match {} against {}", self.col, self.matcher)
     }
 }
 
@@ -756,10 +759,10 @@ impl MultiLineMatcher {
         }
     }
     /// ok_verbose, with supplied MultiMode
-    pub fn ok_verbose_tagged(&mut self, line: &TextLine, multi: MultiMode, negate: bool) -> bool {
+    pub fn ok_verbose_tagged(&mut self, line: &TextLine, multi: MultiMode, line_num : usize, fname : &str) -> bool {
         match multi {
-            MultiMode::And => self.ok_verbose_and(line, negate),
-            MultiMode::Or => self.ok_verbose_or(line, negate),
+            MultiMode::And => self.ok_verbose_and(line, line_num, fname),
+            MultiMode::Or => self.ok_verbose_or(line, line_num, fname),
         }
     }
     /// ok, with AND
@@ -772,15 +775,14 @@ impl MultiLineMatcher {
         true
     }
     /// ok_verbose, with AND
-    pub fn ok_verbose_and(&mut self, line: &TextLine, negate: bool) -> bool {
+    pub fn ok_verbose_and(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
+	let mut ret = true;
         for x in &mut self.matchers {
-            if !x.ok(line) {
-                if !negate {}
-                return false;
+            if !x.ok_verbose(line, line_num, fname) {
+		ret = false;
             }
         }
-        if negate {}
-        true
+	ret
     }
     /// ok, with OR
     pub fn ok_or(&mut self, line: &TextLine) -> bool {
@@ -792,14 +794,14 @@ impl MultiLineMatcher {
         false
     }
     /// ok, with OR
-    pub fn ok_verbose_or(&mut self, line: &TextLine, negate: bool) -> bool {
+    pub fn ok_verbose_or(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
         for x in &mut self.matchers {
-            if x.ok(line) {
-                if negate {}
+            if x.ok(line) { // NOT ok_verbose
                 return true;
             }
         }
-        if !negate {}
+	// FIXME - some report of each thing?
+	eprintln!("Line {} of {} failed to match OR matcher", line_num, fname);
         false
     }
 }
@@ -808,8 +810,8 @@ impl LineMatch for MultiLineMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.ok_tagged(line, self.multi)
     }
-    fn ok_verbose(&mut self, line: &TextLine, negate: bool) -> bool {
-        self.ok_verbose_tagged(line, self.multi, negate)
+    fn ok_verbose(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
+        self.ok_verbose_tagged(line, self.multi, line_num, fname)
     }
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -822,10 +824,7 @@ impl LineMatch for MultiLineMatcher {
         if self.is_empty() {
             format!("Empty {} MultiLineMatcher", self.multi)
         } else if self.matchers.len() == 1 {
-            format!(
-                "Single element {} MultiLineMatcher : {}",
-                self.multi, self.matchers[0]
-            )
+            format!("{}", self.matchers[0])
         } else {
             let mut ret = format!("{}", self.matchers[0]);
             for x in self.matchers.iter().skip(1) {
@@ -923,10 +922,7 @@ impl Match for MultiMatcher {
         if self.is_empty() {
             format!("Empty {} MultiMatcher", self.multi)
         } else if self.matchers.len() == 1 {
-            format!(
-                "Single element {} MultiMatcher : {}",
-                self.multi, self.matchers[0]
-            )
+            format!("{}", self.matchers[0])
         } else {
             let mut ret = format!("{}", self.matchers[0]);
             for x in self.matchers.iter().skip(1) {
@@ -1397,8 +1393,14 @@ impl LineMatch for ExprMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.con.eval(line) != 0.0
     }
-    fn ok_verbose(&mut self, line: &TextLine, _negate: bool) -> bool {
-        self.con.eval(line) != 0.0
+    fn ok_verbose(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
+	if self.con.eval(line) == 0.0 {
+	    eprintln!("For line {} of {} the value of {} was zero", line_num, fname, self.con.expr());
+	    false
+	}
+	else {
+	    true
+	}
     }
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.con.lookup(fieldnames)

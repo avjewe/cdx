@@ -4,7 +4,7 @@ use crate::args::ArgSpec;
 //use crate::{arg, arg_enum, arg_pos, args};
 use crate::args;
 use cdx::expr::calc;
-use cdx::{Reader, Result};
+use cdx::util::{Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Evaluate Expressions.", args::FileCount::Many);

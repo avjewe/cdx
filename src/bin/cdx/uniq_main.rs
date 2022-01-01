@@ -4,7 +4,7 @@ use crate::args::ArgSpec;
 use cdx::agg::{AggList, AggMaker};
 use cdx::column::{ColumnHeader, Writer};
 use cdx::comp::{CompMaker, LineComp, LineCompList};
-use cdx::{err, get_writer, Error, LookbackReader, Result, TextLine};
+use cdx::util::{err, get_writer, Error, LookbackReader, Result, TextLine};
 use std::cmp::Ordering;
 use std::io::Write;
 

@@ -5,7 +5,7 @@ use crate::{arg, arg_enum, arg_pos, args};
 use cdx::binsearch::{equal_range_n, find_end, find_prev, MemMap};
 use cdx::comp::LineCompList;
 use cdx::text::Text;
-use cdx::{err, get_writer, write_all_nl, Error, HeaderChecker, HeaderMode, Result, HEADER_MODE};
+use cdx::util::{err, get_writer, write_all_nl, Error, HeaderChecker, HeaderMode, Result, HEADER_MODE};
 use std::io::Write;
 use std::str::FromStr;
 

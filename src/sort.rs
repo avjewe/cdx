@@ -8,7 +8,7 @@ fancier sort
  */
 
 use crate::comp::{Item, LineCompList};
-use crate::{
+use crate::util::{
     copy, err, get_reader, get_writer, is_cdx, make_header, Error, HeaderChecker, Reader, Result,
 };
 use std::cmp::Ordering;

@@ -1,4 +1,4 @@
-use cdx::{Error, Result};
+use cdx::util::{Error, Result};
 use std::env;
 
 mod args;
@@ -12,6 +12,7 @@ mod join_main;
 mod sort_main;
 mod tooltest_main;
 mod uniq_main;
+mod verify_main;
 
 fn main() {
     match inner_main(env::args().collect()) {

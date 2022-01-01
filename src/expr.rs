@@ -5,7 +5,7 @@ use crate::column::get_col;
 use crate::num;
 use crate::shunting_yard::*;
 use crate::tokenizer::*;
-use crate::{err, Error, Result, TextLine};
+use crate::util::{err, Error, Result, TextLine};
 use lazy_static::lazy_static;
 use libm;
 use regex::Regex;

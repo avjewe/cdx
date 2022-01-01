@@ -1,0 +1,7 @@
+#command cdx verify -p two,length,3 -p one,regex,ccc
+#stdin
+ CDX	one	two
+aaaaa	bbbbb
+aaaaa	b
+#status 1
+#stderr length,3

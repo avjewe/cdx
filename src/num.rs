@@ -1,7 +1,7 @@
 //! Numeric Helpers
 
 use crate::text::Text;
-use crate::{err, Error, Result};
+use crate::util::{err, Error, Result};
 use libm;
 use std::cmp::Ordering;
 

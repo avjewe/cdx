@@ -5,11 +5,13 @@
 //! The parser should tokenize only well-formed expressions.
 //!
 //! [nom]: https://crates.io/crates/nom
-use crate::{err, Error, Result};
-//use nom::{multispace, slice_to_offsets, IResult, Needed, named, delimited, tuple_parser, opt, call, alt, alt_parser, chain, chaining_parser, tag, tag_bytes, complete, map, map_impl, map_res, map_res_impl, terminated, tuple};
-use nom::*;
+
+use crate::util::{err, Error, Result};
+
 use std::str::from_utf8;
 use std::str::FromStr;
+
+use nom::*;
 
 /// Mathematical operations.
 #[derive(Debug, PartialEq, Clone, Copy)]

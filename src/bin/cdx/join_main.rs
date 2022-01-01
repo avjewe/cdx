@@ -3,7 +3,7 @@ use crate::args;
 use crate::args::ArgSpec;
 use cdx::column::ColumnSet;
 use cdx::join::*;
-use cdx::{err, Error, Result};
+use cdx::util::{err, Error, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Join files on a matching column.", args::FileCount::Many);

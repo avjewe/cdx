@@ -2,7 +2,8 @@ use crate::arg;
 use crate::args;
 use crate::args::ArgSpec;
 use cdx::comp::{CompMaker, LineCompList};
-use cdx::{get_writer, sort, Result};
+use cdx::util::{get_writer, Result};
+use cdx::sort;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);

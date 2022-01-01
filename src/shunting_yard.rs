@@ -11,7 +11,7 @@ use crate::tokenizer::BinaryOp::*;
 use crate::tokenizer::Token;
 use crate::tokenizer::Token::*;
 use crate::tokenizer::UnaryOp;
-use crate::{err, Error, Result};
+use crate::util::{err, Error, Result};
 
 #[derive(Debug, Clone, Copy)]
 enum Associativity {

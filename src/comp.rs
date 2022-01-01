@@ -8,7 +8,7 @@
 //!
 //! ```
 //! use cdx::comp::LineCompList;
-//! use cdx::LookbackReader;
+//! use cdx::util::LookbackReader;
 //! let mut comp = LineCompList::new();
 //! comp.add("price,float")?;
 //! comp.add("quant,num")?;
@@ -20,14 +20,14 @@
 //! reader.getline()?;
 //! assert_eq!(comp.comp_cols(reader.curr_line(), reader.prev_line(1)), std::cmp::Ordering::Equal);
 //! assert_eq!(comp.comp_cols(reader.prev_line(2), reader.prev_line(1)), std::cmp::Ordering::Less);
-//! # Ok::<(), cdx::Error>(())
+//! # Ok::<(), cdx::util::Error>(())
 //! ```
 #![allow(clippy::float_cmp)]
 use crate::column::{get_col, NamedCol};
 use crate::expr::Expr;
 use crate::num::{fcmp, str_to_d_lossy, ulp_to_ulong, Junk, JunkType, JunkVal};
 use crate::text::Text;
-use crate::{err, Error, Result, TextLine};
+use crate::util::{err, Error, Result, TextLine};
 use lazy_static::lazy_static;
 use std::cmp::Ordering;
 use std::fmt;

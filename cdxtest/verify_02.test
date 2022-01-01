@@ -1,0 +1,5 @@
+#command cdx verify -p two,length,1 -p one,regex,aaa
+#stdin
+ CDX	one	two
+aaaaa	bbbbb
+aaaaa	b

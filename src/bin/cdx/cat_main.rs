@@ -3,7 +3,7 @@ use crate::{arg, arg_enum, args};
 use cdx::column::{ColumnCount, ColumnHeader, ColumnLiteral, ColumnWhole, Writer};
 use cdx::matcher::{Match, MatchMaker, MultiMatcher, MultiMode};
 use cdx::text::Text;
-use cdx::{
+use cdx::util::{
     err, get_reader, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE,
 };
 use std::io::{BufRead, Read, Write};

@@ -3,7 +3,7 @@
 use crate::column::{ColumnFun, ColumnHeader, ColumnSingle, NamedCol, Writer};
 use crate::comp::{Comp, CompMaker};
 use crate::num::str_to_d_lossy;
-use crate::{err, Error, Result, StringLine, TextLine};
+use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::cmp::Ordering;

@@ -1,38 +1,29 @@
 use crate::args::ArgSpec;
-use crate::{arg, arg_enum, args};
+use crate::{arg, args};
 use cdx::expr;
 use cdx::matcher::*;
-use cdx::util::{get_writer, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE};
-use std::str::FromStr;
+use cdx::util::{Error, LookbackReader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
-    let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    const A: [ArgSpec; 7] = [
+    let prog = args::ProgSpec::new("Verify file contents.", args::FileCount::Many);
+    const A: [ArgSpec; 5] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
         arg! {"show-matchers", "s", "", "Print available matchers"},
         arg! {"show-const", "", "", "Print available constants"},
         arg! {"show-func", "", "", "Print available functions"},
         arg! {"or", "o", "", "A line matches if any of the matchers matches."},
-        arg! {"invert", "v", "", "Print lines that don't match."},
-        arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
-    let mut checker = HeaderChecker::new();
     let mut list = MultiLineMatcher::new(MultiMode::And);
-    let mut reverse = false;
     for x in args {
-        if x.name == "header" {
-            checker.mode = HeaderMode::from_str(&x.value)?;
-        } else if x.name == "pattern" {
+        if x.name == "pattern" {
             list.push_spec(&x.value)?;
         } else if x.name == "show-matchers" {
             MatchMaker::help();
             return Ok(());
         } else if x.name == "or" {
             list.multi = MultiMode::Or;
-        } else if x.name == "invert" {
-	    reverse = true;
         } else if x.name == "show-const" {
             expr::show_const();
             return Ok(());
@@ -44,8 +35,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         }
     }
 
-    let mut w = get_writer("-")?;
-
+    let max_fails = 5;
     let mut first_file = true;
 
     for x in &files {
@@ -58,22 +48,23 @@ pub fn main(argv: &[String]) -> Result<()> {
             first_file = false;
             list.lookup(&f.names())?;
         }
-        if checker.check_file(&f.cont, &files[0])? {
-            f.write_header(&mut w)?;
-        }
         if f.is_done() {
             continue;
         }
+        let mut fails = 0;
         loop {
-            if list.ok(f.curr_line()) ^ reverse {
-                // write previous lines of context if necessary
-                f.write_curr(&mut w)?;
-            } else {
-                // write more lines of context if necessary
+            if !list.ok_verbose(f.curr_line(), f.line_number(), x) {
+                fails += 1;
+                if fails >= max_fails {
+                    break;
+                }
             }
             if f.getline()? {
                 break;
             }
+        }
+        if fails > 0 {
+            return Err(Error::Silent);
         }
     }
     Ok(())

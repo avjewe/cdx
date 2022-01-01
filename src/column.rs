@@ -3,7 +3,7 @@
 
 use crate::num::str_to_u_whole;
 use crate::text::{Case, Text};
-use crate::{err, Error, Result, StringLine, TextLine};
+use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp::Ordering;
@@ -1258,11 +1258,11 @@ pub struct NamedCol {
 
 impl fmt::Display for NamedCol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Column {}", self.num)?;
+        write!(f, "Column {}", self.num+1)?;
         if !self.name.is_empty() {
-            write!(f, " from {}", self.name)
+            write!(f, " ({})", self.name)
         } else if self.from_end != 0 {
-            write!(f, " from +{}", self.from_end)
+            write!(f, " (+{})", self.from_end)
         } else {
             Ok(())
         }
