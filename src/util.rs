@@ -19,8 +19,7 @@ macro_rules! err {
     ($($e:expr),+) => {Err(Error::Error(format!($($e),+)))}
 }
 pub use err;
-/// Shorthand for returning an error Result
-#[macro_export]
+// Shorthand for implementing a pass-through error
 macro_rules! err_type {
     ($x:path, $i:path) => {
         impl From<$x> for Error {
@@ -802,6 +801,21 @@ impl LookbackReader {
 	    line_num: 0,
         }
     }
+    /// make a new LookbackReader
+    pub fn new_open(name : &str, lookback: usize) -> Result<Self> {
+        let mut lines: Vec<TextLine> = Vec::new();
+        lines.resize(lookback + 1, TextLine::new());
+        let mut tmp = Self {
+            file: get_reader(name)?,
+            lines,
+            cont: InfileContext::new(),
+            do_split: true,
+            curr: 0,
+	    line_num: 0,
+        };
+        tmp.cont.read_header(&mut *tmp.file, &mut tmp.lines[0])?;
+        Ok(tmp)
+    }
     /// get delimiter
     pub const fn delim(&self) -> u8 {
         self.cont.delim
@@ -809,6 +823,11 @@ impl LookbackReader {
     /// get column names
     pub fn names(&self) -> Vec<&str> {
         self.cont.header.vec()
+    }
+    /// write the current text line with newline
+    pub fn write(&self, w: &mut impl Write) -> Result<()> {
+        w.write_all(&self.curr_line().line)?;
+        Ok(())
     }
     /// open file for reading
     pub fn open(&mut self, name: &str) -> Result<()> {
@@ -850,6 +869,10 @@ impl LookbackReader {
     }
     /// get current line of text
     pub fn curr_line(&self) -> &TextLine {
+        &self.lines[self.curr]
+    }
+    /// get current line of text
+    pub fn curr(&self) -> &TextLine {
         &self.lines[self.curr]
     }
     /// get a previous line of text
