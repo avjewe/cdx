@@ -35,6 +35,11 @@ pub fn merge_t(
     for x in in_files {
 	open_files.push(LookbackReader::new_open(x, 1)?);
     }
+    if !cmp.need_split() {
+	for x in &mut open_files {
+	    x.do_split = false;
+	}
+    }
     // FIXME -- Check Header
     if open_files[0].cont.has_header {
         w.write_all(open_files[0].header().line.as_bytes())?;
@@ -327,8 +332,8 @@ impl Sorter {
 
     /// sort and unique self.ptrs
     fn do_sort(&mut self) {
-        self.ptrs
-            .sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
+        self.ptrs.sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
+//	do_sort_lines(&self.data, &mut self.ptrs, &mut self.cmp);
         if self.unique {
             self.ptrs
                 .dedup_by(|a, b| self.cmp.equal_items(&self.data, a, b));
@@ -490,5 +495,91 @@ impl MergeTreeItem {
 		}
 	    }
 	}
+    }
+}
+
+#[allow(dead_code)]
+fn merge_lines(data : &[u8], dst : &mut[Item], mut low : &[Item], mut hi_start : usize, hi_end : usize, cmp: &mut LineCompList)
+{
+    let mut dst_pos = 0;
+    loop {
+	if cmp.comp_items(data, &low[0], &dst[hi_start]) != Ordering::Greater {
+	    dst[dst_pos] = low[0];
+	    dst_pos += 1;
+	    low = &low[1..];
+	    if low.is_empty() {
+		/* HI - NHI equalled T - (NLO + NHI) when this function
+		began.  Therefore HI must equal T now, and there is no
+		need to copy from HI to T.  */
+		break;
+	    }
+	}
+	else {
+	    dst[dst_pos] = dst[hi_start];
+	    dst_pos += 1;
+	    hi_start += 1;
+	    if hi_start == hi_end {
+		while !low.is_empty() {
+		    dst[dst_pos] = low[0];
+		    dst_pos += 1;
+		    low = &low[1..];
+		}
+		break;
+	    }
+	}
+    }
+}
+
+#[allow(dead_code)]
+fn sort_lines(data : &[u8], items : &mut[Item], temp : &mut[Item], cmp: &mut LineCompList) {
+    if items.len() == 2 {
+	if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
+	    items.swap(0,1);
+	}
+    }
+    else {
+	let low = items.len() / 2;
+	sort_lines(data, &mut items[low..], temp, cmp);
+	if low == 1 {
+	    temp[0] = items[0]
+	}
+	else {
+	    sort_lines_temp(data, &mut items[..low], temp, cmp);
+	}
+	merge_lines(data, items, &temp[..low], low, items.len(), cmp);
+    }
+}
+
+// Like sort_lines but output into temp, rather than sorting in place
+#[allow(dead_code)]
+fn sort_lines_temp(data : &[u8], items : &mut[Item], temp : &mut[Item], cmp: &mut LineCompList) {
+    if items.len() == 2 {
+	if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
+	    temp[0] = items[1];
+	    temp[1] = items[0];
+	}
+	else {
+	    temp[0] = items[0];
+	    temp[1] = items[1];
+	}
+    }
+    else {
+	let low = items.len() / 2;
+	let items_len = items.len();
+	sort_lines_temp(data, &mut items[low..], &mut temp[low..items_len], cmp);
+	if low > 1 {
+	    sort_lines(data, &mut items[..low], temp, cmp);
+	}
+	merge_lines(data, temp, &items[..low], low, items_len, cmp);
+    }
+}
+
+#[allow(dead_code)]
+fn do_sort_lines(data : &[u8], items : &mut[Item], cmp: &mut LineCompList) {
+    if items.len() > 1 {
+	let nsize = items.len() / 2 + 1;
+	let mut temp = Vec::with_capacity(nsize);
+	temp.resize(nsize, Item::default());
+	sort_lines(data, items, &mut temp, cmp);
     }
 }

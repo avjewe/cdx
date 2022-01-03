@@ -798,7 +798,7 @@ impl LookbackReader {
             cont: InfileContext::new(),
             do_split: true,
             curr: 0,
-	    line_num: 0,
+	    line_num: 1,
         }
     }
     /// make a new LookbackReader
@@ -811,7 +811,7 @@ impl LookbackReader {
             cont: InfileContext::new(),
             do_split: true,
             curr: 0,
-	    line_num: 0,
+	    line_num: 1,
         };
         tmp.cont.read_header(&mut *tmp.file, &mut tmp.lines[0])?;
         Ok(tmp)
@@ -909,12 +909,18 @@ impl LookbackReader {
     }
 }
 
-/// print a bunch of u8 to stderr
+/// print a bunch of u8 to stderr, adding a newline
 pub fn prerr(data: &[&[u8]]) {
     for x in data {
         std::io::stderr().write_all(x).unwrap();
     }
     std::io::stderr().write_all(b"\n").unwrap();
+}
+/// print a bunch of u8 to stderr
+pub fn prerr_n(data: &[&[u8]]) {
+    for x in data {
+        std::io::stderr().write_all(x).unwrap();
+    }
 }
 /*
 fn bytes_equal(c1: u8, c2: u8, ic: bool) -> bool {

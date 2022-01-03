@@ -27,7 +27,7 @@ use crate::column::{get_col, NamedCol};
 use crate::expr::Expr;
 use crate::num::{fcmp, str_to_d_lossy, ulp_to_ulong, Junk, JunkType, JunkVal};
 use crate::text::Text;
-use crate::util::{err, Error, Result, TextLine};
+use crate::util::{err, Error, Result, TextLine, LookbackReader, prerr_n};
 use lazy_static::lazy_static;
 use std::cmp::Ordering;
 use std::fmt;
@@ -1179,6 +1179,7 @@ pub struct CompList {
 /// Ordered list of [LineComp]
 pub struct LineCompList {
     c: Vec<LineComp>,
+    value : Vec<u8>,
 }
 
 impl CompList {
@@ -1432,8 +1433,13 @@ impl LineCompList {
             self.c[0].fill_cache_line(item, value);
         }
     }
+    /// get the value previously set
+    pub fn get_value(&self) -> &[u8] {
+	&self.value
+    }
     /// set value fo later comparison
     pub fn set(&mut self, value: &[u8], delim: u8) -> Result<()> {
+	self.value = value.to_owned();
         if self.c.len() == 1 {
             self.c[0].set(value);
         } else {
@@ -1912,6 +1918,31 @@ impl LineCompare for LineCompExpr {
         self.value == value
     }
 }
+
+/// return true if ordering is bad.
+/// print appropriate message to stderr
+pub fn comp_check(f : &LookbackReader, cmp : &mut LineCompList, unique : bool) -> bool {
+    let c = cmp.comp_cols(f.prev_line(1), f.curr_line());
+    let bad = match c {
+        Ordering::Less => false,
+        Ordering::Equal => unique,
+        Ordering::Greater => true
+    };
+    if c == Ordering::Equal && unique {
+        eprintln!("Lines are equal when they should be unique.");
+    }
+    else if bad {
+        eprintln!("Lines are out of order");
+    }
+    if bad {
+        eprint!("{} : ", f.line_number()-1);
+        prerr_n(&[&f.prev_line(1).line]);
+        eprint!("{} : ", f.line_number());
+        prerr_n(&[&f.curr_line().line]);
+    }
+    bad
+}
+
 
 #[cfg(test)]
 mod tests {
