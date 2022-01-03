@@ -128,13 +128,12 @@ impl Count {
                 self.name = a.to_string();
             }
         } else {
-	    self.pos = CountPos::Begin;
-	    if spec.is_empty() {
+            self.pos = CountPos::Begin;
+            if spec.is_empty() {
                 self.name = "count".to_string();
-	    }
-	    else {
-		self.name = spec.to_string();
-	    }
+            } else {
+                self.name = spec.to_string();
+            }
         }
         Ok(())
     }
@@ -189,8 +188,8 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "agg-pre" {
             agg.push_prefix(&x.value)?;
         } else if x.name == "agg-help" {
-	    AggMaker::help();
-	    return Ok(());
+            AggMaker::help();
+            return Ok(());
         } else {
             unreachable!();
         }
@@ -207,12 +206,12 @@ pub fn main(argv: &[String]) -> Result<()> {
     count.lookup(&f.names())?;
     let mut c_write = Writer::new(f.delim());
     if !agg.is_empty() {
-	if count.pos == CountPos::Begin {
-	    agg.push_first_prefix(&format!("{},1,count", count.name))?;
-	}
-	if count.pos == CountPos::End {
-	    agg.push_append(&format!("{},1,count", count.name))?;
-	}
+        if count.pos == CountPos::Begin {
+            agg.push_first_prefix(&format!("{},1,count", count.name))?;
+        }
+        if count.pos == CountPos::End {
+            agg.push_append(&format!("{},1,count", count.name))?;
+        }
         agg.lookup(&f.names())?;
         agg.fill(&mut c_write, f.header());
         c_write.lookup(&f.names())?;

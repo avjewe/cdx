@@ -1,3 +1,5 @@
+use cdx::text::Text;
+
 #[macro_export]
 macro_rules! arg {
     ($a:expr,$b:expr,$c:expr,$d:expr) => {
@@ -110,37 +112,62 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
         .about(&*prog.help);
 
     for x in spec {
-        let mut b = clap::Arg::with_name(x.name);
+        let mut b = clap::Arg::new(x.name);
         if x.positional {
-            b = b.takes_value(true).help(x.help);
+            b = b
+                .takes_value(true)
+                .help(x.help)
+                .allow_invalid_utf8(true)
+                .required(true)
+                .multiple_values(false)
+                .multiple_occurrences(false)
         } else {
-            b = b.short(x.short).long(x.name).help(x.help).multiple(true);
-        }
-        if !x.value.is_empty() {
-            b = b.value_name(x.value).number_of_values(1).takes_value(true);
-        }
-        if !x.values.is_empty() {
-            b = b.possible_values(x.values).case_insensitive(true);
-        }
+            if !x.short.is_empty() {
+                b = b.short(x.short.first());
+            }
+            b = b.long(x.name).help(x.help).multiple_occurrences(true);
+            if !x.value.is_empty() {
+		b = b
+                    .value_name(x.value)
+                    .number_of_values(1)
+                    .takes_value(true)
+                    .allow_invalid_utf8(true);
+            }
+            if !x.values.is_empty() {
+		b = b.possible_values(x.values).ignore_case(true);
+            }
+	}
         a = a.arg(b);
     }
     match prog.files {
         FileCount::Zero => {}
         FileCount::One => {
-            a = a.arg(clap::Arg::with_name("input_files").takes_value(true));
+            a = a.arg(
+                clap::Arg::new("input_files")
+                    .takes_value(true)
+                    .allow_invalid_utf8(true),
+            );
         }
         FileCount::Many => {
             a = a.arg(
-                clap::Arg::with_name("input_files")
-                    .multiple(true)
-                    .takes_value(true),
+                clap::Arg::new("input_files")
+                    .multiple_occurrences(true)
+                    .takes_value(true)
+                    .allow_invalid_utf8(true),
             );
         }
     }
     let m = a.get_matches_from(argv);
     let mut v: Vec<ArgValue> = Vec::new();
     for x in spec {
-        if let Some(arg) = m.values_of_lossy(x.name) {
+        if x.value.is_empty() {
+            if m.occurrences_of(x.name) > 0 {
+                let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
+                for i in ind {
+                    v.push(ArgValue::new(x.name, "", i));
+                }
+            }
+        } else if let Some(arg) = m.values_of_lossy(x.name) {
             let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
             if arg.is_empty() {
                 for i in ind {

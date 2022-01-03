@@ -9,7 +9,8 @@ fancier sort
 
 use crate::comp::{Item, LineCompList};
 use crate::util::{
-    copy, err, get_reader, get_writer, is_cdx, make_header, Error, Reader, HeaderChecker, LookbackReader, Result, TextLine
+    copy, err, get_reader, get_writer, is_cdx, make_header, Error, HeaderChecker, LookbackReader,
+    Reader, Result, TextLine,
 };
 use std::cmp::Ordering;
 use std::io::{BufRead, Read, Write};
@@ -31,72 +32,72 @@ pub fn merge_t(
         let r = get_reader(&in_files[0])?;
         return copy(r.0, w);
     }
-    let mut open_files : Vec<LookbackReader> = Vec::with_capacity(in_files.len());
+    let mut open_files: Vec<LookbackReader> = Vec::with_capacity(in_files.len());
     for x in in_files {
-	open_files.push(LookbackReader::new_open(x, 1)?);
+        open_files.push(LookbackReader::new_open(x, 1)?);
     }
     if !cmp.need_split() {
-	for x in &mut open_files {
-	    x.do_split = false;
-	}
+        for x in &mut open_files {
+            x.do_split = false;
+        }
     }
     // FIXME -- Check Header
     if open_files[0].cont.has_header {
         w.write_all(open_files[0].header().line.as_bytes())?;
     }
 
-    let nums : Vec<usize> = (0..open_files.len()).collect();
+    let nums: Vec<usize> = (0..open_files.len()).collect();
     let mut mm = MergeTreeItem::new_tree(&open_files, &nums);
     if unique {
-	let x = mm.next(cmp, &mut open_files)?;
-	if x.is_none() {
-	    return Ok(());
-	}
-	let x = x.unwrap();
-	w.write_all(&open_files[x].curr_line().line)?;
-	let mut prev = open_files[x].curr_line().clone();
-	loop {
-	    let x = mm.next(cmp, &mut open_files)?;
-	    if x.is_none() {
-		break;
-	    }
-	    let x = x.unwrap();
-	    if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
-		w.write_all(&open_files[x].curr_line().line)?;
-	    }
-	    prev.assign(open_files[x].curr_line());
-	}
-    }
-    else {
-	loop {
-	    let x = mm.next(cmp, &mut open_files)?;
-	    if x.is_none() {
-		break;
-	    }
-	    let x = x.unwrap();
-	    w.write_all(&open_files[x].curr_line().line)?;
-	}
+        let x = mm.next(cmp, &mut open_files)?;
+        if x.is_none() {
+            return Ok(());
+        }
+        let x = x.unwrap();
+        w.write_all(&open_files[x].curr_line().line)?;
+        let mut prev = open_files[x].curr_line().clone();
+        loop {
+            let x = mm.next(cmp, &mut open_files)?;
+            if x.is_none() {
+                break;
+            }
+            let x = x.unwrap();
+            if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
+                w.write_all(&open_files[x].curr_line().line)?;
+            }
+            prev.assign(open_files[x].curr_line());
+        }
+    } else {
+        loop {
+            let x = mm.next(cmp, &mut open_files)?;
+            if x.is_none() {
+                break;
+            }
+            let x = x.unwrap();
+            w.write_all(&open_files[x].curr_line().line)?;
+        }
     }
     Ok(())
     /*
-    let mut files = in_files.to_owned();
-    let mut n = 0;
-    loop {
-        if files.len() == 2 {
-            return merge_2(&files[0], &files[1], cmp, w, unique);
+        let mut files = in_files.to_owned();
+        let mut n = 0;
+        loop {
+            if files.len() == 2 {
+                return merge_2(&files[0], &files[1], cmp, w, unique);
+            }
+            let mut tmp_file = tmp.path().to_owned();
+            tmp_file.push(format!("merge_{}.txt", n));
+            n += 1;
+            let tmp_name = tmp_file.to_str().unwrap();
+            let new_w = get_writer(tmp_name)?;
+            merge_2(&files[0], &files[1], cmp, new_w, unique)?;
+            files.remove(0);
+            files.remove(0);
+            files.push(tmp_name.to_string());
         }
-        let mut tmp_file = tmp.path().to_owned();
-        tmp_file.push(format!("merge_{}.txt", n));
-        n += 1;
-        let tmp_name = tmp_file.to_str().unwrap();
-        let new_w = get_writer(tmp_name)?;
-        merge_2(&files[0], &files[1], cmp, new_w, unique)?;
-        files.remove(0);
-        files.remove(0);
-        files.push(tmp_name.to_string());
-    }
 
-*/}
+    */
+}
 
 /// merge all the files into w
 pub fn merge(files: &[String], cmp: &mut LineCompList, w: impl Write, unique: bool) -> Result<()> {
@@ -332,8 +333,9 @@ impl Sorter {
 
     /// sort and unique self.ptrs
     fn do_sort(&mut self) {
-        self.ptrs.sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
-//	do_sort_lines(&self.data, &mut self.ptrs, &mut self.cmp);
+        self.ptrs
+            .sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
+        //	do_sort_lines(&self.data, &mut self.ptrs, &mut self.cmp);
         if self.unique {
             self.ptrs
                 .dedup_by(|a, b| self.cmp.equal_items(&self.data, a, b));
@@ -396,190 +398,196 @@ pub fn sort<W: Write>(files: &[String], cmp: LineCompList, w: &mut W, unique: bo
 
 type NodeType = Box<MergeTreeItem>;
 struct NodeData {
-    left : NodeType,
-    right : NodeType,
-    left_data : Option<usize>,
-    right_data : Option<usize>,
-//    done : bool, Optimization?
+    left: NodeType,
+    right: NodeType,
+    left_data: Option<usize>,
+    right_data: Option<usize>,
+    //    done : bool, Optimization?
 }
 impl NodeData {
-    fn new(left : NodeType, right : NodeType) -> Self {
-	Self {
-	    left, right, left_data:None, right_data:None
-	}
+    fn new(left: NodeType, right: NodeType) -> Self {
+        Self {
+            left,
+            right,
+            left_data: None,
+            right_data: None,
+        }
     }
-    fn left_cols<'a>(&self, files : &'a[LookbackReader]) -> &'a TextLine {
-	files[self.left_data.unwrap()].curr_line()
+    fn left_cols<'a>(&self, files: &'a [LookbackReader]) -> &'a TextLine {
+        files[self.left_data.unwrap()].curr_line()
     }
-    fn right_cols<'a>(&self, files : &'a [LookbackReader]) -> &'a TextLine {
-	files[self.right_data.unwrap()].curr_line()
+    fn right_cols<'a>(&self, files: &'a [LookbackReader]) -> &'a TextLine {
+        files[self.right_data.unwrap()].curr_line()
     }
 }
 struct LeafData {
-    file_num : usize,
-    first : bool
+    file_num: usize,
+    first: bool,
 }
 
 enum MergeTreeItem {
     Leaf(LeafData),
-    Node(NodeData)
+    Node(NodeData),
 }
 
 impl MergeTreeItem {
-    fn new_tree(files : &[LookbackReader], nums : &[usize]) -> Self {
-	if nums.is_empty() {
-	    panic!("Can't make a MergeTreeItem from zero files")
-	}
-	else if nums.len() == 1 {
-	    Self::new_leaf(nums[0])
-	}
-	else {
-	    let mid = nums.len() / 2;
-	    Self::new_node(Box::new(Self::new_tree(files, &nums[..mid])), Box::new(Self::new_tree(files, &nums[mid..])))
-	}
+    fn new_tree(files: &[LookbackReader], nums: &[usize]) -> Self {
+        if nums.is_empty() {
+            panic!("Can't make a MergeTreeItem from zero files")
+        } else if nums.len() == 1 {
+            Self::new_leaf(nums[0])
+        } else {
+            let mid = nums.len() / 2;
+            Self::new_node(
+                Box::new(Self::new_tree(files, &nums[..mid])),
+                Box::new(Self::new_tree(files, &nums[mid..])),
+            )
+        }
     }
-    fn new_node(left : NodeType, right : NodeType) -> Self {
-	Self::Node(NodeData::new(left, right))
+    fn new_node(left: NodeType, right: NodeType) -> Self {
+        Self::Node(NodeData::new(left, right))
     }
-    const fn new_leaf(r : usize) -> Self {
-	Self::Leaf(LeafData{file_num : r, first : true})
+    const fn new_leaf(r: usize) -> Self {
+        Self::Leaf(LeafData {
+            file_num: r,
+            first: true,
+        })
     }
-    fn next(&mut self, cmp: &mut LineCompList, files : &mut [LookbackReader]) -> Result<Option<usize>> {
-	match self {
-	    Self::Leaf(r) => {
-		if files[r.file_num].is_done() {
-		    Ok(None)
-		}
-		else {
-		    if r.first {
-			r.first = false;
-		    }
-		    else if files[r.file_num].getline()? {
-			return Ok(None);
-		    }
-		    Ok(Some(r.file_num))
-		}
-	    }
-	    Self::Node(n)  => {
-		if n.left_data.is_none() {
-		    n.left_data = n.left.next(cmp, files)?;
-		}
-		if n.right_data.is_none() {
-		    n.right_data = n.right.next(cmp, files)?;
-		}
-		if n.left_data.is_none() && n.right_data.is_none() {
-		    Ok(None)
-		}
-		else if n.left_data.is_none() {
-		    let tmp = n.right_data;
-		    n.right_data = None;
-		    Ok(tmp)
-		}
-		else if n.right_data.is_none() {
-		    let tmp = n.left_data;
-		    n.left_data = None;
-		    Ok(tmp)
-		}
-		else {
-		    let c = cmp.comp_cols(n.left_cols(files), n.right_cols(files));
-		    if c == Ordering::Greater {
-			let tmp = n.right_data;
-			n.right_data = None;
-			Ok(tmp)
-		    }
-		    else {
-			let tmp = n.left_data;
-			n.left_data = None;
-			Ok(tmp)
-		    }
-		}
-	    }
-	}
+    fn next(
+        &mut self,
+        cmp: &mut LineCompList,
+        files: &mut [LookbackReader],
+    ) -> Result<Option<usize>> {
+        match self {
+            Self::Leaf(r) => {
+                if files[r.file_num].is_done() {
+                    Ok(None)
+                } else {
+                    if r.first {
+                        r.first = false;
+                    } else if files[r.file_num].getline()? {
+                        return Ok(None);
+                    }
+                    Ok(Some(r.file_num))
+                }
+            }
+            Self::Node(n) => {
+                if n.left_data.is_none() {
+                    n.left_data = n.left.next(cmp, files)?;
+                }
+                if n.right_data.is_none() {
+                    n.right_data = n.right.next(cmp, files)?;
+                }
+                if n.left_data.is_none() && n.right_data.is_none() {
+                    Ok(None)
+                } else if n.left_data.is_none() {
+                    let tmp = n.right_data;
+                    n.right_data = None;
+                    Ok(tmp)
+                } else if n.right_data.is_none() {
+                    let tmp = n.left_data;
+                    n.left_data = None;
+                    Ok(tmp)
+                } else {
+                    let c = cmp.comp_cols(n.left_cols(files), n.right_cols(files));
+                    if c == Ordering::Greater {
+                        let tmp = n.right_data;
+                        n.right_data = None;
+                        Ok(tmp)
+                    } else {
+                        let tmp = n.left_data;
+                        n.left_data = None;
+                        Ok(tmp)
+                    }
+                }
+            }
+        }
     }
 }
 
 #[allow(dead_code)]
-fn merge_lines(data : &[u8], dst : &mut[Item], mut low : &[Item], mut hi_start : usize, hi_end : usize, cmp: &mut LineCompList)
-{
+fn merge_lines(
+    data: &[u8],
+    dst: &mut [Item],
+    mut low: &[Item],
+    mut hi_start: usize,
+    hi_end: usize,
+    cmp: &mut LineCompList,
+) {
     let mut dst_pos = 0;
     loop {
-	if cmp.comp_items(data, &low[0], &dst[hi_start]) != Ordering::Greater {
-	    dst[dst_pos] = low[0];
-	    dst_pos += 1;
-	    low = &low[1..];
-	    if low.is_empty() {
-		/* HI - NHI equalled T - (NLO + NHI) when this function
-		began.  Therefore HI must equal T now, and there is no
-		need to copy from HI to T.  */
-		break;
-	    }
-	}
-	else {
-	    dst[dst_pos] = dst[hi_start];
-	    dst_pos += 1;
-	    hi_start += 1;
-	    if hi_start == hi_end {
-		while !low.is_empty() {
-		    dst[dst_pos] = low[0];
-		    dst_pos += 1;
-		    low = &low[1..];
-		}
-		break;
-	    }
-	}
+        if cmp.comp_items(data, &low[0], &dst[hi_start]) != Ordering::Greater {
+            dst[dst_pos] = low[0];
+            dst_pos += 1;
+            low = &low[1..];
+            if low.is_empty() {
+                /* HI - NHI equalled T - (NLO + NHI) when this function
+                began.  Therefore HI must equal T now, and there is no
+                need to copy from HI to T.  */
+                break;
+            }
+        } else {
+            dst[dst_pos] = dst[hi_start];
+            dst_pos += 1;
+            hi_start += 1;
+            if hi_start == hi_end {
+                while !low.is_empty() {
+                    dst[dst_pos] = low[0];
+                    dst_pos += 1;
+                    low = &low[1..];
+                }
+                break;
+            }
+        }
     }
 }
 
 #[allow(dead_code)]
-fn sort_lines(data : &[u8], items : &mut[Item], temp : &mut[Item], cmp: &mut LineCompList) {
+fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
-	if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
-	    items.swap(0,1);
-	}
-    }
-    else {
-	let low = items.len() / 2;
-	sort_lines(data, &mut items[low..], temp, cmp);
-	if low == 1 {
-	    temp[0] = items[0]
-	}
-	else {
-	    sort_lines_temp(data, &mut items[..low], temp, cmp);
-	}
-	merge_lines(data, items, &temp[..low], low, items.len(), cmp);
+        if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
+            items.swap(0, 1);
+        }
+    } else {
+        let low = items.len() / 2;
+        sort_lines(data, &mut items[low..], temp, cmp);
+        if low == 1 {
+            temp[0] = items[0]
+        } else {
+            sort_lines_temp(data, &mut items[..low], temp, cmp);
+        }
+        merge_lines(data, items, &temp[..low], low, items.len(), cmp);
     }
 }
 
 // Like sort_lines but output into temp, rather than sorting in place
 #[allow(dead_code)]
-fn sort_lines_temp(data : &[u8], items : &mut[Item], temp : &mut[Item], cmp: &mut LineCompList) {
+fn sort_lines_temp(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
-	if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
-	    temp[0] = items[1];
-	    temp[1] = items[0];
-	}
-	else {
-	    temp[0] = items[0];
-	    temp[1] = items[1];
-	}
-    }
-    else {
-	let low = items.len() / 2;
-	let items_len = items.len();
-	sort_lines_temp(data, &mut items[low..], &mut temp[low..items_len], cmp);
-	if low > 1 {
-	    sort_lines(data, &mut items[..low], temp, cmp);
-	}
-	merge_lines(data, temp, &items[..low], low, items_len, cmp);
+        if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
+            temp[0] = items[1];
+            temp[1] = items[0];
+        } else {
+            temp[0] = items[0];
+            temp[1] = items[1];
+        }
+    } else {
+        let low = items.len() / 2;
+        let items_len = items.len();
+        sort_lines_temp(data, &mut items[low..], &mut temp[low..items_len], cmp);
+        if low > 1 {
+            sort_lines(data, &mut items[..low], temp, cmp);
+        }
+        merge_lines(data, temp, &items[..low], low, items_len, cmp);
     }
 }
 
 #[allow(dead_code)]
-fn do_sort_lines(data : &[u8], items : &mut[Item], cmp: &mut LineCompList) {
+fn do_sort_lines(data: &[u8], items: &mut [Item], cmp: &mut LineCompList) {
     if items.len() > 1 {
-	let nsize = items.len() / 2 + 1;
-	let mut temp = Vec::with_capacity(nsize);
-	temp.resize(nsize, Item::default());
-	sort_lines(data, items, &mut temp, cmp);
+        let nsize = items.len() / 2 + 1;
+        let mut temp = Vec::with_capacity(nsize);
+        temp.resize(nsize, Item::default());
+        sort_lines(data, items, &mut temp, cmp);
     }
 }

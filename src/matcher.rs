@@ -48,12 +48,12 @@ pub trait LineMatch {
     /// Human readable desription
     fn show(&self) -> String;
     /// Is this line ok? If not, write explanation to stderr
-    fn ok_verbose(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
-	let ret = self.ok(line);
-	if !ret {
-	    eprintln!("Line {} of {} failed to {}", line_num, fname, self.show());
-	}
-	ret
+    fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
+        let ret = self.ok(line);
+        if !ret {
+            eprintln!("Line {} of {} failed to {}", line_num, fname, self.show());
+        }
+        ret
     }
 }
 
@@ -759,7 +759,13 @@ impl MultiLineMatcher {
         }
     }
     /// ok_verbose, with supplied MultiMode
-    pub fn ok_verbose_tagged(&mut self, line: &TextLine, multi: MultiMode, line_num : usize, fname : &str) -> bool {
+    pub fn ok_verbose_tagged(
+        &mut self,
+        line: &TextLine,
+        multi: MultiMode,
+        line_num: usize,
+        fname: &str,
+    ) -> bool {
         match multi {
             MultiMode::And => self.ok_verbose_and(line, line_num, fname),
             MultiMode::Or => self.ok_verbose_or(line, line_num, fname),
@@ -775,14 +781,14 @@ impl MultiLineMatcher {
         true
     }
     /// ok_verbose, with AND
-    pub fn ok_verbose_and(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
-	let mut ret = true;
+    pub fn ok_verbose_and(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
+        let mut ret = true;
         for x in &mut self.matchers {
             if !x.ok_verbose(line, line_num, fname) {
-		ret = false;
+                ret = false;
             }
         }
-	ret
+        ret
     }
     /// ok, with OR
     pub fn ok_or(&mut self, line: &TextLine) -> bool {
@@ -794,14 +800,15 @@ impl MultiLineMatcher {
         false
     }
     /// ok, with OR
-    pub fn ok_verbose_or(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
+    pub fn ok_verbose_or(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         for x in &mut self.matchers {
-            if x.ok(line) { // NOT ok_verbose
+            if x.ok(line) {
+                // NOT ok_verbose
                 return true;
             }
         }
-	// FIXME - some report of each thing?
-	eprintln!("Line {} of {} failed to match OR matcher", line_num, fname);
+        // FIXME - some report of each thing?
+        eprintln!("Line {} of {} failed to match OR matcher", line_num, fname);
         false
     }
 }
@@ -810,7 +817,7 @@ impl LineMatch for MultiLineMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.ok_tagged(line, self.multi)
     }
-    fn ok_verbose(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
+    fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         self.ok_verbose_tagged(line, self.multi, line_num, fname)
     }
     /// resolve any named columns
@@ -1393,14 +1400,18 @@ impl LineMatch for ExprMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.con.eval(line) != 0.0
     }
-    fn ok_verbose(&mut self, line: &TextLine, line_num : usize, fname : &str) -> bool {
-	if self.con.eval(line) == 0.0 {
-	    eprintln!("For line {} of {} the value of {} was zero", line_num, fname, self.con.expr());
-	    false
-	}
-	else {
-	    true
-	}
+    fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
+        if self.con.eval(line) == 0.0 {
+            eprintln!(
+                "For line {} of {} the value of {} was zero",
+                line_num,
+                fname,
+                self.con.expr()
+            );
+            false
+        } else {
+            true
+        }
     }
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         self.con.lookup(fieldnames)

@@ -5,7 +5,9 @@ use crate::{arg, arg_enum, arg_pos, args};
 use cdx::binsearch::{equal_range_n, find_end, find_prev, MemMap};
 use cdx::comp::LineCompList;
 use cdx::text::Text;
-use cdx::util::{err, get_writer, write_all_nl, Error, HeaderChecker, HeaderMode, Result, HEADER_MODE};
+use cdx::util::{
+    err, get_writer, write_all_nl, Error, HeaderChecker, HeaderMode, Result, HEADER_MODE,
+};
 use std::io::Write;
 use std::str::FromStr;
 
@@ -97,8 +99,8 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"key", "k", "Spec", "How to compare value to lines"},
         arg! {"filename", "H", "ColName:Parts", "Prefix output lines with file name."},
         arg! {"context", "C", "before,after",  "print lines of context around matches"},
-        arg_pos! {"pattern", "search string",  "Search for this string in each file"},
         arg! {"sub-delim", "s", "Char",  "Delimiter between keys for multi-column searches"},
+        arg_pos! {"pattern", "search string",  "Search for this string in each file"},
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
@@ -137,13 +139,14 @@ pub fn main(argv: &[String]) -> Result<()> {
     if pattern.is_none() {
         return err!("The pattern is required");
     }
+    let pattern = pattern.unwrap();
     if files.is_empty() {
         return err!("At least one file is required : you can't binary search stdin.");
     }
     if comp.is_empty() {
         comp.add("1")?;
     }
-    comp.set(pattern.unwrap().as_bytes(), subdelim)?;
+    comp.set(pattern.as_bytes(), subdelim)?;
     let mut w = get_writer("-")?;
     let mut not_header: Vec<u8> = Vec::new();
 

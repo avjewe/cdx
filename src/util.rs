@@ -1,5 +1,6 @@
 //! Misc utility stuff
 
+use crate::text::Text;
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
 use std::error;
@@ -9,7 +10,6 @@ use std::ops::{Deref, DerefMut};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::{fmt, str};
-use crate::text::Text;
 
 /// Shorthand for returning an error Result
 #[macro_export]
@@ -106,16 +106,16 @@ pub struct FakeSlice {
 }
 impl FakeSlice {
     /// get slice from FakeSlice
-    pub fn get<'a>(&self, data : &'a [u8]) -> &'a[u8] {
-	&data[self.begin as usize..self.end as usize]
+    pub fn get<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        &data[self.begin as usize..self.end as usize]
     }
     /// len
     pub const fn len(&self) -> usize {
-	(self.end-self.begin) as usize
+        (self.end - self.begin) as usize
     }
     /// is empty?
     pub const fn is_empty(&self) -> bool {
-	self.begin == self.end
+        self.begin == self.end
     }
 }
 
@@ -269,10 +269,10 @@ impl TextLine {
             end += 1;
         }
         if begin != end {
-	    let mut f = FakeSlice{begin,end};
-	    if self.line[(end-1) as usize] == b'\n' {
-		f.end -= 1;
-	    }
+            let mut f = FakeSlice { begin, end };
+            if self.line[(end - 1) as usize] == b'\n' {
+                f.end -= 1;
+            }
             self.parts.push(f);
         }
     }
@@ -784,7 +784,7 @@ pub struct LookbackReader {
     /// Automatically split each line into columns
     pub do_split: bool,
     curr: usize,
-    line_num : usize,
+    line_num: usize,
 }
 
 impl LookbackReader {
@@ -798,11 +798,11 @@ impl LookbackReader {
             cont: InfileContext::new(),
             do_split: true,
             curr: 0,
-	    line_num: 1,
+            line_num: 1,
         }
     }
     /// make a new LookbackReader
-    pub fn new_open(name : &str, lookback: usize) -> Result<Self> {
+    pub fn new_open(name: &str, lookback: usize) -> Result<Self> {
         let mut lines: Vec<TextLine> = Vec::new();
         lines.resize(lookback + 1, TextLine::new());
         let mut tmp = Self {
@@ -811,7 +811,7 @@ impl LookbackReader {
             cont: InfileContext::new(),
             do_split: true,
             curr: 0,
-	    line_num: 1,
+            line_num: 1,
         };
         tmp.cont.read_header(&mut *tmp.file, &mut tmp.lines[0])?;
         Ok(tmp)
@@ -848,10 +848,10 @@ impl LookbackReader {
     }
     /// line number of curr_line
     pub const fn line_number(&self) -> usize {
-	self.line_num
+        self.line_num
     }
     fn incr(&mut self) {
-	self.line_num += 1;
+        self.line_num += 1;
         self.curr += 1;
         if self.curr >= self.lines.len() {
             self.curr = 0;

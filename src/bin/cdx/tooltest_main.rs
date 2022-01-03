@@ -18,7 +18,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         if x.name == "bin" {
             config.bin(&x.value);
         } else if x.name == "verbose" {
-	    verbose = true;
+            verbose = true;
         } else if x.name == "tmp" {
             config.tmp(&x.value)?;
         } else if x.name == "file-format" {
@@ -29,9 +29,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         }
     }
     for x in &files {
-	if verbose {
-	    eprintln!("{}", x);
-	}
+        if verbose {
+            eprintln!("{}", x);
+        }
         config.run(x);
     }
     config.report()

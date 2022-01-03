@@ -1,11 +1,11 @@
 use crate::args::ArgSpec;
 use crate::{arg, args};
+use cdx::comp::{comp_check, LineCompList};
 use cdx::expr;
 use cdx::matcher::*;
-use cdx::util::{Error, LookbackReader, Result, err, TextLine, prerr_n};
-use cdx::comp::{LineCompList, comp_check};
-use std::str::FromStr;
+use cdx::util::{err, prerr_n, Error, LookbackReader, Result, TextLine};
 use std::cmp::Ordering;
+use std::str::FromStr;
 
 // FIXME, shuld be in util or something
 #[derive(Debug, Copy, Clone)]
@@ -15,7 +15,7 @@ enum CompareOp {
     LE,
     GE,
     EQ,
-    NE
+    NE,
 }
 impl Default for CompareOp {
     fn default() -> Self {
@@ -26,93 +26,100 @@ impl Default for CompareOp {
 impl FromStr for CompareOp {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
-	if s.eq_ignore_ascii_case("lt") {
-	    Ok(Self::LT)
-	} else if s.eq_ignore_ascii_case("gt") {
-	    Ok(Self::GT)
-	} else if s.eq_ignore_ascii_case("le") {
-	    Ok(Self::LE)
-	} else if s.eq_ignore_ascii_case("ge") {
-	    Ok(Self::GE)
-	} else if s.eq_ignore_ascii_case("eq") {
-	    Ok(Self::EQ)
-	} else if s.eq_ignore_ascii_case("ne") {
-	    Ok(Self::NE)
-	} else {
-	    err!("Invalid CompareOp, should be one of LT,GT,LE,GE,EQ,NE : '{}'", s)
-	}
+        if s.eq_ignore_ascii_case("lt") {
+            Ok(Self::LT)
+        } else if s.eq_ignore_ascii_case("gt") {
+            Ok(Self::GT)
+        } else if s.eq_ignore_ascii_case("le") {
+            Ok(Self::LE)
+        } else if s.eq_ignore_ascii_case("ge") {
+            Ok(Self::GE)
+        } else if s.eq_ignore_ascii_case("eq") {
+            Ok(Self::EQ)
+        } else if s.eq_ignore_ascii_case("ne") {
+            Ok(Self::NE)
+        } else {
+            err!(
+                "Invalid CompareOp, should be one of LT,GT,LE,GE,EQ,NE : '{}'",
+                s
+            )
+        }
     }
 }
 
 impl CompareOp {
     // invert left vs right. That is , swap less vs greater, but not equal vs not equal
     fn invert(&self) -> Self {
-	use CompareOp::*;
-	match self {
-	    LT => GT,
-	    GT => LT,
-	    LE => GE,
-	    GE => LE,
-	    EQ => EQ,
-	    NE => NE,
-	}
+        use CompareOp::*;
+        match self {
+            LT => GT,
+            GT => LT,
+            LE => GE,
+            GE => LE,
+            EQ => EQ,
+            NE => NE,
+        }
     }
     // return (line OP value), writing to stderr if false
-    fn line_ok_verbose(&self, line : &TextLine, comp : &mut LineCompList, line_num : usize) -> bool {
-	if !self.invert().line_ok(line, comp) {
-	    eprint!("Line {} : ", line_num);
-	    prerr_n(&[&line.line]);
-	    eprint!("should have been {:?} ", self);
-	    prerr_n(&[comp.get_value()]);
-	    eprintln!(" but wasn't");
-	    false
-	}
-	else {
-	    true
-	}
+    fn line_ok_verbose(&self, line: &TextLine, comp: &mut LineCompList, line_num: usize) -> bool {
+        if !self.invert().line_ok(line, comp) {
+            eprint!("Line {} : ", line_num);
+            prerr_n(&[&line.line]);
+            eprint!("should have been {:?} ", self);
+            prerr_n(&[comp.get_value()]);
+            eprintln!(" but wasn't");
+            false
+        } else {
+            true
+        }
     }
     // return (line OP value)
-    fn line_ok(&self, line : &TextLine, comp : &mut LineCompList) -> bool {
-	let o = comp.comp_self_cols(line);
-	self.ord_ok(o)
+    fn line_ok(&self, line: &TextLine, comp: &mut LineCompList) -> bool {
+        let o = comp.comp_self_cols(line);
+        self.ord_ok(o)
     }
-    fn ord_ok(&self, o : Ordering) -> bool {
-	use CompareOp::*;
-	use Ordering::*;
-	match self {
-	    LT => o == Less,
-	    GT => o == Greater,
-	    LE => o != Greater,
-	    GE => o != Less,
-	    EQ => o == Equal,
-	    NE => o != Equal,
-	}
+    fn ord_ok(&self, o: Ordering) -> bool {
+        use CompareOp::*;
+        use Ordering::*;
+        match self {
+            LT => o == Less,
+            GT => o == Greater,
+            LE => o != Greater,
+            GE => o != Less,
+            EQ => o == Equal,
+            NE => o != Equal,
+        }
     }
 }
 
 #[derive(Debug, Default)]
 struct CompareOpVal {
-    op : CompareOp,
-    val : Vec<u8>,
+    op: CompareOp,
+    val: Vec<u8>,
 }
 impl CompareOpVal {
-    fn new(spec : &str) -> Result<Self> {
-	let mut s = Self::default();
-	s.set(spec)?;
-	Ok(s)
+    fn new(spec: &str) -> Result<Self> {
+        let mut s = Self::default();
+        s.set(spec)?;
+        Ok(s)
     }
-    fn set(&mut self, spec : &str) -> Result<()> {
+    fn set(&mut self, spec: &str) -> Result<()> {
         if let Some((a, b)) = spec.split_once(',') {
-	    self.op = a.parse::<CompareOp>()?;
-	    self.val = b.as_bytes().to_owned();
-	    Ok(())
+            self.op = a.parse::<CompareOp>()?;
+            self.val = b.as_bytes().to_owned();
+            Ok(())
         } else {
             err!("Format for CompareOp is Op,Value : '{}'", spec)
         }
     }
-    fn line_ok_verbose(&self, line : &TextLine, comp : &mut LineCompList, line_num : usize) -> Result<bool> {
-	comp.set(&self.val, b',')?;
-	Ok(self.op.line_ok_verbose(line, comp, line_num))
+    fn line_ok_verbose(
+        &self,
+        line: &TextLine,
+        comp: &mut LineCompList,
+        line_num: usize,
+    ) -> Result<bool> {
+        comp.set(&self.val, b',')?;
+        Ok(self.op.line_ok_verbose(line, comp, line_num))
     }
 }
 
@@ -148,9 +155,9 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut do_sort = false;
     let mut do_unique = false;
     let mut max_fails = 5;
-    let mut first : Option<CompareOpVal> = None;
-    let mut last : Option<CompareOpVal> = None;
-    
+    let mut first: Option<CompareOpVal> = None;
+    let mut last: Option<CompareOpVal> = None;
+
     for x in args {
         if x.name == "pattern" {
             list.push_spec(&x.value)?;
@@ -158,20 +165,20 @@ pub fn main(argv: &[String]) -> Result<()> {
             MatchMaker::help();
             return Ok(());
         } else if x.name == "key" {
-	    comp.add(&x.value)?;
+            comp.add(&x.value)?;
         } else if x.name == "or" {
             list.multi = MultiMode::Or;
         } else if x.name == "fail" {
-	    max_fails = x.value.parse::<usize>()?;
+            max_fails = x.value.parse::<usize>()?;
         } else if x.name == "sort" {
-	    do_sort = true;
+            do_sort = true;
         } else if x.name == "first" {
-	    first = Some(CompareOpVal::new(&x.value)?);
+            first = Some(CompareOpVal::new(&x.value)?);
         } else if x.name == "last" {
-	    last = Some(CompareOpVal::new(&x.value)?);
+            last = Some(CompareOpVal::new(&x.value)?);
         } else if x.name == "unique" {
-	    do_sort = true;
-	    do_unique = true;
+            do_sort = true;
+            do_unique = true;
         } else if x.name == "show-const" {
             expr::show_const();
             return Ok(());
@@ -198,29 +205,41 @@ pub fn main(argv: &[String]) -> Result<()> {
         if f.is_done() {
             continue;
         }
-	if first.is_some() && !first.as_ref().unwrap().line_ok_verbose(f.curr_line(), &mut comp, f.line_number())? {
-	    fails += 1;
-	}
+        if first.is_some()
+            && !first.as_ref().unwrap().line_ok_verbose(
+                f.curr_line(),
+                &mut comp,
+                f.line_number(),
+            )?
+        {
+            fails += 1;
+        }
         loop {
-	    let mut did_fail = false;
+            let mut did_fail = false;
             if !list.ok_verbose(f.curr_line(), f.line_number(), x) {
-		did_fail = true;
+                did_fail = true;
             }
             if f.getline()? {
-		if last.is_some() && !last.as_ref().unwrap().line_ok_verbose(f.prev_line(1), &mut comp, f.line_number()-1)? {
-		    fails += 1;
-		}
-		break;
+                if last.is_some()
+                    && !last.as_ref().unwrap().line_ok_verbose(
+                        f.prev_line(1),
+                        &mut comp,
+                        f.line_number() - 1,
+                    )?
+                {
+                    fails += 1;
+                }
+                break;
             }
-	    if do_sort {
-		did_fail = did_fail || comp_check(&f, &mut comp, do_unique);
-	    }
-	    if did_fail {
-		fails += 1;
+            if do_sort {
+                did_fail = did_fail || comp_check(&f, &mut comp, do_unique);
+            }
+            if did_fail {
+                fails += 1;
                 if fails >= max_fails {
                     break;
                 }
-	    }
+            }
         }
         if fails > 0 {
             return Err(Error::Silent);

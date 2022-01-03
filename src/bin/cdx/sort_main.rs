@@ -1,9 +1,9 @@
 use crate::arg;
 use crate::args;
 use crate::args::ArgSpec;
-use cdx::comp::{CompMaker, LineCompList, comp_check};
-use cdx::util::{get_writer, Result, LookbackReader, err, Error};
+use cdx::comp::{comp_check, CompMaker, LineCompList};
 use cdx::sort;
+use cdx::util::{err, get_writer, Error, LookbackReader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
@@ -29,10 +29,10 @@ pub fn main(argv: &[String]) -> Result<()> {
             merge = true;
         } else if x.name == "check" {
             check = true;
-	    num_checks = 1;
+            num_checks = 1;
         } else if x.name == "Check" {
             check = true;
-	    num_checks = x.value.parse::<usize>()?;
+            num_checks = x.value.parse::<usize>()?;
         } else if x.name == "unique" {
             unique = true;
         } else if x.name == "show-comp" {
@@ -43,41 +43,40 @@ pub fn main(argv: &[String]) -> Result<()> {
         }
     }
     if check && merge {
-	return err!("Check and Merge make no sense together");
+        return err!("Check and Merge make no sense together");
     }
     if comp.is_empty() {
         comp.add("")?;
     }
     if check {
-	let mut reported = 0;
-	for x in &files {
-	    let mut f = LookbackReader::new_open(x, 1)?;
-	    if f.is_done() {
-		continue;
-	    }
-	    loop {
-		if f.getline()? {
-		    break;
-		}
-		if comp_check(&f, &mut comp, unique) {
-		    reported += 1;
-		    if reported >= num_checks {
-			break;
-		    }
-		}
-	    }
-	}
-	if reported > 0 {
-	    return Err(Error::Silent);
-	}
-    }
-    else {
-	let mut w = get_writer("-")?;
-	if merge {
+        let mut reported = 0;
+        for x in &files {
+            let mut f = LookbackReader::new_open(x, 1)?;
+            if f.is_done() {
+                continue;
+            }
+            loop {
+                if f.getline()? {
+                    break;
+                }
+                if comp_check(&f, &mut comp, unique) {
+                    reported += 1;
+                    if reported >= num_checks {
+                        break;
+                    }
+                }
+            }
+        }
+        if reported > 0 {
+            return Err(Error::Silent);
+        }
+    } else {
+        let mut w = get_writer("-")?;
+        if merge {
             sort::merge(&files, &mut comp, &mut w, unique)?;
-	} else {
+        } else {
             sort::sort(&files, comp, &mut w, unique)?;
-	}
+        }
     }
     Ok(())
 }

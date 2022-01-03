@@ -1258,7 +1258,7 @@ pub struct NamedCol {
 
 impl fmt::Display for NamedCol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Column {}", self.num+1)?;
+        write!(f, "Column {}", self.num + 1)?;
         if !self.name.is_empty() {
             write!(f, " ({})", self.name)
         } else if self.from_end != 0 {
