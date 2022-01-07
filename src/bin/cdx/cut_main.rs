@@ -26,7 +26,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "dups" {
             header.set_handling(DupColHandling::new(&x.value)?);
         } else if x.name == "fields" {
-            v.push(Box::new(ReaderColumns::new(ColumnSet::from_spec(&x.value))));
+            v.push(Box::new(ReaderColumns::new(ColumnSet::from_spec(
+                &x.value,
+            )?)));
         } else if x.name == "group" {
             v.push(Box::new(ColumnClump::from_spec(&x.value)?));
         } else if x.name == "composite" {

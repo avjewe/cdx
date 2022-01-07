@@ -35,7 +35,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                         return err!("file number must be greater than zero {}", y);
                     }
                     file = Some(fnum - 1);
-                    set.add_yes(spec);
+                    set.add_yes(spec)?;
                 } else {
                     if file.is_none() {
                         return err!(
@@ -43,7 +43,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                             x.value
                         );
                     }
-                    set.add_yes(y);
+                    set.add_yes(y)?;
                 }
             }
             if !set.is_empty() {

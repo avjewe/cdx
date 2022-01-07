@@ -1,11 +1,9 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
-use crate::text::{Case, Text};
+use crate::matcher::MatchMaker;
+use crate::text::Text;
 use crate::util::{err, Error, Result, StringLine, TextLine};
-use lazy_static::lazy_static;
-use regex::Regex;
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::io::Write;
 use std::{fmt, str};
@@ -256,10 +254,10 @@ pub struct ScopedValue {
 
 impl ScopedValue {
     /// one string
-    pub fn new(spec: &str, del: char) -> Self {
+    pub fn new(spec: &str, del: char) -> Result<Self> {
         let mut s = Self::default();
         if spec.is_empty() {
-            return s;
+            return Ok(s);
         }
         let mut spec = spec;
         let ch = spec.first();
@@ -267,7 +265,7 @@ impl ScopedValue {
             spec.skip_first();
             if spec.is_empty() {
                 s.value.push(del);
-                return s;
+                return Ok(s);
             }
             let ch = spec.first();
             if ch == del {
@@ -277,19 +275,19 @@ impl ScopedValue {
         while !spec.is_empty() {
             let ch = spec.take_first();
             if ch == del {
-                s.cols.add_yes(spec);
-                return s;
+                s.cols.add_yes(spec)?;
+                return Ok(s);
             }
             s.value.push(ch);
         }
-        s
+        Ok(s)
     }
     /// two strings
-    pub fn new2(value: &str, cols: &str) -> Self {
+    pub fn new2(value: &str, cols: &str) -> Result<Self> {
         let mut s = Self::default();
-        s.cols.add_yes(cols);
+        s.cols.add_yes(cols)?;
         s.value = value.to_string();
-        s
+        Ok(s)
     }
     /// resolve named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -351,12 +349,14 @@ impl ScopedValues {
     }
 
     /// add one ScopedValue
-    pub fn add(&mut self, spec: &str, del: char) {
-        self.data.push(ScopedValue::new(spec, del));
+    pub fn add(&mut self, spec: &str, del: char) -> Result<()> {
+        self.data.push(ScopedValue::new(spec, del)?);
+        Ok(())
     }
     /// add one ScopedValue
-    pub fn add2(&mut self, value: &str, cols: &str) {
-        self.data.push(ScopedValue::new2(value, cols));
+    pub fn add2(&mut self, value: &str, cols: &str) -> Result<()> {
+        self.data.push(ScopedValue::new2(value, cols)?);
+        Ok(())
     }
     /// get appropriate value for the column
     pub fn get(&self, col: usize) -> &str {
@@ -553,41 +553,65 @@ impl ColumnSet {
     }
 
     /// Create an column set from a spec, e.g. "1-3"
-    pub fn from_spec(spec: &str) -> Self {
+    pub fn from_spec(spec: &str) -> Result<Self> {
         let mut s = Self::default();
-        s.add_yes(spec);
-        s
+        s.add_yes(spec)?;
+        Ok(s)
     }
 
     /// Add some columns to be selected
-    pub fn add_yes(&mut self, spec: &str) {
-        self.add(spec, false);
+    pub fn add_yes(&mut self, spec: &str) -> Result<()> {
+        self.add(spec, false)
     }
 
     /// Add some columns to be rejected.
-    pub fn add_no(&mut self, spec: &str) {
-        self.add(spec, true);
+    pub fn add_no(&mut self, spec: &str) -> Result<()> {
+        self.add(spec, true)
     }
 
-    /// Add a spec, "yes" or "no" based on a flag.
-    pub fn add(&mut self, spec: &str, negate: bool) {
-        for s in spec.split(',') {
-            if let Some(stripped) = s.strip_prefix('~') {
-                let st = stripped.to_string();
-                if negate {
-                    self.pos.push(st);
-                } else {
-                    self.neg.push(st);
-                }
+    /// Add a single range, "yes" or "no" based on a flag.
+    pub fn add_one(&mut self, s: &str, negate: bool) {
+        if let Some(stripped) = s.strip_prefix('~') {
+            let st = stripped.to_string();
+            if negate {
+                self.pos.push(st);
             } else {
-                let st = s.to_string();
-                if negate {
-                    self.neg.push(st);
-                } else {
-                    self.pos.push(st);
-                }
+                self.neg.push(st);
+            }
+        } else {
+            let st = s.to_string();
+            if negate {
+                self.neg.push(st);
+            } else {
+                self.pos.push(st);
             }
         }
+    }
+
+    /// Add a list or ranges, "yes" or "no" based on a flag.
+    pub fn add(&mut self, spec: &str, negate: bool) -> Result<()> {
+        let mut spc = spec;
+        loop {
+            if spc.first() == '(' {
+                // FIXME - count open and close, in case pattern has parens
+                if let Some(pos) = spc.find(')') {
+                    self.add_one(&spc[..=pos], negate);
+                    spc = &spc[pos + 1..];
+                    if spc.is_empty() {
+                        break;
+                    }
+                } else {
+                    return err!("No closing paren in '{}'", spec);
+                }
+            } else if let Some((a, b)) = spc.split_once(',') {
+                self.add_one(a, negate);
+                spc = b;
+            } else {
+                self.add_one(spc, negate);
+                break;
+            }
+        }
+        Ok(())
     }
 
     /// Turn column name into column number
@@ -649,79 +673,18 @@ impl ColumnSet {
         }
     }
 
-    /// determine if two strings match, given an operator
-    fn do_compare(left: &str, right: &str, operator: &str) -> Result<bool> {
-        let val = left.cmp(right);
-        if operator == "<" {
-            return Ok(val == Ordering::Less);
-        }
-        if operator == "<=" {
-            return Ok(val != Ordering::Greater);
-        }
-        if operator == ">" {
-            return Ok(val == Ordering::Greater);
-        }
-        if operator == ">=" {
-            return Ok(val != Ordering::Less);
-        }
-        err!(operator.to_string())
-    }
-
-    /// determine if a name is within a range
-    fn do_compare2(name: &str, key1: &str, op1: &str, key2: &str, op2: &str) -> Result<bool> {
-        Ok(Self::do_compare(name, key1, op1)? && Self::do_compare(name, key2, op2)?)
-    }
-
-    /// Return all the fields that match the glob
-    fn glob_range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
+    /// Return all the fields that match the Matcher
+    fn match_range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
         let mut ret = Vec::new();
+        let c = MatchMaker::make(rng)?;
         for f in fieldnames.iter().enumerate() {
-            if f.1.glob(rng, Case::Sens) {
+            if c.smatch(f.1) {
                 // allow case insensitive?
                 ret.push(f.0);
             }
         }
         Ok(ret)
     }
-    /// Return all the field numbers that match a textual spec like <foo or <foo>bar """
-    fn text_range(fieldnames: &[&str], rng: &str) -> Result<Vec<usize>> {
-        let mut ret = Vec::new();
-        lazy_static! {
-            static ref RE1: Regex = Regex::new("^([<>]=?)([^<>]+)$").unwrap();
-            static ref RE2: Regex = Regex::new("^([<>]=?)([^<>]+)([<>]=?)([^<>]+)$").unwrap();
-        }
-
-        if let Some(caps) = RE1.captures(rng) {
-            for f in fieldnames.iter().enumerate() {
-                if Self::do_compare(
-                    f.1,
-                    caps.get(2).unwrap().as_str(),
-                    caps.get(1).unwrap().as_str(),
-                )? {
-                    ret.push(f.0);
-                }
-            }
-            return Ok(ret);
-        }
-
-        if let Some(caps) = RE2.captures(rng) {
-            for f in fieldnames.iter().enumerate() {
-                if Self::do_compare2(
-                    f.1,
-                    caps.get(2).unwrap().as_str(),
-                    caps.get(1).unwrap().as_str(),
-                    caps.get(4).unwrap().as_str(),
-                    caps.get(3).unwrap().as_str(),
-                )? {
-                    ret.push(f.0);
-                }
-            }
-            return Ok(ret);
-        }
-
-        err!("Malformed Range {}", rng)
-    }
-
     fn to_outcols(data: &[usize], name: &str) -> Vec<OutCol> {
         let mut ret = Vec::with_capacity(data.len());
         for x in data {
@@ -733,7 +696,7 @@ impl ColumnSet {
     /// turn comma delimited list of ranges into list of possibly named column numbers
     pub fn ranges(fieldnames: &[&str], rng: &str) -> Result<Vec<OutCol>> {
         let mut c = Self::new();
-        c.add_yes(rng);
+        c.add_yes(rng)?;
         c.lookup(fieldnames)?;
         Ok(c.get_cols_full())
     }
@@ -747,20 +710,13 @@ impl ColumnSet {
             Some(x) => x,
         };
 
-        let ch = range.chars().next().unwrap();
-        if ch == '<' || ch == '>' || ch == '=' {
+        let ch = range.first();
+        if ch == '(' {
             return Ok(Self::to_outcols(
-                &Self::text_range(fieldnames, range)?,
+                &Self::match_range(fieldnames, &range[1..range.len() - 1])?,
                 name,
             ));
         }
-        if range.contains('*') || rng.contains('?') {
-            return Ok(Self::to_outcols(
-                &Self::glob_range(fieldnames, range)?,
-                name,
-            ));
-        }
-
         let mut parts: Vec<&str> = range.split('-').collect();
         if parts.len() > 2 {
             return err!("Malformed Range {}", rng);
@@ -1033,7 +989,7 @@ impl ColumnSet {
     /// ```
     pub fn lookup_cols(spec: &str, names: &[&str]) -> Result<Vec<usize>> {
         let mut s = Self::new();
-        s.add_yes(spec);
+        s.add_yes(spec)?;
         s.lookup(names)?;
         Ok(s.get_cols_num())
     }
@@ -1041,7 +997,7 @@ impl ColumnSet {
     /// Shorthand to look up some columns, with names
     pub fn lookup_cols_full(spec: &str, names: &[&str]) -> Result<Vec<OutCol>> {
         let mut s = Self::new();
-        s.add_yes(spec);
+        s.add_yes(spec)?;
         s.lookup(names)?;
         Ok(s.get_cols_full())
     }
@@ -1057,7 +1013,7 @@ impl ColumnSet {
     /// ```
     pub fn lookup1(spec: &str, names: &[&str]) -> Result<usize> {
         let mut s = Self::new();
-        s.add_yes(spec);
+        s.add_yes(spec)?;
         s.lookup(names)?;
         if s.get_cols().len() != 1 {
             return err!(
@@ -1111,7 +1067,7 @@ impl ColumnClump {
         }
         let parts = parts.unwrap();
         let mut g = ColumnSet::new();
-        g.add_yes(parts.1);
+        g.add_yes(parts.1)?;
         let cols = Box::new(ReaderColumns::new(g));
         Ok(Self {
             cols,

@@ -1,0 +1,9 @@
+#command cdx cut -f (range,<two>one)
+#stdin
+ CDX	one	two	three
+aaa	bbb	ccc
+ddd	eee	fff
+#stdout
+ CDX	three
+ccc
+fff
