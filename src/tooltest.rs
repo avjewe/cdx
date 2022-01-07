@@ -1,6 +1,5 @@
 //! parse and run tooltest files
 use crate::matcher::{MatchMaker, Matcher};
-use crate::num::str_to_i_whole;
 use crate::text::Text;
 use crate::util::{err, get_reader, get_writer, prerr, Error, Infile, Result};
 
@@ -199,7 +198,7 @@ impl Test {
                 /* do nothing */
             } else if let Some(x) = line.strip_prefix(b"#status") {
                 let y = x.trimw_start();
-                self.code = str_to_i_whole(y)? as i32;
+                self.code = y.to_isize_whole()? as i32;
             } else if let Some(x) = line.strip_prefix(b"#infile") {
                 let y = x.trimw_start();
                 let mut f = InFile {

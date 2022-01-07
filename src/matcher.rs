@@ -32,9 +32,10 @@
 use crate::column::NamedCol;
 use crate::expr::Expr;
 use crate::text::{Case, Text};
-use crate::util::{err, Error, Reader, Result, TextLine};
+use crate::util::{err, CheckBuff, Error, Reader, Result, TextLine};
 use lazy_static::lazy_static;
 use memchr::memmem::find;
+use regex::Regex;
 use std::collections::HashSet;
 use std::fmt;
 use std::sync::Mutex;
@@ -124,11 +125,24 @@ impl fmt::Display for dyn LineMatch + '_ {
     }
 }
 
-/// pattern is prefix of string
+impl Match for CheckBuff {
+    fn smatch(&self, buff: &str) -> bool {
+        self.umatch(buff.as_bytes())
+    }
+    fn umatch(&self, buff: &[u8]) -> bool {
+        self.buff_ok(buff)
+    }
+    fn show(&self) -> String {
+        "Compare Match".to_string() // FIXME
+    }
+}
+
+// pattern is prefix of string
 #[derive(Debug, Clone)]
 struct PrefixMatch {
     data: String,
 }
+
 impl PrefixMatch {
     fn new(data: &str) -> Self {
         Self {
@@ -344,7 +358,7 @@ impl Match for InfixMatch {
 #[derive(Debug, Clone)]
 /// bytes regex
 struct RegexMatch {
-    s_data: regex::Regex,
+    s_data: Regex,
     u_data: regex::bytes::Regex,
     pattern: String,
 }
@@ -1121,6 +1135,11 @@ impl MatchMaker {
             |m, p| Ok(Box::new(RegexMatch::new(p, m.case)?)),
         )?;
         Self::do_push(
+            "range",
+            "Match using a CompareOp and a Comparator",
+            |_m, p| Ok(Box::new(CheckBuff::new(p)?)),
+        )?;
+        Self::do_push(
             "file-exact",
             "Is the target exactly one one the lines in this file?",
             |m, p| {
@@ -1422,5 +1441,37 @@ impl LineMatch for ExprMatcher {
             "Floating Point Expression must be non-zero : {}",
             self.con.expr()
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn range() -> Result<()> {
+        let c = MatchMaker::make("range,plain,<=dog>cat")?;
+        assert_eq!(c.smatch("ccc"), true);
+        assert_eq!(c.smatch("cat"), false);
+        assert_eq!(c.smatch("dog"), true);
+        assert_eq!(c.smatch("doh"), false);
+        assert_eq!(c.smatch("dof"), true);
+        let c = MatchMaker::make("range,<dog>=cat")?;
+        assert_eq!(c.smatch("cat"), true);
+        let c = MatchMaker::make("range,!=cat")?;
+        assert_eq!(c.smatch("cat"), false);
+        assert_eq!(c.smatch("dog"), true);
+        let c = MatchMaker::make("range,GT,cat,LE,dog")?;
+        assert_eq!(c.smatch("cat"), false);
+        assert_eq!(c.smatch("dog"), true);
+        let c = MatchMaker::make("range,LE,dog")?;
+        assert_eq!(c.smatch("cat"), true);
+        assert_eq!(c.smatch("dog"), true);
+        assert_eq!(c.smatch("doh"), false);
+        let c = MatchMaker::make("range,lower,LE,dog")?;
+        assert_eq!(c.smatch("Cat"), true);
+        assert_eq!(c.smatch("Dog"), true);
+        assert_eq!(c.smatch("Doh"), false);
+        Ok(())
     }
 }

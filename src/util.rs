@@ -1,14 +1,19 @@
 //! Misc utility stuff
 
+use crate::comp::{CompMaker, Compare, LineCompList};
 use crate::text::Text;
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
+use lazy_static::lazy_static;
+use regex::Regex;
+use std::cmp::Ordering;
 use std::error;
 use std::ffi::OsStr;
 use std::io::{self, BufRead, Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
+use std::str::FromStr;
 use std::{fmt, str};
 
 /// Shorthand for returning an error Result
@@ -1070,7 +1075,7 @@ pub enum HeaderMode {
 /// strings associated with HeaderMode
 pub const HEADER_MODE: [&str; 6] = ["Match", "Require", "Strip", "None", "Trust", "Ignore"];
 
-impl str::FromStr for HeaderMode {
+impl FromStr for HeaderMode {
     type Err = Error;
     fn from_str(spec: &str) -> Result<Self> {
         if spec.to_ascii_lowercase() == "match" {
@@ -1258,5 +1263,341 @@ pub fn copy(mut r: impl Read, mut w: impl Write) -> Result<()> {
             return Ok(());
         }
         w.write_all(&buff[0..sz])?;
+    }
+}
+
+/// comparison
+#[derive(Debug, Copy, Clone)]
+pub enum CompareOp {
+    /// les than
+    LT,
+    /// greater than
+    GT,
+    /// less than or equal
+    LE,
+    /// greater than or equal
+    GE,
+    /// equal
+    EQ,
+    /// not equal
+    NE,
+}
+impl Default for CompareOp {
+    fn default() -> Self {
+        Self::LT
+    }
+}
+
+impl FromStr for CompareOp {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        if s.eq_ignore_ascii_case("lt") {
+            Ok(Self::LT)
+        } else if s.eq_ignore_ascii_case("gt") {
+            Ok(Self::GT)
+        } else if s.eq_ignore_ascii_case("le") {
+            Ok(Self::LE)
+        } else if s.eq_ignore_ascii_case("ge") {
+            Ok(Self::GE)
+        } else if s.eq_ignore_ascii_case("eq") {
+            Ok(Self::EQ)
+        } else if s.eq_ignore_ascii_case("ne") {
+            Ok(Self::NE)
+        } else if s.eq_ignore_ascii_case("<") {
+            Ok(Self::LT)
+        } else if s.eq_ignore_ascii_case(">") {
+            Ok(Self::GT)
+        } else if s.eq_ignore_ascii_case("<=") {
+            Ok(Self::LE)
+        } else if s.eq_ignore_ascii_case(">=") {
+            Ok(Self::GE)
+        } else if s.eq_ignore_ascii_case("==") {
+            Ok(Self::EQ)
+        } else if s.eq_ignore_ascii_case("!=") {
+            Ok(Self::NE)
+        } else {
+            err!(
+                "Invalid CompareOp, should be one of LT,<,GT,>,LE,<=,GE,>=,EQ,==,NE,!= : '{}'",
+                s
+            )
+        }
+    }
+}
+
+impl CompareOp {
+    /// invert left vs right. That is, swap less vs greater, but not equal vs not equal
+    pub const fn invert(&self) -> Self {
+        use CompareOp::*;
+        match self {
+            LT => GT,
+            GT => LT,
+            LE => GE,
+            GE => LE,
+            EQ => EQ,
+            NE => NE,
+        }
+    }
+    /// return (line OP value), writing to stderr if false
+    pub fn line_ok_verbose(
+        &self,
+        line: &TextLine,
+        comp: &mut LineCompList,
+        line_num: usize,
+    ) -> bool {
+        if !self.invert().line_ok(line, comp) {
+            eprint!("Line {} : ", line_num);
+            prerr_n(&[&line.line]);
+            eprint!("should have been {:?} ", self);
+            prerr_n(&[comp.get_value()]);
+            eprintln!(" but wasn't");
+            false
+        } else {
+            true
+        }
+    }
+    /// return (line OP value)
+    pub fn line_ok(&self, line: &TextLine, comp: &mut LineCompList) -> bool {
+        let o = comp.comp_self_cols(line);
+        self.ord_ok(o)
+    }
+    /// does Ordering satisfy CompareOp
+    pub fn ord_ok(&self, o: Ordering) -> bool {
+        use CompareOp::*;
+        use Ordering::*;
+        match self {
+            LT => o == Less,
+            GT => o == Greater,
+            LE => o != Greater,
+            GE => o != Less,
+            EQ => o == Equal,
+            NE => o != Equal,
+        }
+    }
+}
+
+struct RangeSpec<'a> {
+    op1: &'a str,
+    val1: &'a str,
+    op2: Option<&'a str>,
+    val2: Option<&'a str>,
+}
+
+impl<'a> RangeSpec<'a> {
+    fn new(spec: &'a str) -> Result<Self> {
+        lazy_static! {
+            static ref RE1: Regex =
+                Regex::new("^(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap();
+            static ref RE2: Regex = Regex::new("^(<|>|<=|>=|==|!=)(.+)$").unwrap();
+            static ref RE3: Regex =
+                Regex::new("^(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
+            static ref RE4: Regex = Regex::new("^(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
+        }
+        if let Some(caps) = RE1.captures(spec) {
+            Ok(Self {
+                op1: caps.get(1).unwrap().as_str(),
+                val1: caps.get(2).unwrap().as_str(),
+                op2: Some(caps.get(3).unwrap().as_str()),
+                val2: Some(caps.get(4).unwrap().as_str()),
+            })
+        } else if let Some(caps) = RE2.captures(spec) {
+            Ok(Self {
+                op1: caps.get(1).unwrap().as_str(),
+                val1: caps.get(2).unwrap().as_str(),
+                op2: None,
+                val2: None,
+            })
+        } else if let Some(caps) = RE3.captures(spec) {
+            Ok(Self {
+                op1: caps.get(1).unwrap().as_str(),
+                val1: caps.get(2).unwrap().as_str(),
+                op2: Some(caps.get(3).unwrap().as_str()),
+                val2: Some(caps.get(4).unwrap().as_str()),
+            })
+        } else if let Some(caps) = RE4.captures(spec) {
+            Ok(Self {
+                op1: caps.get(1).unwrap().as_str(),
+                val1: caps.get(2).unwrap().as_str(),
+                op2: None,
+                val2: None,
+            })
+        } else {
+            err!("Not valid range spec '{}'", spec)
+        }
+    }
+    fn new_trail(spec: &'a str) -> Result<(Self, usize)> {
+        lazy_static! {
+            static ref RE1: Regex =
+                Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap();
+            static ref RE2: Regex = Regex::new("(^|,)(<|>|<=|>=|==|!=)(.+)$").unwrap();
+            static ref RE3: Regex =
+                Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
+            static ref RE4: Regex = Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
+        }
+        if let Some(caps) = RE1.captures(spec) {
+            Ok((
+                Self {
+                    op1: caps.get(2).unwrap().as_str(),
+                    val1: caps.get(3).unwrap().as_str(),
+                    op2: Some(caps.get(4).unwrap().as_str()),
+                    val2: Some(caps.get(5).unwrap().as_str()),
+                },
+                caps.get(0).unwrap().start(),
+            ))
+        } else if let Some(caps) = RE2.captures(spec) {
+            Ok((
+                Self {
+                    op1: caps.get(2).unwrap().as_str(),
+                    val1: caps.get(3).unwrap().as_str(),
+                    op2: None,
+                    val2: None,
+                },
+                caps.get(0).unwrap().start(),
+            ))
+        } else if let Some(caps) = RE3.captures(spec) {
+            Ok((
+                Self {
+                    op1: caps.get(2).unwrap().as_str(),
+                    val1: caps.get(3).unwrap().as_str(),
+                    op2: Some(caps.get(4).unwrap().as_str()),
+                    val2: Some(caps.get(5).unwrap().as_str()),
+                },
+                caps.get(0).unwrap().start(),
+            ))
+        } else if let Some(caps) = RE4.captures(spec) {
+            Ok((
+                Self {
+                    op1: caps.get(2).unwrap().as_str(),
+                    val1: caps.get(3).unwrap().as_str(),
+                    op2: None,
+                    val2: None,
+                },
+                caps.get(0).unwrap().start(),
+            ))
+        } else {
+            err!("Not valid trailing range spec '{}'", spec)
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+/// A compare op with some text to compare against
+pub struct CheckLine {
+    op: CompareOp,
+    val: String,
+    op2: Option<CompareOp>,
+    val2: Option<String>,
+}
+
+impl CheckLine {
+    /// new from spec : OP,Text
+    pub fn new(spec: &str) -> Result<Self> {
+        let mut s = Self::default();
+        s.set(spec)?;
+        Ok(s)
+    }
+    /// new from parts
+    fn set_with(&mut self, r: &RangeSpec<'_>) -> Result<()> {
+        self.op = r.op1.parse::<CompareOp>()?;
+        self.val = r.val1.to_owned();
+        self.op2 = if r.op2.is_none() {
+            None
+        } else {
+            Some(r.op2.unwrap().parse::<CompareOp>()?)
+        };
+        self.val2 = if r.val2.is_none() {
+            None
+        } else {
+            Some(r.op2.unwrap().to_owned())
+        };
+        Ok(())
+    }
+    /// set from spec OP,Text
+    pub fn set(&mut self, spec: &str) -> Result<()> {
+        self.set_with(&RangeSpec::new(spec)?)
+    }
+    /// compare line OP text, return true if match, print to stderr if non-mtch
+    pub fn line_ok_verbose(
+        &self,
+        line: &TextLine,
+        comp: &mut LineCompList,
+        line_num: usize,
+    ) -> Result<bool> {
+        comp.set(self.val.as_bytes(), b',')?;
+        Ok(self.op.line_ok_verbose(line, comp, line_num))
+    }
+    /// compare line OP text, return true if match
+    pub fn line_ok(&self, line: &TextLine, comp: &mut LineCompList) -> Result<bool> {
+        comp.set(self.val.as_bytes(), b',')?;
+        let ret = self.op.line_ok(line, comp);
+        if !ret {
+            return Ok(false);
+        }
+        match self.op2 {
+            None => Ok(true),
+            Some(o) => {
+                comp.set(self.val2.as_ref().unwrap().as_bytes(), b',')?;
+                Ok(o.line_ok(line, comp))
+            }
+        }
+    }
+}
+
+// range,Comparator,RangeThing
+
+/// A compare op with some text to compare against
+pub struct CheckBuff {
+    op: CompareOp,
+    val: Box<dyn Compare>,
+    op2: Option<CompareOp>,
+    val2: Option<Box<dyn Compare>>,
+}
+impl fmt::Debug for CheckBuff {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CheckBuff")
+    }
+}
+
+impl CheckBuff {
+    /// new from spec : OP,Text
+    pub fn new(spec: &str) -> Result<Self> {
+        let (range, bytes) = RangeSpec::new_trail(spec)?;
+        Self::new_with(&spec[..bytes], &range)
+    }
+    /// new from parts
+    fn new_with(comp_spec: &str, r: &RangeSpec<'_>) -> Result<Self> {
+        Ok(Self {
+            op: r.op1.parse::<CompareOp>()?,
+            val: {
+                let mut c = CompMaker::make_comp_box(comp_spec)?;
+                c.set(r.val1.as_bytes());
+                c
+            },
+            op2: if r.op2.is_none() {
+                None
+            } else {
+                Some(r.op2.unwrap().parse::<CompareOp>()?)
+            },
+            val2: if r.val2.is_none() {
+                None
+            } else {
+                let mut c = CompMaker::make_comp_box(comp_spec)?;
+                c.set(r.val2.unwrap().as_bytes());
+                Some(c)
+            },
+        })
+    }
+    /// does right match?
+    pub fn buff_ok(&self, right: &[u8]) -> bool {
+        let c = self.val.comp_self(right);
+        if !self.op.invert().ord_ok(c) {
+            return false;
+        }
+        match self.op2 {
+            None => true,
+            Some(o) => {
+                let c = self.val2.as_ref().unwrap().comp_self(right);
+                o.invert().ord_ok(c)
+            }
+        }
     }
 }

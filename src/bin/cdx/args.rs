@@ -109,7 +109,8 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
     let mut a = clap::App::new("cdx")
         .version(&*prog.version)
         .author(&*prog.author)
-        .about(&*prog.help);
+        .about(&*prog.help)
+        .global_setting(clap::AppSettings::DeriveDisplayOrder);
 
     for x in spec {
         let mut b = clap::Arg::new(x.name);
@@ -119,24 +120,22 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
                 .help(x.help)
                 .allow_invalid_utf8(true)
                 .required(true)
-                .multiple_values(false)
-                .multiple_occurrences(false)
         } else {
             if !x.short.is_empty() {
                 b = b.short(x.short.first());
             }
             b = b.long(x.name).help(x.help).multiple_occurrences(true);
             if !x.value.is_empty() {
-		b = b
+                b = b
                     .value_name(x.value)
                     .number_of_values(1)
                     .takes_value(true)
                     .allow_invalid_utf8(true);
             }
             if !x.values.is_empty() {
-		b = b.possible_values(x.values).ignore_case(true);
+                b = b.possible_values(x.values).ignore_case(true);
             }
-	}
+        }
         a = a.arg(b);
     }
     match prog.files {

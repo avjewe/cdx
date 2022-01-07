@@ -25,7 +25,7 @@
 #![allow(clippy::float_cmp)]
 use crate::column::{get_col, NamedCol};
 use crate::expr::Expr;
-use crate::num::{fcmp, str_to_d_lossy, ulp_to_ulong, Junk, JunkType, JunkVal};
+use crate::num::{fcmp, ulp_to_ulong, Junk, JunkType, JunkVal};
 use crate::text::Text;
 use crate::util::{err, prerr_n, Error, LookbackReader, Result, TextLine};
 use lazy_static::lazy_static;
@@ -1122,52 +1122,6 @@ impl CompMaker {
         }
         err!("No such compare type : '{}'", comp.ctype)
     }
-    /*
-        /// Create a Comparator from separate specs
-        pub fn make3(columns: &str, method: &str, pattern: &str) -> Result<Comparator> {
-            Self::init()?;
-            let mut ret = Comparator::default();
-            if !columns.is_empty() {
-                for x in columns.split('.') {
-                    ret.cols.push(NamedCol::new_from(x)?);
-                }
-            }
-            for x in method.split('.') {
-                // junk types
-                if x.eq_ignore_ascii_case("rev") {
-                    ret.reverse = true;
-                } else {
-                    ret.ctype = x.to_string();
-                }
-            }
-            ret.comp = Self::make_comp(&ret.ctype, pattern)?;
-            Ok(ret)
-        }
-        /// make a Compare from a spec
-        pub fn make_comp(ctype: &str, pattern: &str) -> Result<Box<dyn Compare>> {
-            Self::init()?;
-            let ctype = Self::resolve_alias(ctype);
-            let mm = COMP_MAKER.lock().unwrap();
-            for x in &*mm {
-                if ctype.eq_ignore_ascii_case(x.tag) {
-                    return (x.maker)(pattern);
-                }
-            }
-            err!("No such compare type : '{}'", ctype)
-        }
-        /// Create a Comparator from a full spec, i.e. "Columns,Method,Pattern""
-        pub fn make(spec: &str) -> Result<Comparator> {
-            if let Some((a, b)) = spec.split_once(',') {
-                if let Some((c, d)) = b.split_once(',') {
-                    Self::make3(a, c, d)
-                } else {
-                    Self::make3(a, b, "")
-                }
-            } else {
-                Self::make3(spec, "", "")
-            }
-        }
-    */
 }
 
 #[derive(Default, Debug)]
@@ -1651,7 +1605,7 @@ impl Compare for CompareNumeric {
         num_cmp_signed(left, right) == Ordering::Equal
     }
     fn fill_cache(&self, item: &mut Item, value: &[u8]) {
-        item.cache = ulp_to_ulong(str_to_d_lossy(value));
+        item.cache = ulp_to_ulong(value.to_f64_lossy());
     }
     fn set(&mut self, value: &[u8]) {
         self.value = value.to_vec();
@@ -1686,23 +1640,23 @@ impl Compare for CompareEqual {
 
 impl Compare for Comparef64 {
     fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
-        fcmp(str_to_d_lossy(left), str_to_d_lossy(right))
+        fcmp(left.to_f64_lossy(), right.to_f64_lossy())
     }
     fn equal(&self, left: &[u8], right: &[u8]) -> bool {
-        str_to_d_lossy(left) == str_to_d_lossy(right)
+        left.to_f64_lossy() == right.to_f64_lossy()
     }
     fn fill_cache(&self, item: &mut Item, value: &[u8]) {
-        item.cache = ulp_to_ulong(str_to_d_lossy(value));
+        item.cache = ulp_to_ulong(value.to_f64_lossy());
         item.set_complete();
     }
     fn set(&mut self, value: &[u8]) {
-        self.value = str_to_d_lossy(value);
+        self.value = value.to_f64_lossy();
     }
     fn comp_self(&self, right: &[u8]) -> Ordering {
-        fcmp(self.value, str_to_d_lossy(right))
+        fcmp(self.value, right.to_f64_lossy())
     }
     fn equal_self(&self, right: &[u8]) -> bool {
-        self.value == str_to_d_lossy(right)
+        self.value == right.to_f64_lossy()
     }
 }
 
@@ -1899,7 +1853,7 @@ impl LineCompare for LineCompExpr {
         item.set_complete();
     }
     fn set(&mut self, value: &[u8]) {
-        self.value = str_to_d_lossy(value)
+        self.value = value.to_f64_lossy()
     }
     fn comp_self_cols(&mut self, right: &TextLine) -> Ordering {
         let value = self.exprs[0].eval(right);

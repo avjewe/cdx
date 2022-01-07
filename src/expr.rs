@@ -2,8 +2,8 @@
 #![allow(clippy::float_cmp)]
 
 use crate::column::get_col;
-use crate::num;
 use crate::shunting_yard::*;
+use crate::text::Text;
 use crate::tokenizer::*;
 use crate::util::{err, Error, Result, TextLine};
 use lazy_static::lazy_static;
@@ -440,14 +440,14 @@ impl Expr {
     fn prepare(&mut self, t: &TextLine) {
         for x in &mut self.vars {
             if let Some(c) = x.col {
-                x.val = num::str_to_d_lossy(t.get(c));
+                x.val = t.get(c).to_f64_lossy();
             }
         }
     }
     fn prepare_line(&mut self, t: &[u8], delim: u8) {
         for x in &mut self.vars {
             if let Some(c) = x.col {
-                x.val = num::str_to_d_lossy(get_col(t, c, delim));
+                x.val = get_col(t, c, delim).to_f64_lossy();
             }
         }
     }

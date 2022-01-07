@@ -1,6 +1,8 @@
 //! The Text trait, with implementations for str and &[u8]
 //! for all those things that are needed for both types
 
+use crate::num::{Junk, JunkType};
+use crate::util::{err, Error, Result};
 use std::cmp::Ordering;
 use std::ops::Range;
 
@@ -87,6 +89,116 @@ pub trait Text {
     fn trimw(&self) -> &Self;
     /// trim whitespace at start of slice
     fn trimw_start(&self) -> &Self;
+    /// convert to printable str
+    fn to_str(&self) -> std::borrow::Cow<'_, str>;
+    /// convert to usize
+    fn to_usize(&self) -> (usize, &Self);
+    /// to_usize, but simply retrj best guess
+    fn to_usize_lossy(&self) -> usize {
+        self.to_usize().0
+    }
+    /// to_usize, but fail if any text remains
+    fn to_usize_whole(&self) -> Result<usize> {
+        let (val, rest) = self.to_usize();
+        if !rest.is_empty() {
+            err!("Malformed unsigned integer {}", self.to_str())
+        } else {
+            Ok(val)
+        }
+    }
+    /// bytes_to_d, returning junk value as appropriate
+    fn to_usize_junk(&self, junk: &Junk) -> usize {
+        let (val, rest) = self.to_usize();
+        match junk.junk_type {
+            JunkType::Any => val,
+            JunkType::Trailing => {
+                if self.len() != rest.len() {
+                    val
+                } else {
+                    junk.val()
+                }
+            }
+            JunkType::None => {
+                if rest.is_empty() && !self.is_empty() {
+                    val
+                } else {
+                    junk.val()
+                }
+            }
+        }
+    }
+    /// convert to isize
+    fn to_isize(&self) -> (isize, &Self);
+    /// to_isize, but simply retrj best guess
+    fn to_isize_lossy(&self) -> isize {
+        self.to_isize().0
+    }
+    /// to_isize, but fail if any text remains
+    fn to_isize_whole(&self) -> Result<isize> {
+        let (val, rest) = self.to_isize();
+        if !rest.is_empty() {
+            err!("Malformed signed integer {}", self.to_str())
+        } else {
+            Ok(val)
+        }
+    }
+    /// bytes_to_d, returning junk value as appropriate
+    fn to_isize_junk(&self, junk: &Junk) -> isize {
+        let (val, rest) = self.to_isize();
+        match junk.junk_type {
+            JunkType::Any => val,
+            JunkType::Trailing => {
+                if self.len() != rest.len() {
+                    val
+                } else {
+                    junk.val()
+                }
+            }
+            JunkType::None => {
+                if rest.is_empty() && !self.is_empty() {
+                    val
+                } else {
+                    junk.val()
+                }
+            }
+        }
+    }
+    /// convert to f64, return value and remainder
+    fn to_f64(&self) -> (f64, &Self);
+    /// to_f64, but simply return best guess
+    fn to_f64_lossy(&self) -> f64 {
+        self.to_f64().0
+    }
+    /// to_f64, but fail if any text remains
+    fn to_f64_whole(&self) -> Result<f64> {
+        let (val, rest) = self.to_f64();
+        if !rest.is_empty() {
+            err!("Malformed float {}", self.to_str())
+        } else {
+            Ok(val)
+        }
+    }
+    /// bytes_to_d, returning junk value as appropriate
+    fn to_f64_junk(&self, junk: &Junk) -> f64 {
+        let (val, rest) = self.to_f64();
+        match junk.junk_type {
+            JunkType::Any => val,
+            JunkType::Trailing => {
+                if self.len() != rest.len() {
+                    val
+                } else {
+                    junk.val()
+                }
+            }
+            JunkType::None => {
+                if rest.is_empty() && !self.is_empty() {
+                    val
+                } else {
+                    junk.val()
+                }
+            }
+        }
+    }
 
     /// match in glob format
     fn glob(&self, in_wild: &Self, ic: Case) -> bool {
@@ -320,6 +432,40 @@ impl Text for str {
     fn last_byte(&self) -> u8 {
         self.as_bytes()[self.len() - 1]
     }
+    fn to_str(&self) -> std::borrow::Cow<'_, str> {
+        std::borrow::Cow::from(self)
+    }
+    fn to_usize(&self) -> (usize, &Self) {
+        let (a, b) = self.as_bytes().to_usize();
+        (a, &self[self.len() - b.len()..])
+    }
+    fn to_isize(&self) -> (isize, &Self) {
+        let (a, b) = self.as_bytes().to_isize();
+        (a, &self[self.len() - b.len()..])
+    }
+    fn to_f64(&self) -> (f64, &Self) {
+        let (a, b) = self.as_bytes().to_f64();
+        (a, &self[self.len() - b.len()..])
+    }
+}
+
+const fn is_exp(buf: &[u8]) -> bool {
+    if buf.len() < 2 {
+        return false;
+    }
+    if buf[0] != b'e' && buf[0] != b'E' {
+        return false;
+    }
+    if buf[1].is_ascii_digit() {
+        return true;
+    }
+    if buf[1] != b'+' && buf[1] != b'-' {
+        return false;
+    }
+    if buf.len() < 3 {
+        return false;
+    }
+    buf[2].is_ascii_digit()
 }
 
 impl Text for [u8] {
@@ -440,11 +586,139 @@ impl Text for [u8] {
     fn last_byte(&self) -> u8 {
         self[self.len() - 1]
     }
+    fn to_str(&self) -> std::borrow::Cow<'_, str> {
+        String::from_utf8_lossy(self)
+    }
+    fn to_usize(&self) -> (usize, &Self) {
+        let mut curr = self;
+        if !curr.is_empty() && curr[0] == b'+' {
+            curr = &curr[1..];
+        }
+        let mut ret: usize = 0;
+        if curr.is_empty() || !curr[0].is_ascii_digit() {
+            return (0, self);
+        }
+        while !curr.is_empty() && curr[0].is_ascii_digit() {
+            ret *= 10;
+            ret += (curr[0] - b'0') as usize;
+            curr = &curr[1..];
+        }
+        (ret, curr)
+    }
+    fn to_isize(&self) -> (isize, &Self) {
+        let mut neg: isize = 1;
+        let mut curr = self;
+        if !curr.is_empty() {
+            if curr[0] == b'+' {
+                curr = &curr[1..];
+            } else if curr[0] == b'-' {
+                curr = &curr[1..];
+                neg = -1;
+            }
+        }
+        let mut ret: isize = 0;
+        if curr.is_empty() || !curr[0].is_ascii_digit() {
+            return (0, self);
+        }
+        while !curr.is_empty() && curr[0].is_ascii_digit() {
+            ret *= 10;
+            ret += (curr[0] - b'0') as isize;
+            curr = &curr[1..];
+        }
+        ret *= neg;
+        (ret, curr)
+    }
+    fn to_f64(&self) -> (f64, &Self) {
+        let mut neg: f64 = 1.0;
+        let mut curr = self;
+        if curr.is_empty() {
+            return (0.0, self);
+        }
+        if curr[0] == b'+' {
+            curr = &curr[1..];
+        } else if curr[0] == b'-' {
+            curr = &curr[1..];
+            neg = -1.0;
+        }
+        let mut ret: f64 = 0.0;
+        while !curr.is_empty() && curr[0].is_ascii_digit() {
+            ret *= 10.0;
+            ret += (curr[0] - b'0') as f64;
+            curr = &curr[1..];
+        }
+        if !curr.is_empty() && (curr[0] == b'.') {
+            curr = &curr[1..];
+            let mut place = 0.1;
+            while !curr.is_empty() && curr[0].is_ascii_digit() {
+                ret += place * (curr[0] - b'0') as f64;
+                place *= 0.1;
+                curr = &curr[1..];
+            }
+        }
+
+        if is_exp(curr) {
+            curr = &curr[1..];
+            let mut neg_exp: i32 = 1;
+            if !curr.is_empty() {
+                if curr[0] == b'+' {
+                    curr = &curr[1..];
+                } else if curr[0] == b'-' {
+                    neg_exp = -1;
+                    curr = &curr[1..];
+                }
+            }
+            let mut exponent: i32 = 0;
+            while !curr.is_empty() && curr[0].is_ascii_digit() {
+                exponent *= 10;
+                exponent += (curr[0] - b'0') as i32;
+                curr = &curr[1..];
+            }
+            exponent *= neg_exp;
+            match exponent {
+                -2 => {
+                    ret *= 0.01;
+                }
+                -1 => {
+                    ret *= 0.1;
+                }
+                0 => {}
+                1 => {
+                    ret *= 10.0;
+                }
+                2 => {
+                    ret *= 100.0;
+                }
+                3 => {
+                    ret *= 1000.0;
+                }
+                //  	    These two lose accuracy
+                //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LOG2_10).exp2();},
+                //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LN_10).exp();},
+                _ => {
+                    ret *= libm::exp10(exponent as f64);
+                }
+            }
+        }
+        (neg * ret, curr)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn numbers() {
+        let (x, y) = "123.456xyz".to_f64();
+        assert_eq!(x, 123.456);
+        assert_eq!(y, "xyz");
+        let (x, y) = "123e2".to_f64();
+        assert_eq!(y, "");
+        assert_eq!(x, 123e2);
+        let (x, y) = "123e-27".to_f64();
+        assert_eq!(y, "");
+        assert_eq!(x, 123e-27);
+    }
 
     #[test]
     fn head_path() {

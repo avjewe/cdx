@@ -2,7 +2,7 @@
 
 use crate::column::{ColumnFun, ColumnHeader, ColumnSingle, NamedCol, Writer};
 use crate::comp::{Comp, CompMaker};
-use crate::num::str_to_d_lossy;
+use crate::text::Text;
 use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use std::cell::RefCell;
@@ -410,7 +410,7 @@ impl Mean {
 
 impl Agg for Mean {
     fn add(&mut self, data: &[u8]) {
-        self.val += str_to_d_lossy(data);
+        self.val += data.to_f64_lossy();
         self.cnt += 1.0;
     }
     fn result(&mut self, w: &mut dyn Write) -> Result<()> {
@@ -439,7 +439,7 @@ impl Sum {
 
 impl Agg for Sum {
     fn add(&mut self, data: &[u8]) {
-        self.val += str_to_d_lossy(data);
+        self.val += data.to_f64_lossy();
     }
     fn result(&mut self, w: &mut dyn Write) -> Result<()> {
         write!(w, "{}", self.val)?;

@@ -1,7 +1,6 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
-use crate::num::str_to_u_whole;
 use crate::text::{Case, Text};
 use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
@@ -55,8 +54,8 @@ pub struct ColumnHeader {
 }
 
 /// is 'name' a valid column name
-pub const fn is_valid_column_name(name: &str) -> bool {
-    !name.is_empty()
+pub fn is_valid_column_name(name: &str) -> bool {
+    get_col_name(name) == name.len()
 }
 
 /// throw an error is name is not a valid column name
@@ -628,7 +627,7 @@ impl ColumnSet {
     /// ```
     pub fn single(fieldnames: &[&str], colname: &str) -> Result<usize> {
         if let Some(stripped) = colname.strip_prefix('+') {
-            let n = str_to_u_whole(stripped.as_bytes())? as usize;
+            let n = stripped.to_usize_whole()?;
             let len = fieldnames.len();
             if n > len {
                 err!("Column {} out of bounds", colname)
@@ -636,9 +635,9 @@ impl ColumnSet {
                 Ok(len - n)
             }
         } else {
-            let ch = colname.chars().next().unwrap();
-            if ch.is_ascii_digit() {
-                let n = str_to_u_whole(colname.as_bytes())? as usize;
+            let ch = colname.first();
+            if ch.is_ascii_digit() && ch != '0' {
+                let n = colname.to_usize_whole()?;
                 if n < 1 {
                     err!("Column {} out of bounds", colname)
                 } else {
@@ -1306,49 +1305,57 @@ impl NamedCol {
         self.num = 0;
         self.name.clear();
         if spec.is_empty() {
-            return Ok(spec);
+            return err!("Empty string found where column name expected");
         }
         let mut ch = spec.first();
         let was_plus = ch == '+';
         if was_plus {
-            spec = spec.skip_first();
-            ch = spec.first();
+            ch = spec.take_first();
         }
-        if ch.is_ascii_digit() {
-            let mut pos: usize = 0;
-            for x in spec.chars() {
-                if x.is_ascii_digit() {
-                    self.num = self.num * 10 + (x as usize) - ('0' as usize);
-                    pos += 1;
-                } else {
-                    break;
-                }
-            }
+        if ch.is_ascii_digit() && ch != '0' {
+            let (a, b) = spec.to_usize();
+            self.num = a;
+            spec = b;
             if was_plus {
                 self.from_end = self.num;
             } else {
                 self.num -= 1;
             }
-            Ok(&spec[pos..])
+            Ok(spec)
         } else if ch.is_alphabetic() {
             if was_plus {
                 return err!("'+' must be follwed by a number : {}", orig_spec);
             }
-            let mut pos: usize = 0;
+            let pos = get_col_name(spec);
             self.name.clear();
-            for x in spec.chars() {
-                if x.is_alphanumeric() || x == '_' {
-                    self.name.push(x);
-                    pos += 1;
-                } else {
-                    break;
-                }
-            }
+            self.name += &spec[0..pos];
             Ok(&spec[pos..])
         } else {
             err!("Bad parse of compare spec for {}", spec)
         }
     }
+}
+
+/// return number of bytes used by the column name
+/// zero means no name present, return < str.len() if there's extra stuff
+pub fn get_col_name(spec: &str) -> usize {
+    if spec.is_empty() {
+        return 0;
+    }
+    let mut sp = spec;
+    let mut ch = sp.take_first();
+    if !ch.is_alphabetic() {
+        return 0;
+    }
+    while !sp.is_empty() {
+        ch = sp.first();
+        if ch.is_alphanumeric() || ch == '_' {
+            sp = sp.skip_first();
+        } else {
+            break;
+        }
+    }
+    spec.len() - sp.len()
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1535,5 +1542,17 @@ mod tests {
             Err(Error::Error(_))
         );
         return Ok(());
+    }
+    #[test]
+    fn do_get_col_name() {
+        assert_eq!(get_col_name(""), 0);
+        assert_eq!(get_col_name("..."), 0);
+        assert_eq!(get_col_name("_aaa"), 0);
+        assert_eq!(get_col_name("1aaa"), 0);
+        assert_eq!(get_col_name("abc"), 3);
+        assert_eq!(get_col_name("abc,"), 3);
+        assert_eq!(get_col_name("abc,aaa"), 3);
+        assert_eq!(get_col_name("a_b_c"), 5);
+        assert_eq!(get_col_name("a_ñ_c"), 6);
     }
 }
