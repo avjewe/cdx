@@ -1,9 +1,9 @@
-#command cdx cut -e foo:max([1-4])
+#command cdx cut -f (range,<t>f)
 #stdin
  CDX	one	two	three	four
 1	2	3	4
 8	6	4	2
 #stdout
- CDX	foo
-4
-8
+ CDX	one	four
+1	4
+8	2

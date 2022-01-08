@@ -418,7 +418,6 @@ impl Expr {
         while let Some(pos) = n.find('[') {
             let len = find_close(&n[pos..])?;
             let mut s = ColumnSet::new();
-            eprintln!("Found '{}'", &n[pos + 1..pos + len - 1]);
             s.add_yes(&n[pos + 1..pos + len - 1])?;
             s.lookup(fieldnames)?;
             let v = s.get_cols_num();
@@ -431,7 +430,6 @@ impl Expr {
             }
             n.replace_range(pos..pos + len, &nval);
         }
-        //	eprintln!("Final '{}'", n);
 
         let tokens = tokenize(&n)?;
         let rpn = to_rpn(&tokens)?;
