@@ -1427,8 +1427,8 @@ impl<'a> RangeSpec<'a> {
     fn new_trail(spec: &'a str) -> Result<(Self, usize)> {
         lazy_static! {
             static ref RE1: Regex =
-                Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap();
-            static ref RE2: Regex = Regex::new("(^|,)(<|>|<=|>=|==|!=)(.+)$").unwrap();
+                Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)([^=].*)$").unwrap();
+            static ref RE2: Regex = Regex::new("(^|,)(<|>|<=|>=|==|!=)([^=].*)$").unwrap();
             static ref RE3: Regex =
                 Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
             static ref RE4: Regex = Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
@@ -1599,5 +1599,61 @@ impl CheckBuff {
                 o.invert().ord_ok(c)
             }
         }
+    }
+}
+
+/// find the closing marker, e.g return ')' for '('
+pub fn closer(ch: u8) -> Result<u8> {
+    match ch {
+        b'(' => Ok(b')'),
+        b'{' => Ok(b'}'),
+        b'[' => Ok(b']'),
+        b'<' => Ok(b'>'),
+        _ => err!("I don't know how to cloase a '{}'", ch as char),
+    }
+}
+
+/// return the length of the enclosed string, allowing for nested markers
+pub fn find_close(spec: &str) -> Result<usize> {
+    if spec.is_empty() {
+        return err!("Can't find_close an empty string");
+    }
+    let bspec = spec.as_bytes();
+    let open = bspec[0];
+    let close = closer(open)?;
+    let mut depth = 0;
+    for (i, x) in bspec.iter().enumerate() {
+        if *x == open {
+            depth += 1;
+        } else if *x == close {
+            depth -= 1;
+        }
+        if depth == 0 {
+            return Ok(i + 1);
+        }
+    }
+    err!("Had no closing delimiter '{}'", spec)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn markers() {
+        let c = closer(b'(');
+        assert!(c.is_ok());
+        assert_eq!(c.unwrap(), b')');
+        let c = find_close("(abc)");
+        assert!(c.is_ok());
+        assert_eq!(c.unwrap(), 5);
+        let c = find_close("[abc][def]");
+        assert!(c.is_ok());
+        assert_eq!(c.unwrap(), 5);
+        let c = find_close("{abc{def}}");
+        assert!(c.is_ok());
+        assert_eq!(c.unwrap(), 10);
+        let c = find_close("{abc{def}ghi");
+        assert!(c.is_err());
     }
 }

@@ -1,0 +1,9 @@
+#command cdx cut -e foo:max(c1,c2,3,c4)
+#stdin
+ CDX	one	two	three	four
+1	2	3	4
+8	6	4	2
+#stdout
+ CDX	foo
+4
+8

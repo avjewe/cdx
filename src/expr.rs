@@ -1,11 +1,11 @@
 //! Floating Point expressions
 #![allow(clippy::float_cmp)]
 
-use crate::column::get_col;
+use crate::column::{get_col, ColumnSet};
 use crate::shunting_yard::*;
 use crate::text::Text;
 use crate::tokenizer::*;
-use crate::util::{err, Error, Result, TextLine};
+use crate::util::{err, find_close, Error, Result, TextLine};
 use lazy_static::lazy_static;
 use libm;
 use regex::Regex;
@@ -395,14 +395,10 @@ fn apply_binary(op: BinaryOp, left: f64, right: f64) -> f64 {
 impl Expr {
     /// create Expr from expression
     pub fn new(expr: &str) -> Result<Self> {
-        let mut s = Self {
+        Ok(Self {
             expr_str: expr.to_string(),
             ..Self::default()
-        };
-        let tokens = tokenize(expr)?;
-        let rpn = to_rpn(&tokens)?;
-        s.rpn_to_expr(&rpn)?;
-        Ok(s)
+        })
     }
     /// which columns are in use
     pub fn used_cols(&self, v: &mut Vec<usize>) {
@@ -418,6 +414,28 @@ impl Expr {
     }
     /// resolve named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        let mut n = self.expr_str.clone();
+        while let Some(pos) = n.find('[') {
+            let len = find_close(&n[pos..])?;
+            let mut s = ColumnSet::new();
+            eprintln!("Found '{}'", &n[pos + 1..pos + len - 1]);
+            s.add_yes(&n[pos + 1..pos + len - 1])?;
+            s.lookup(fieldnames)?;
+            let v = s.get_cols_num();
+            let mut nval = String::new();
+            if !v.is_empty() {
+                nval.push_str(&format!("c{}", v[0] + 1));
+            }
+            for x in v.iter().skip(1) {
+                nval.push_str(&format!(",c{}", x + 1));
+            }
+            n.replace_range(pos..pos + len, &nval);
+        }
+        //	eprintln!("Final '{}'", n);
+
+        let tokens = tokenize(&n)?;
+        let rpn = to_rpn(&tokens)?;
+        self.rpn_to_expr(&rpn)?;
         'outer: for y in &mut self.vars {
             for (i, x) in fieldnames.iter().enumerate() {
                 if *x == y.name {
@@ -426,10 +444,10 @@ impl Expr {
                 }
             }
             lazy_static! {
-                static ref CN: Regex = Regex::new("^c[0-9]+$").unwrap();
+                static ref CN: Regex = Regex::new("^c([0-9]+)$").unwrap();
             }
             if let Some(cn) = CN.captures(&y.name) {
-                y.col = Some(cn.get(1).unwrap().as_str().parse::<usize>().unwrap());
+                y.col = Some(cn.get(1).unwrap().as_str().parse::<usize>().unwrap() - 1);
                 continue;
             }
             // FIXME - some way to declare other variables

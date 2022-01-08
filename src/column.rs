@@ -1,9 +1,10 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
+use crate::expr::Expr;
 use crate::matcher::MatchMaker;
 use crate::text::Text;
-use crate::util::{err, Error, Result, StringLine, TextLine};
+use crate::util::{err, find_close, Error, Result, StringLine, TextLine};
 use std::collections::HashSet;
 use std::io::Write;
 use std::{fmt, str};
@@ -207,7 +208,7 @@ impl ColumnHeader {
 ///    assert_eq!(s.get_cols_num(), &[0,4]);
 ///
 ///    let mut s = ColumnSet::new();
-///    s.add_yes(">s<=two");
+///    s.add_yes("(range,>s<=two)");
 ///    s.lookup(&header);
 ///    assert_eq!(s.get_cols_num(), &[2,3]);
 /// ```
@@ -408,6 +409,45 @@ pub trait ColumnFun {
 
 /// write a single column
 #[derive(Debug, Default)]
+pub struct ColumnExpr {
+    name: String,
+    expr: Expr,
+}
+
+impl ColumnExpr {
+    /// new from Expr or Name:Expr
+    pub fn new(spec: &str) -> Result<Self> {
+        if let Some((a, b)) = spec.split_once(':') {
+            Ok(Self {
+                name: a.to_string(),
+                expr: Expr::new(b)?,
+            })
+        } else {
+            Ok(Self {
+                name: String::new(),
+                expr: Expr::new(spec)?,
+            })
+        }
+    }
+}
+
+impl ColumnFun for ColumnExpr {
+    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+        w.push(&self.name)
+    }
+    /// write the column values (called many times)
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+        write!(w, "{}", self.expr.eval(line))?;
+        Ok(())
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.expr.lookup(fieldnames)
+    }
+}
+
+/// write a single column
+#[derive(Debug, Default)]
 pub struct ColumnSingle {
     col: NamedCol,
     new_name: String,
@@ -593,15 +633,11 @@ impl ColumnSet {
         let mut spc = spec;
         loop {
             if spc.first() == '(' {
-                // FIXME - count open and close, in case pattern has parens
-                if let Some(pos) = spc.find(')') {
-                    self.add_one(&spc[..=pos], negate);
-                    spc = &spc[pos + 1..];
-                    if spc.is_empty() {
-                        break;
-                    }
-                } else {
-                    return err!("No closing paren in '{}'", spec);
+                let pos = find_close(spc)?;
+                self.add_one(&spc[..pos], negate);
+                spc = &spc[pos..];
+                if spc.is_empty() {
+                    break;
                 }
             } else if let Some((a, b)) = spc.split_once(',') {
                 self.add_one(a, negate);
@@ -1448,7 +1484,7 @@ mod tests {
             OutCol::from_num(4),
         ];
         assert_eq!(
-            ColumnSet::range(&f, "<p")?,
+            ColumnSet::range(&f, "(range,<p)")?,
             [OutCol::from_num(1), OutCol::from_num(4)]
         );
         assert_eq!(ColumnSet::range(&f, "2-+2")?, res[1..=3]);
@@ -1474,31 +1510,6 @@ mod tests {
         return Ok(());
     }
 
-    #[test]
-    fn text_range() -> Result<()> {
-        let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
-        assert_eq!(ColumnSet::text_range(&f, "<p")?, [1, 4]);
-        assert_eq!(ColumnSet::text_range(&f, "<p>g")?, [1]);
-        assert_eq!(ColumnSet::text_range(&f, ">=g<=p")?, [1]);
-        assert_err!(ColumnSet::text_range(&f, "><"), Err(Error::Error(_)));
-        return Ok(());
-    }
-    #[test]
-    fn do_compare() -> Result<()> {
-        assert_eq!(ColumnSet::do_compare("aaa", "bbb", "<")?, true);
-        assert_eq!(ColumnSet::do_compare("aaa", "bbb", "<=")?, true);
-        assert_eq!(ColumnSet::do_compare("aaa", "bbb", ">")?, false);
-        assert_eq!(ColumnSet::do_compare("aaa", "bbb", ">=")?, false);
-        assert_eq!(ColumnSet::do_compare("aaa", "aaa", "<")?, false);
-        assert_eq!(ColumnSet::do_compare("aaa", "aaa", "<=")?, true);
-        assert_eq!(ColumnSet::do_compare("aaa", "aaa", ">")?, false);
-        assert_eq!(ColumnSet::do_compare("aaa", "aaa", ">=")?, true);
-        assert_err!(
-            ColumnSet::do_compare("aaa", "aaa", "><"),
-            Err(Error::Error(_))
-        );
-        return Ok(());
-    }
     #[test]
     fn do_get_col_name() {
         assert_eq!(get_col_name(""), 0);
