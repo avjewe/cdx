@@ -15,6 +15,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::str::FromStr;
 use std::{fmt, str};
+use tokio_stream::StreamExt;
 
 /// Shorthand for returning an error Result
 #[macro_export]
@@ -38,6 +39,7 @@ macro_rules! err_type {
 /// Various errors
 #[derive(Debug)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum Error {
     /// Custom cdx error
     Error(String),
@@ -53,6 +55,10 @@ pub enum Error {
     FromUtf8Error(std::string::FromUtf8Error),
     /// pass through Utf8Error
     Utf8Error(std::str::Utf8Error),
+    /// pass through SdkError
+    MyGetObjectError(aws_sdk_s3::SdkError<aws_sdk_s3::error::GetObjectError>),
+    /// bytestream
+    ByteStreamError(aws_smithy_http::byte_stream::Error),
     /// common error with long default string
     NeedLookup,
     /// be an error, but don't report anything
@@ -82,6 +88,11 @@ err_type!(std::string::FromUtf8Error, Error::FromUtf8Error);
 err_type!(std::io::Error, Error::IoError);
 err_type!(std::num::ParseIntError, Error::ParseIntError);
 err_type!(std::num::ParseFloatError, Error::ParseFloatError);
+err_type!(aws_smithy_http::byte_stream::Error, Error::ByteStreamError);
+err_type!(
+    aws_sdk_s3::SdkError<aws_sdk_s3::error::GetObjectError>,
+    Error::MyGetObjectError
+);
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -93,6 +104,8 @@ impl fmt::Display for Error {
             Error::RegexError(s) => write!(f, "RegexError : {}", s)?,
             Error::FromUtf8Error(s) => write!(f, "FromUtf8Error : {}", s)?,
             Error::Utf8Error(s) => write!(f, "Utf8Error : {}", s)?,
+            Error::MyGetObjectError(s) => write!(f, "GetObjectError : {}", s)?,
+            Error::ByteStreamError(s) => write!(f, "ByteStreamError : {}", s)?,
             Error::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
@@ -442,6 +455,74 @@ impl<'a> Iterator for StringLineIter<'a> {
     }
 }
 
+struct S3Reader {
+    //    name : String,
+    rt: tokio::runtime::Runtime,
+    //    client : aws_sdk_s3::Client,
+    f: aws_sdk_s3::output::GetObjectOutput,
+    remainder: Vec<u8>,
+}
+impl S3Reader {
+    fn new(bucket: &str, key: &str) -> Result<Self> {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?;
+        let shared_config = rt.block_on(aws_config::load_from_env());
+        let client = aws_sdk_s3::Client::new(&shared_config);
+        let obj = rt.block_on(client.get_object().bucket(bucket).key(key).send())?;
+        Ok(Self {
+            //	    name : key.to_string(),
+            rt,
+            //	    client,
+            f: obj,
+            remainder: Vec::new(),
+        })
+    }
+    fn new_path(spec: &str) -> Result<Self> {
+        if let Some(name) = spec.strip_prefix("s3://") {
+            if let Some((a, b)) = name.split_once('/') {
+                Self::new(a, b)
+            } else {
+                err!("Not an S3 file spec '{}'", spec)
+            }
+        } else {
+            err!("Not an S3 file '{}'", spec)
+        }
+    }
+}
+impl Read for S3Reader {
+    fn read(&mut self, buf: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
+        if !self.remainder.is_empty() {
+            if self.remainder.len() > buf.len() {
+                buf.clone_from_slice(&self.remainder[..buf.len()]);
+                self.remainder.drain(..buf.len());
+                return Ok(buf.len());
+            } else {
+                let len = self.remainder.len();
+                buf[0..len].clone_from_slice(&self.remainder);
+                self.remainder.clear();
+                return Ok(len);
+            }
+        }
+        let bytes_res = self.rt.block_on(self.f.body.try_next());
+        if bytes_res.is_err() {
+            return Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no"));
+        }
+        if let Some(bytes) = bytes_res.unwrap() {
+            if bytes.len() > buf.len() {
+                buf.clone_from_slice(&bytes[..buf.len()]);
+                self.remainder.extend(&bytes[buf.len()..]);
+                Ok(buf.len())
+            } else {
+                buf[0..bytes.len()].clone_from_slice(&bytes);
+                Ok(bytes.len())
+            }
+        } else {
+            Ok(0)
+        }
+    }
+}
+
 /// Input file. Wrapped in a type so I can 'impl Debug'
 pub struct Infile(
     /// The file being read
@@ -557,8 +638,8 @@ pub fn get_reader2<P: AsRef<Path>>(name: P) -> Result<Infile> {
         if name == OsStr::new("-") {
             //	    unsafe { Box::new(std::fs::File::from_raw_fd(1)) }
             Box::new(io::stdin())
-            //            } else if name.starts_with("s3://") {
-            //                Box::new(open_s3_file(name)?)
+        //        } else if name.starts_with("s3://") {
+        //            Box::new(S3Reader::new_path(name)?)
         } else if name.as_bytes().starts_with(b"<<") {
             Box::new(std::io::Cursor::new(unescape_vec(&name.as_bytes()[2..])))
         } else {
@@ -579,8 +660,8 @@ pub fn get_reader(name: &str) -> Result<Infile> {
         if name == "-" {
             //	    unsafe { Box::new(std::fs::File::from_raw_fd(1)) }
             Box::new(io::stdin())
-            //            } else if name.starts_with("s3://") {
-            //                Box::new(open_s3_file(name)?)
+        } else if name.starts_with("s3://") {
+            Box::new(S3Reader::new_path(name)?)
         } else if let Some(stripped) = name.strip_prefix("<<") {
             Box::new(std::io::Cursor::new(unescape_vec(stripped.as_bytes())))
         } else {

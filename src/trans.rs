@@ -1,5 +1,6 @@
 //! Transforms that turn values into other values
 
+use crate::text::Text;
 use crate::util::{err, Error, Result, TextLine};
 use lazy_static::lazy_static;
 use std::fmt;
@@ -23,6 +24,20 @@ impl Trans for LowerTrans {
         for x in src {
             dst.push(x.to_ascii_lowercase());
         }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct LowerUtfTrans {
+    tmp: String,
+}
+impl Trans for LowerUtfTrans {
+    fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
+        String::from_utf8_lossy(src)
+            .as_ref()
+            .assign_lower(&mut self.tmp);
+        dst.extend(self.tmp.as_bytes());
         Ok(())
     }
 }
@@ -161,8 +176,12 @@ impl TransMaker {
         }
         Self::do_add_alias("lower", "lowercase")?;
         Self::do_add_alias("upper", "uppercase")?;
-        Self::do_push("lower", "make lower case", |_c, _p| {
-            Ok(Box::new(LowerTrans {}))
+        Self::do_push("lower", "make lower case", |c, _p| {
+            if c.utf8 {
+                Ok(Box::new(LowerUtfTrans::default()))
+            } else {
+                Ok(Box::new(LowerTrans {}))
+            }
         })?;
         Self::do_push("upper", "make upper case", |_c, _p| {
             Ok(Box::new(UpperTrans {}))

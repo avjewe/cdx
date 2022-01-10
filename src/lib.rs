@@ -29,6 +29,7 @@
 )]
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::redundant_pub_crate)]
+#![allow(clippy::option_if_let_else)]
 
 pub mod agg;
 pub mod binsearch;

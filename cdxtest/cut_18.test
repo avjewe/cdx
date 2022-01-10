@@ -1,0 +1,7 @@
+#command cdx cut -f 2,3+lower.utf8 -f 1
+#stdin
+ CDX	one	two	three
+AAA	nNñÑñÑ	CCC
+#stdout
+ CDX	two	three	one
+nnññññ	ccc	AAA
