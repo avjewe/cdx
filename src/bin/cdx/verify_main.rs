@@ -31,7 +31,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
-    let mut list = MultiLineMatcher::new(MultiMode::And);
+    let mut list = LineMatcherList::new(Combiner::And);
     let mut comp = LineCompList::new();
     let mut do_sort = false;
     let mut do_unique = false;
@@ -48,7 +48,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "key" {
             comp.add(&x.value)?;
         } else if x.name == "or" {
-            list.multi = MultiMode::Or;
+            list.multi = Combiner::Or;
         } else if x.name == "fail" {
             max_fails = x.value.parse::<usize>()?;
         } else if x.name == "sort" {

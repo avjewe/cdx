@@ -78,7 +78,7 @@ impl NoMatch {
 }
 
 /// output column
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct OutColSpec {
     /// file number of source column
     file: usize,

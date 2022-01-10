@@ -19,7 +19,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     let (args, files) = args::parse(&prog, &A, argv);
 
     let mut checker = HeaderChecker::new();
-    let mut list = MultiLineMatcher::new(MultiMode::And);
+    let mut list = LineMatcherList::new(Combiner::And);
     let mut reverse = false;
     for x in args {
         if x.name == "header" {
@@ -30,7 +30,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             MatchMaker::help();
             return Ok(());
         } else if x.name == "or" {
-            list.multi = MultiMode::Or;
+            list.multi = Combiner::Or;
         } else if x.name == "invert" {
             reverse = true;
         } else if x.name == "show-const" {

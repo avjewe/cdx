@@ -1,7 +1,7 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::column::{ColumnCount, ColumnHeader, ColumnLiteral, ColumnWhole, Writer};
-use cdx::matcher::{Match, MatchMaker, MultiMatcher, MultiMode};
+use cdx::matcher::{Combiner, Match, MatchMaker, MatcherList};
 use cdx::text::Text;
 use cdx::util::{
     err, get_reader, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE,
@@ -90,8 +90,8 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut checker = HeaderChecker::new();
     let mut pad = PadMode::All;
     let mut num = LineNumber::new();
-    let mut skips = MultiMatcher::new(MultiMode::Or);
-    let mut removes = MultiMatcher::new(MultiMode::Or);
+    let mut skips = MatcherList::new(Combiner::Or);
+    let mut removes = MatcherList::new(Combiner::Or);
 
     for x in args {
         if x.name == "header" {

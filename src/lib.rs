@@ -43,4 +43,5 @@ pub mod sort;
 pub mod text;
 mod tokenizer;
 pub mod tooltest;
+pub mod trans;
 pub mod util;

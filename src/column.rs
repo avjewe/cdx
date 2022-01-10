@@ -4,6 +4,7 @@
 use crate::expr::Expr;
 use crate::matcher::MatchMaker;
 use crate::text::Text;
+use crate::trans::TransList;
 use crate::util::{err, find_close, Error, Result, StringLine, TextLine};
 use std::collections::HashSet;
 use std::io::Write;
@@ -212,12 +213,27 @@ impl ColumnHeader {
 ///    s.lookup(&header);
 ///    assert_eq!(s.get_cols_num(), &[2,3]);
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ColumnSet {
-    pos: Vec<String>,
-    neg: Vec<String>,
+    pos: Vec<ColSetPart>,
+    neg: Vec<ColSetPart>,
     columns: Vec<OutCol>,
     did_lookup: bool,
+    trans: Vec<TransList>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ColSetPart {
+    val: String,
+    trans: Option<usize>,
+}
+impl ColSetPart {
+    fn new(spec: &str, trans: Option<usize>) -> Self {
+        Self {
+            val: spec.to_string(),
+            trans,
+        }
+    }
 }
 
 /// named output columns
@@ -227,6 +243,8 @@ pub struct OutCol {
     pub num: usize,
     /// column name, might be empty if no name available
     pub name: String,
+    /// which TransList to use
+    trans: Option<usize>,
 }
 
 impl OutCol {
@@ -235,6 +253,15 @@ impl OutCol {
         Self {
             num,
             name: name.to_string(),
+            trans: None,
+        }
+    }
+    /// new with name and trans
+    pub fn new_trans(num: usize, name: &str, trans: usize) -> Self {
+        Self {
+            num,
+            name: name.to_string(),
+            trans: Some(trans),
         }
     }
     /// new with empty name
@@ -242,12 +269,21 @@ impl OutCol {
         Self {
             num,
             name: String::new(),
+            trans: None,
+        }
+    }
+    /// new with empty name but a trans
+    pub const fn from_num_trans(num: usize, trans: usize) -> Self {
+        Self {
+            num,
+            name: String::new(),
+            trans: Some(trans),
         }
     }
 }
 
 /// A ColumnSet with associated string
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ScopedValue {
     cols: ColumnSet,
     value: String,
@@ -297,7 +333,7 @@ impl ScopedValue {
 }
 
 /// A per-column value
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ScopedValues {
     default: String,
     data: Vec<ScopedValue>,
@@ -610,16 +646,16 @@ impl ColumnSet {
     }
 
     /// Add a single range, "yes" or "no" based on a flag.
-    pub fn add_one(&mut self, s: &str, negate: bool) {
+    pub fn add_one(&mut self, s: &str, negate: bool, trans: Option<usize>) {
         if let Some(stripped) = s.strip_prefix('~') {
-            let st = stripped.to_string();
+            let st = ColSetPart::new(stripped, trans);
             if negate {
                 self.pos.push(st);
             } else {
                 self.neg.push(st);
             }
         } else {
-            let st = s.to_string();
+            let st = ColSetPart::new(s, trans);
             if negate {
                 self.neg.push(st);
             } else {
@@ -628,22 +664,44 @@ impl ColumnSet {
         }
     }
 
+    fn find_trans(spec: &str) -> Option<(&str, &str)> {
+        let mut last_was_plus = false;
+        for (i, x) in spec.char_indices() {
+            if last_was_plus {
+                if x.is_alphabetic() {
+                    return Some((&spec[0..i - 1], &spec[i..]));
+                } else {
+                    last_was_plus = false;
+                }
+            } else if x == '+' {
+                last_was_plus = true;
+            }
+        }
+        None
+    }
     /// Add a list or ranges, "yes" or "no" based on a flag.
     pub fn add(&mut self, spec: &str, negate: bool) -> Result<()> {
         let mut spc = spec;
+        let trans = if let Some((a, b)) = Self::find_trans(spec) {
+            spc = a;
+            self.trans.push(TransList::new(b)?);
+            Some(self.trans.len() - 1)
+        } else {
+            None
+        };
         loop {
             if spc.first() == '(' {
                 let pos = find_close(spc)?;
-                self.add_one(&spc[..pos], negate);
+                self.add_one(&spc[..pos], negate, trans);
                 spc = &spc[pos..];
                 if spc.is_empty() {
                     break;
                 }
             } else if let Some((a, b)) = spc.split_once(',') {
-                self.add_one(a, negate);
+                self.add_one(a, negate, trans);
                 spc = b;
             } else {
-                self.add_one(spc, negate);
+                self.add_one(spc, negate, trans);
                 break;
             }
         }
@@ -801,7 +859,7 @@ impl ColumnSet {
         let mut no_cols: HashSet<usize> = HashSet::new();
 
         for s in &self.neg {
-            for x in Self::range(fieldnames, s)? {
+            for x in Self::range(fieldnames, &s.val)? {
                 no_cols.insert(x.num);
             }
         }
@@ -814,8 +872,9 @@ impl ColumnSet {
             }
         } else {
             for s in &self.pos {
-                for x in Self::range(fieldnames, s)? {
+                for mut x in Self::range(fieldnames, &s.val)? {
                     if !no_cols.contains(&x.num) {
+                        x.trans = s.trans;
                         self.columns.push(x);
                     }
                 }
@@ -907,22 +966,28 @@ impl ColumnSet {
         Ok(())
     }
 
+    fn fetch<'a>(&'a mut self, cols: &'a TextLine, col: usize) -> &'a [u8] {
+        let col = &self.columns[col];
+        if let Some(trans) = col.trans {
+            self.trans[trans].trans(cols.get(col.num), cols).unwrap()
+        } else {
+            cols.get(col.num)
+        }
+    }
+
     /// write the appropriate selection from the given columns, but no trailing newline
-    pub fn write3(&self, w: &mut dyn Write, cols: &TextLine, delim: u8) -> Result<()> {
+    pub fn write3(&mut self, w: &mut dyn Write, cols: &TextLine, delim: u8) -> Result<()> {
         if !self.did_lookup {
             return Err(Error::NeedLookup);
         }
-        let mut iter = self.columns.iter();
-        match iter.next() {
-            None => {}
-            Some(first) => {
-                w.write_all(cols.get(first.num))?;
-                for x in iter {
-                    w.write_all(&[delim])?;
-                    w.write_all(cols.get(x.num))?;
-                }
-            }
-        };
+        if self.columns.is_empty() {
+            return Ok(());
+        }
+        w.write_all(self.fetch(cols, 0))?;
+        for i in 1..self.columns.len() {
+            w.write_all(&[delim])?;
+            w.write_all(self.fetch(cols, i))?;
+        }
         Ok(())
     }
 

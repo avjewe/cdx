@@ -7,7 +7,7 @@
 //! See <https://avjewe.github.io/cdxdoc/Matcher.html> for a list of matchers,
 //! and other details about the syntax for specifying lagauges,
 //!
-//! Most uses will involve [Matcher]s, collected into [MultiMatcher]s, or
+//! Most uses will involve [Matcher]s, collected into [MatcherList]s, or
 //!
 //!```
 //! use cdx::matcher::*;
@@ -18,7 +18,7 @@
 //! assert!(matcher.smatch("abcdef"));
 //! assert!(!matcher.smatch("bcdef"));
 //!
-//! let mut list = MultiLineMatcher::new(MultiMode::And);
+//! let mut list = LineMatcherList::new(Combiner::And);
 //! list.push_spec("two,glob,b*")?;
 //! let input = "<< CDX\tone\ttwo\naaa\tbbb\nccc\tddd\n";
 //! let mut reader = Reader::new();
@@ -669,13 +669,13 @@ impl Match for LengthMatch {
 
 /// Mode for combining parts of a multi-match
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum MultiMode {
+pub enum Combiner {
     /// matches if any match
     Or,
     /// matches only if all match
     And,
 }
-impl fmt::Display for MultiMode {
+impl fmt::Display for Combiner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Or => Ok(write!(f, "OR")?),
@@ -684,7 +684,7 @@ impl fmt::Display for MultiMode {
     }
 }
 
-impl Default for MultiMode {
+impl Default for Combiner {
     fn default() -> Self {
         Self::And
     }
@@ -692,7 +692,7 @@ impl Default for MultiMode {
 
 /// Does a particular column of a line match a pattern. Implements LineMatch
 #[derive(Debug)]
-pub struct ColMatcher {
+struct ColMatcher {
     matcher: Matcher,
     col: NamedCol,
 }
@@ -700,7 +700,7 @@ pub struct ColMatcher {
 impl ColMatcher {
     /// Column,Spec,Pattern
     /// Pattern may have additional commas
-    pub fn new(cols: &str, method: &str, pattern: &str) -> Result<Self> {
+    fn new(cols: &str, method: &str, pattern: &str) -> Result<Self> {
         let mut nc = NamedCol::new();
         nc.parse(cols)?;
         Ok(Self {
@@ -732,21 +732,21 @@ impl LineMatch for ColMatcher {
 
 /// List of [LineMatch], combined with AND or OR
 #[derive(Default)]
-pub struct MultiLineMatcher {
+pub struct LineMatcherList {
     /// the mode
-    pub multi: MultiMode,
+    pub multi: Combiner,
     /// the matchers
     pub matchers: Vec<Box<dyn LineMatch>>,
 }
-impl fmt::Debug for MultiLineMatcher {
+impl fmt::Debug for LineMatcherList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MultiLineMatcher {}", self.multi)
+        write!(f, "LineMatcherList {}", self.multi)
     }
 }
 
-impl MultiLineMatcher {
+impl LineMatcherList {
     /// new
-    pub fn new(multi: MultiMode) -> Self {
+    pub fn new(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
@@ -765,24 +765,24 @@ impl MultiLineMatcher {
     pub fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
-    /// ok, with supplied MultiMode
-    pub fn ok_tagged(&mut self, line: &TextLine, multi: MultiMode) -> bool {
+    /// ok, with supplied Combiner
+    pub fn ok_tagged(&mut self, line: &TextLine, multi: Combiner) -> bool {
         match multi {
-            MultiMode::And => self.ok_and(line),
-            MultiMode::Or => self.ok_or(line),
+            Combiner::And => self.ok_and(line),
+            Combiner::Or => self.ok_or(line),
         }
     }
-    /// ok_verbose, with supplied MultiMode
+    /// ok_verbose, with supplied Combiner
     pub fn ok_verbose_tagged(
         &mut self,
         line: &TextLine,
-        multi: MultiMode,
+        multi: Combiner,
         line_num: usize,
         fname: &str,
     ) -> bool {
         match multi {
-            MultiMode::And => self.ok_verbose_and(line, line_num, fname),
-            MultiMode::Or => self.ok_verbose_or(line, line_num, fname),
+            Combiner::And => self.ok_verbose_and(line, line_num, fname),
+            Combiner::Or => self.ok_verbose_or(line, line_num, fname),
         }
     }
     /// ok, with AND
@@ -827,7 +827,7 @@ impl MultiLineMatcher {
     }
 }
 
-impl LineMatch for MultiLineMatcher {
+impl LineMatch for LineMatcherList {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.ok_tagged(line, self.multi)
     }
@@ -843,7 +843,7 @@ impl LineMatch for MultiLineMatcher {
     }
     fn show(&self) -> String {
         if self.is_empty() {
-            format!("Empty {} MultiLineMatcher", self.multi)
+            format!("Empty {} LineMatcherList", self.multi)
         } else if self.matchers.len() == 1 {
             format!("{}", self.matchers[0])
         } else {
@@ -858,21 +858,21 @@ impl LineMatch for MultiLineMatcher {
 
 /// List of [Matcher], combined with AND or OR
 #[derive(Default)]
-pub struct MultiMatcher {
+pub struct MatcherList {
     /// the mode
-    pub multi: MultiMode,
+    pub multi: Combiner,
     /// the matchers
     pub matchers: Vec<Matcher>,
 }
-impl fmt::Debug for MultiMatcher {
+impl fmt::Debug for MatcherList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MultiMatcher {}", self.multi)
+        write!(f, "MatcherList {}", self.multi)
     }
 }
 
-impl MultiMatcher {
-    /// new MultiMatcher with given mode
-    pub const fn new(multi: MultiMode) -> Self {
+impl MatcherList {
+    /// new MatcherList with given mode
+    pub const fn new(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
@@ -886,10 +886,10 @@ impl MultiMatcher {
     pub fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
-    fn smatch_tagged(&self, buff: &str, multi: MultiMode) -> bool {
+    fn smatch_tagged(&self, buff: &str, multi: Combiner) -> bool {
         match multi {
-            MultiMode::And => self.smatch_and(buff),
-            MultiMode::Or => self.smatch_or(buff),
+            Combiner::And => self.smatch_and(buff),
+            Combiner::Or => self.smatch_or(buff),
         }
     }
     fn smatch_and(&self, buff: &str) -> bool {
@@ -908,10 +908,10 @@ impl MultiMatcher {
         }
         false
     }
-    fn umatch_tagged(&self, buff: &[u8], multi: MultiMode) -> bool {
+    fn umatch_tagged(&self, buff: &[u8], multi: Combiner) -> bool {
         match multi {
-            MultiMode::And => self.umatch_and(buff),
-            MultiMode::Or => self.umatch_or(buff),
+            Combiner::And => self.umatch_and(buff),
+            Combiner::Or => self.umatch_or(buff),
         }
     }
     fn umatch_and(&self, buff: &[u8]) -> bool {
@@ -932,7 +932,7 @@ impl MultiMatcher {
     }
 }
 
-impl Match for MultiMatcher {
+impl Match for MatcherList {
     fn smatch(&self, buff: &str) -> bool {
         self.smatch_tagged(buff, self.multi)
     }
@@ -941,7 +941,7 @@ impl Match for MultiMatcher {
     }
     fn show(&self) -> String {
         if self.is_empty() {
-            format!("Empty {} MultiMatcher", self.multi)
+            format!("Empty {} MatcherList", self.multi)
         } else if self.matchers.len() == 1 {
             format!("{}", self.matchers[0])
         } else {
@@ -967,7 +967,7 @@ impl Match for MultiMatcher {
     }
 }
 
-/// Match a pattern against a target
+/// Match a pattern against a target, i.e. a Match with some context.
 #[derive(Debug)]
 pub struct Matcher {
     /// general type, e.g. "regex"
@@ -985,7 +985,7 @@ pub struct Matcher {
     /// true if an empty buffer should match too
     empty: bool,
     /// for multi-matches, combine with AND or OR
-    multi_mode: Option<MultiMode>,
+    multi_mode: Option<Combiner>,
     /// the matching object
     matcher: Box<dyn Match>,
 }
@@ -1328,9 +1328,9 @@ impl MatchMaker {
                 } else if x.eq_ignore_ascii_case("case") {
                     m.case = Case::Insens;
                 } else if x.eq_ignore_ascii_case("and") {
-                    m.multi_mode = Some(MultiMode::And);
+                    m.multi_mode = Some(Combiner::And);
                 } else if x.eq_ignore_ascii_case("or") {
-                    m.multi_mode = Some(MultiMode::Or);
+                    m.multi_mode = Some(Combiner::Or);
                 } else {
                     m.ctype = x.to_string();
                 }
@@ -1338,7 +1338,7 @@ impl MatchMaker {
             m.ctype = Self::resolve_alias(m.ctype);
         }
         if let Some(mm) = m.multi_mode {
-            let mut outer = Box::new(MultiMatcher::new(mm));
+            let mut outer = Box::new(MatcherList::new(mm));
             let mut pattern = pattern;
             let delim = pattern.first();
             pattern = pattern.skip_first();
@@ -1402,13 +1402,13 @@ impl MatchMaker {
 
 /// macth if arithmetic expression is non-zero
 #[derive(Debug)]
-pub struct ExprMatcher {
+struct ExprMatcher {
     con: Expr,
 }
 
 impl ExprMatcher {
     /// new from expression
-    pub fn new(ex: &str) -> Result<Self> {
+    fn new(ex: &str) -> Result<Self> {
         Ok(Self {
             con: Expr::new(ex)?,
         })
