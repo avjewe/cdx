@@ -77,6 +77,11 @@ pub trait Text {
     fn assign_lower(&self, dst: &mut Self::Container);
     /// new lowercase version of self
     fn new_lower(&self) -> Self::Container;
+
+    /// assign lowercase version of self to dst
+    fn assign_upper(&self, dst: &mut Self::Container);
+    /// new lowercase version of self
+    fn new_upper(&self) -> Self::Container;
     /// is white space
     fn is_blank(&self, ch: Self::Char) -> bool;
     /// length in bytes
@@ -423,6 +428,15 @@ impl Text for str {
         self.assign_lower(&mut dst);
         dst
     }
+    fn assign_upper(&self, dst: &mut String) {
+        dst.clear();
+        dst.extend(self.chars().flat_map(char::to_uppercase));
+    }
+    fn new_upper(&self) -> String {
+        let mut dst = String::new();
+        self.assign_upper(&mut dst);
+        dst
+    }
     fn tail_u8(&self, num: usize, delim: u8) -> &Self {
         &self[tail_u8_len(self.as_bytes(), num, delim)..]
     }
@@ -575,6 +589,15 @@ impl Text for [u8] {
     fn new_lower(&self) -> Vec<u8> {
         let mut dst = Vec::new();
         self.assign_lower(&mut dst);
+        dst
+    }
+    fn assign_upper(&self, dst: &mut Vec<u8>) {
+        dst.clear();
+        dst.extend(self.iter().map(u8::to_ascii_uppercase));
+    }
+    fn new_upper(&self) -> Vec<u8> {
+        let mut dst = Vec::new();
+        self.assign_upper(&mut dst);
         dst
     }
     fn tail_u8(&self, num: usize, delim: u8) -> &Self {

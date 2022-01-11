@@ -41,6 +41,19 @@ impl Trans for LowerUtfTrans {
         Ok(())
     }
 }
+#[derive(Default)]
+struct UpperUtfTrans {
+    tmp: String,
+}
+impl Trans for UpperUtfTrans {
+    fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
+        String::from_utf8_lossy(src)
+            .as_ref()
+            .assign_upper(&mut self.tmp);
+        dst.extend(self.tmp.as_bytes());
+        Ok(())
+    }
+}
 
 struct UpperTrans {}
 impl Trans for UpperTrans {
@@ -183,8 +196,12 @@ impl TransMaker {
                 Ok(Box::new(LowerTrans {}))
             }
         })?;
-        Self::do_push("upper", "make upper case", |_c, _p| {
-            Ok(Box::new(UpperTrans {}))
+        Self::do_push("upper", "make upper case", |c, _p| {
+            if c.utf8 {
+                Ok(Box::new(UpperUtfTrans::default()))
+            } else {
+                Ok(Box::new(UpperTrans {}))
+            }
         })?;
         Ok(())
     }

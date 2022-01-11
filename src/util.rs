@@ -460,7 +460,7 @@ struct S3Reader {
     rt: tokio::runtime::Runtime,
     //    client : aws_sdk_s3::Client,
     f: aws_sdk_s3::output::GetObjectOutput,
-    remainder: Vec<u8>,
+    left: Option<bytes::Bytes>,
 }
 impl S3Reader {
     fn new(bucket: &str, key: &str) -> Result<Self> {
@@ -475,7 +475,7 @@ impl S3Reader {
             rt,
             //	    client,
             f: obj,
-            remainder: Vec::new(),
+            left: None,
         })
     }
     fn new_path(spec: &str) -> Result<Self> {
@@ -492,15 +492,15 @@ impl S3Reader {
 }
 impl Read for S3Reader {
     fn read(&mut self, buf: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
-        if !self.remainder.is_empty() {
-            if self.remainder.len() > buf.len() {
-                buf.clone_from_slice(&self.remainder[..buf.len()]);
-                self.remainder.drain(..buf.len());
+        if let Some(bytes) = &self.left {
+            if bytes.len() > buf.len() {
+                buf.clone_from_slice(&bytes[..buf.len()]);
+                self.left = Some(bytes.slice(buf.len()..));
                 return Ok(buf.len());
             } else {
-                let len = self.remainder.len();
-                buf[0..len].clone_from_slice(&self.remainder);
-                self.remainder.clear();
+                let len = bytes.len();
+                buf[0..len].clone_from_slice(&bytes);
+                self.left = None;
                 return Ok(len);
             }
         }
@@ -508,14 +508,17 @@ impl Read for S3Reader {
         if bytes_res.is_err() {
             return Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no"));
         }
-        if let Some(bytes) = bytes_res.unwrap() {
+        self.left = bytes_res.unwrap();
+        if let Some(bytes) = &self.left {
             if bytes.len() > buf.len() {
                 buf.clone_from_slice(&bytes[..buf.len()]);
-                self.remainder.extend(&bytes[buf.len()..]);
+                self.left = Some(bytes.slice(buf.len()..));
                 Ok(buf.len())
             } else {
+                let len = bytes.len();
                 buf[0..bytes.len()].clone_from_slice(&bytes);
-                Ok(bytes.len())
+                self.left = None;
+                Ok(len)
             }
         } else {
             Ok(0)
