@@ -15,7 +15,7 @@ pub struct Rect {
 }
 impl Rect {
     /// new
-    pub fn new(width: usize, height: usize) -> Self {
+    pub const fn new(width: usize, height: usize) -> Self {
         Self { width, height }
     }
     /// get screen size

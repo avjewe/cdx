@@ -12,6 +12,7 @@ mod join_main;
 mod sort_main;
 mod tabs_main;
 mod tooltest_main;
+mod transpose_main;
 mod uniq_main;
 mod verify_main;
 
