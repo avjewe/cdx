@@ -1,0 +1,5 @@
+#command cdx cut -f1+from_base64 -f2+to_base64
+#stdin
+YWJjZGU=	ABCDE
+#stdout
+abcde	QUJDREU=

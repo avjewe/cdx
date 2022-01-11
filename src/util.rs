@@ -55,6 +55,8 @@ pub enum Error {
     FromUtf8Error(std::string::FromUtf8Error),
     /// pass through Utf8Error
     Utf8Error(std::str::Utf8Error),
+    /// pass through DecodeError
+    Base64(base64::DecodeError),
     /// pass through SdkError
     MyGetObjectError(aws_sdk_s3::SdkError<aws_sdk_s3::error::GetObjectError>),
     /// bytestream
@@ -82,6 +84,7 @@ impl Error {
     }
 }
 
+err_type!(base64::DecodeError, Error::Base64);
 err_type!(std::str::Utf8Error, Error::Utf8Error);
 err_type!(regex::Error, Error::RegexError);
 err_type!(std::string::FromUtf8Error, Error::FromUtf8Error);
@@ -106,6 +109,7 @@ impl fmt::Display for Error {
             Error::Utf8Error(s) => write!(f, "Utf8Error : {}", s)?,
             Error::MyGetObjectError(s) => write!(f, "GetObjectError : {}", s)?,
             Error::ByteStreamError(s) => write!(f, "ByteStreamError : {}", s)?,
+            Error::Base64(s) => write!(f, "Base64 : {}", s)?,
             Error::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
@@ -499,7 +503,7 @@ impl Read for S3Reader {
                 return Ok(buf.len());
             } else {
                 let len = bytes.len();
-                buf[0..len].clone_from_slice(&bytes);
+                buf[0..len].clone_from_slice(bytes);
                 self.left = None;
                 return Ok(len);
             }
@@ -516,7 +520,7 @@ impl Read for S3Reader {
                 Ok(buf.len())
             } else {
                 let len = bytes.len();
-                buf[0..bytes.len()].clone_from_slice(&bytes);
+                buf[0..bytes.len()].clone_from_slice(bytes);
                 self.left = None;
                 Ok(len)
             }

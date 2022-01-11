@@ -18,6 +18,54 @@ pub trait Trans {
     }
 }
 
+struct Base64Trans {
+    encode: bool,
+    config: base64::Config,
+}
+impl Base64Trans {
+    fn get_config(x: &str) -> Result<base64::Config> {
+        if x.eq_ignore_ascii_case("std") || x.eq_ignore_ascii_case("standard") || x.is_empty() {
+            Ok(base64::STANDARD)
+        } else if x.eq_ignore_ascii_case("std_np") || x.eq_ignore_ascii_case("standard_np") {
+            Ok(base64::STANDARD_NO_PAD)
+        } else if x.eq_ignore_ascii_case("bcrypt") {
+            Ok(base64::BCRYPT)
+        } else if x.eq_ignore_ascii_case("binhex") {
+            Ok(base64::BINHEX)
+        } else if x.eq_ignore_ascii_case("crypt") {
+            Ok(base64::CRYPT)
+        } else if x.eq_ignore_ascii_case("imap") {
+            Ok(base64::IMAP_MUTF7)
+        } else if x.eq_ignore_ascii_case("url") {
+            Ok(base64::URL_SAFE)
+        } else if x.eq_ignore_ascii_case("url_np") {
+            Ok(base64::URL_SAFE_NO_PAD)
+        } else {
+            err!("Unrecognized base64 config, must be one of : standard, standard_np, bcrypt, binhex, crypt, imap, url, or url_np.\nSee https://docs.rs/base64/ for details.")
+        }
+    }
+    fn new(encode: bool, config: &str) -> Result<Self> {
+        Ok(Self {
+            encode,
+            config: Self::get_config(config)?,
+        })
+    }
+}
+impl Trans for Base64Trans {
+    fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
+        if self.encode {
+            dst.resize(src.len() * 4 / 3 + 4, 0);
+            let len = base64::encode_config_slice(src, self.config, dst);
+            dst.resize(len, 0);
+        } else {
+            dst.resize((src.len() + 3) / 4 * 3, 0);
+            let len = base64::decode_config_slice(src, self.config, dst)?;
+            dst.resize(len, 0);
+        }
+        Ok(())
+    }
+}
+
 struct LowerTrans {}
 impl Trans for LowerTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
@@ -202,6 +250,12 @@ impl TransMaker {
             } else {
                 Ok(Box::new(UpperTrans {}))
             }
+        })?;
+        Self::do_push("from_base64", "decode base64 encoding", |_c, p| {
+            Ok(Box::new(Base64Trans::new(false, p)?))
+        })?;
+        Self::do_push("to_base64", "encode base64 encoding", |_c, p| {
+            Ok(Box::new(Base64Trans::new(true, p)?))
         })?;
         Ok(())
     }
