@@ -75,6 +75,15 @@ impl LineNumber {
 }
 
 pub fn main(argv: &[String]) -> Result<()> {
+    /*
+        let mut ws = libc::winsize{ws_row:0, ws_col:0, ws_xpixel:0, ws_ypixel:0};
+        if unsafe{libc::ioctl(1, libc::TIOCGWINSZ, &mut ws)} >= 0 {
+        eprintln!("Window size {} {}", ws.ws_row, ws.ws_col);
+        }
+        else {
+        eprintln!("ioctl failed");
+        }
+    */
     let prog = args::ProgSpec::new("Concatenate files.", args::FileCount::Many);
     const A: [ArgSpec; 7] = [
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},

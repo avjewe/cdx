@@ -31,6 +31,7 @@ pub const MAINLIST: &[OneMain] = &[
     proc! {"cgrep",  "Search files.",  cgrep_main::main},
     proc! {"cut",  "Select colums.",  cut_main::main},
     proc! {"join",  "Join files on a matching column",  join_main::main},
+    proc! {"tabs", "Display files.", tabs_main::main},
     proc! {"sort", "Sort files.", sort_main::main},
     proc! {"tooltest", "Test command line tools.", tooltest_main::main},
     proc! {"uniq", "Merge duplicate lines.", uniq_main::main},

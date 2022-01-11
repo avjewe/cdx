@@ -24,6 +24,10 @@ tempdir = "0.3"
 memmap = "0.7"
 fnv = "1.0.5"
 nom = "1.0.0"
+libc = "0.2"
+unicode-width = "0.1"
+unicode-truncate = "0.2"
+
 aws-config = "0.4.0"
 aws-sdk-s3 = "0.4.0"
 tokio = { version = "1", features = ["full"] }

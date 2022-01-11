@@ -41,6 +41,7 @@ pub mod matcher;
 pub mod num;
 mod shunting_yard;
 pub mod sort;
+pub mod tabs;
 pub mod text;
 mod tokenizer;
 pub mod tooltest;
