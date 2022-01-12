@@ -1,0 +1,7 @@
+#command cdx cut -f 1+bytes,3,2-4,42
+#stdin
+
+1234567890
+#stdout
+
+3234

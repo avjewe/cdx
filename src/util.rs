@@ -6,7 +6,7 @@ use flate2::read::MultiGzDecoder;
 use fs_err as fs;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::cmp::Ordering;
+use std::cmp::{self,Ordering};
 use std::error;
 use std::ffi::OsStr;
 use std::io::{self, BufRead, Read, Write};
@@ -127,9 +127,37 @@ pub struct FakeSlice {
     end: u32,
 }
 impl FakeSlice {
+    /// new from text, like '7' or '3-6'
+    pub fn new(spec : &str) -> Result<Self> {
+	if let Some((a, b)) = spec.split_once('-') {
+	    let begin = a.parse::<u32>()?;
+	    let end = b.parse::<u32>()?;
+	    if begin == 0 || end == 0 {
+		err!("Invalid range, both number must be greater than zero")
+	    }
+	    else if begin > end {
+		err!("Invalid range, begin is greater than end")
+	    }
+	    else {
+		Ok(Self { begin:begin-1, end })
+	    }
+        } else {
+	    let num = spec.parse::<u32>()?;
+	    if num == 0 {
+		err!("Invalid offset, must be greater than zero")
+	    }
+	    else {
+		Ok(Self { begin : num-1, end : num })
+	    }
+        }
+    }
     /// get slice from FakeSlice
     pub fn get<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         &data[self.begin as usize..self.end as usize]
+    }
+    /// get slice from FakeSlice, but don't fall off the end.
+    pub fn get_safe<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        &data[cmp::min(self.begin as usize, data.len())..cmp::min(self.end as usize, data.len())]
     }
     /// len
     pub const fn len(&self) -> usize {
