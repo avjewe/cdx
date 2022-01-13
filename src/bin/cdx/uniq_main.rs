@@ -174,6 +174,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut agg = AggList::new();
     let mut comp = LineCompList::new();
     let mut count = Count::default();
+
     for x in args {
         if x.name == "key" {
             comp.add(&x.value)?;

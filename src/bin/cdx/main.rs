@@ -15,6 +15,7 @@ mod tooltest_main;
 mod transpose_main;
 mod uniq_main;
 mod verify_main;
+mod wc_main;
 
 fn main() {
     match inner_main(env::args().collect()) {

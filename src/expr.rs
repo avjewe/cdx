@@ -14,7 +14,7 @@ use std::f64::consts;
 /// evaluate a constant arithmetic expression
 pub fn calc(expr: &str) -> Result<f64> {
     let mut c = Expr::new(expr)?;
-    Ok(c.eval_plain())
+    c.eval_plain()
 }
 
 fn find_const(x: &str) -> Option<f64> {
@@ -412,6 +412,16 @@ impl Expr {
     pub fn expr(&self) -> &str {
         &self.expr_str
     }
+    fn parse(&mut self, exp: &str) -> Result<()> {
+        let tokens = tokenize(exp)?;
+        let rpn = to_rpn(&tokens)?;
+        self.rpn_to_expr(&rpn)
+    }
+    fn parse_self(&mut self) -> Result<()> {
+        let tokens = tokenize(&self.expr_str)?;
+        let rpn = to_rpn(&tokens)?;
+        self.rpn_to_expr(&rpn)
+    }
     /// resolve named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         let mut n = self.expr_str.clone();
@@ -430,10 +440,7 @@ impl Expr {
             }
             n.replace_range(pos..pos + len, &nval);
         }
-
-        let tokens = tokenize(&n)?;
-        let rpn = to_rpn(&tokens)?;
-        self.rpn_to_expr(&rpn)?;
+        self.parse(&n)?;
         'outer: for y in &mut self.vars {
             for (i, x) in fieldnames.iter().enumerate() {
                 if *x == y.name {
@@ -544,9 +551,10 @@ impl Expr {
         Ok(())
     }
     /// evaluate constant expression
-    pub fn eval_plain(&mut self) -> f64 {
+    pub fn eval_plain(&mut self) -> Result<f64> {
         // Error if variables?
-        self.do_eval()
+        self.parse_self()?;
+        Ok(self.do_eval())
     }
     /// evaluate expression with values from line
     pub fn eval(&mut self, line: &TextLine) -> f64 {

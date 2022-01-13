@@ -37,4 +37,5 @@ pub const MAINLIST: &[OneMain] = &[
     proc! {"transpose", "Transpose a file.", transpose_main::main},
     proc! {"uniq", "Merge duplicate lines.", uniq_main::main},
     proc! {"verify", "Verify the contents of a file.", verify_main::main},
+    proc! {"wc", "Count words and lines and such.", wc_main::main},
 ];

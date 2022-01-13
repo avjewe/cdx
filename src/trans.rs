@@ -1,7 +1,7 @@
 //! Transforms that turn values into other values
 
 use crate::text::Text;
-use crate::util::{err, Error, Result, TextLine, FakeSlice};
+use crate::util::{err, Error, FakeSlice, Result, TextLine};
 use lazy_static::lazy_static;
 use std::fmt;
 use std::sync::Mutex;
@@ -19,23 +19,23 @@ pub trait Trans {
 }
 
 struct BytesTrans {
-    v : Vec<FakeSlice>,
+    v: Vec<FakeSlice>,
 }
 impl BytesTrans {
-    fn new(spec : &str) -> Result<Self> {
-	let mut v = Vec::new();
-	for x in spec.split(',') {
-	    v.push(FakeSlice::new(x)?);
-	}
-	Ok(Self{v})
+    fn new(spec: &str) -> Result<Self> {
+        let mut v = Vec::new();
+        for x in spec.split(',') {
+            v.push(FakeSlice::new(x)?);
+        }
+        Ok(Self { v })
     }
 }
 impl Trans for BytesTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
-	for x in &self.v {
-	    dst.extend(x.get_safe(src));
-	}
-	Ok(())
+        for x in &self.v {
+            dst.extend(x.get_safe(src));
+        }
+        Ok(())
     }
 }
 struct Base64Trans {

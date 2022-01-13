@@ -1,6 +1,8 @@
 //! Numeric Helpers
 
+use crate::util::{err, Error, Result};
 use std::cmp::Ordering;
+use std::io::Write;
 
 /// amount of junk allowed in a number, before falling back to the 'error' value
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -90,5 +92,101 @@ pub fn ulp_to_ulong(d: f64) -> u64 {
         x ^ 0xffffffffffffffffu64
     } else {
         x | 0x8000000000000000u64
+    }
+}
+
+/// how to format a number
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum NumFormat {
+    /// as integer
+    Plain,
+    /// 1.2e34
+    Float,
+    /// power of 2, e.g. 3K
+    Power2,
+    /// power of 10 e.g. 3k
+    Power10,
+}
+impl Default for NumFormat {
+    fn default() -> Self {
+        Self::Plain
+    }
+}
+impl NumFormat {
+    /// new from string
+    pub fn new(spec: &str) -> Result<Self> {
+        if spec.eq_ignore_ascii_case("plain")
+            || spec.eq_ignore_ascii_case("int")
+            || spec.eq_ignore_ascii_case("integer")
+        {
+            Ok(Self::Plain)
+        } else if spec.eq_ignore_ascii_case("float") || spec.eq_ignore_ascii_case("exp") {
+            Ok(Self::Float)
+        } else if spec.eq_ignore_ascii_case("power2") || spec.eq_ignore_ascii_case("p2") {
+            Ok(Self::Power2)
+        } else if spec.eq_ignore_ascii_case("power10") || spec.eq_ignore_ascii_case("p10") {
+            Ok(Self::Power10)
+        } else {
+            err!("Number format must be plain, float, power1 or power10")
+        }
+    }
+}
+
+/// format a number
+pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()> {
+    if fmt == NumFormat::Plain || num.abs() < 1000.0 {
+        write!(w, "{}", num)?;
+        return Ok(());
+    }
+    if fmt == NumFormat::Float {
+        write!(w, "{:.2e}", num)?;
+        return Ok(());
+    }
+    const P2_LETTERS: &[u8] = b"0KMGTPEZY";
+    const P10_LETTERS: &[u8] = b"0kmgtpezy";
+    let sign = if num < 0.0 {
+        num = -num;
+        "-"
+    } else {
+        ""
+    };
+    let (exp, letters) = if fmt == NumFormat::Power2 {
+        (1024.0, P2_LETTERS)
+    } else {
+        (1000.0, P10_LETTERS)
+    };
+
+    let mut curr_exp: f64 = 1.0;
+    let mut exp_num: usize = 0;
+
+    loop {
+        if num < (999.0 * curr_exp) {
+            if num >= (10.0 * curr_exp) {
+                write!(
+                    w,
+                    "{}{:.0}{}",
+                    sign,
+                    num / curr_exp,
+                    letters[exp_num] as char
+                )?;
+            } else if num >= (1.1 * curr_exp) {
+                write!(
+                    w,
+                    "{}{:.1}{}",
+                    sign,
+                    num / curr_exp,
+                    letters[exp_num] as char
+                )?;
+            } else {
+                write!(w, "{}1{}", sign, letters[exp_num] as char)?;
+            }
+            return Ok(());
+        }
+        exp_num += 1;
+        curr_exp *= exp;
+        if exp_num >= 8 {
+            write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[8] as char)?;
+            return Ok(());
+        }
     }
 }

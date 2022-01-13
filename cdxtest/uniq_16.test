@@ -1,0 +1,10 @@
+#command cdx uniq -k two -a three,asum,chars
+#stdin
+ CDX	one	two	three
+qax	aaa	1,2
+wsx	aaa	3,42
+edc	aaa	4,5
+rfv	aaa	0,3
+#stdout
+ CDX	one	two	three
+qax	aaa	13

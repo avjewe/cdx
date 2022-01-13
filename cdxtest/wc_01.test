@@ -1,0 +1,9 @@
+#command cdx wc
+#stdin
+aaa
+bbbbbbb
+
+d
+eeeee
+#stdout
+5

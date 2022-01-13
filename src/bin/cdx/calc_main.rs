@@ -4,7 +4,8 @@ use crate::args::ArgSpec;
 //use crate::{arg, arg_enum, arg_pos, args};
 use crate::args;
 use cdx::expr::calc;
-use cdx::util::{Reader, Result};
+use cdx::num;
+use cdx::util::{prerr, Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Evaluate Expressions.", args::FileCount::Many);
@@ -29,7 +30,22 @@ pub fn main(argv: &[String]) -> Result<()> {
         }
         loop {
             match calc(&String::from_utf8_lossy(f.curr_nl())) {
-                Ok(v) => println!("{}", v),
+                Ok(v) => {
+                    let mut vec: Vec<u8> = Vec::new();
+                    vec.clear();
+                    num::format_hnum(v, num::NumFormat::Plain, &mut vec)?;
+                    prerr(&[&vec]);
+                    vec.clear();
+                    num::format_hnum(v, num::NumFormat::Float, &mut vec)?;
+                    prerr(&[&vec]);
+                    vec.clear();
+                    num::format_hnum(v, num::NumFormat::Power2, &mut vec)?;
+                    prerr(&[&vec]);
+                    vec.clear();
+                    num::format_hnum(v, num::NumFormat::Power10, &mut vec)?;
+                    prerr(&[&vec]);
+                    //		    println!("{}", num::format_hnum(v as i64, num::NumFormat::Power2, ),
+                }
                 Err(e) => eprintln!("{}", e),
             }
             if f.getline()? {

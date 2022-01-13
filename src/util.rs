@@ -6,7 +6,7 @@ use flate2::read::MultiGzDecoder;
 use fs_err as fs;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::cmp::{self,Ordering};
+use std::cmp::{self, Ordering};
 use std::error;
 use std::ffi::OsStr;
 use std::io::{self, BufRead, Read, Write};
@@ -120,6 +120,39 @@ impl fmt::Display for Error {
     }
 }
 
+/// Yes, No or Maybe
+#[derive(Debug)]
+pub enum Tri {
+    /// always do the thing
+    Yes,
+    /// never do the thing
+    No,
+    /// do the thing under some circumstances
+    Maybe,
+}
+impl Tri {
+    /// new from string
+    pub fn new(x: &str) -> Result<Self> {
+        if x.eq_ignore_ascii_case("yes")
+            || x.eq_ignore_ascii_case("true")
+            || x.eq_ignore_ascii_case("1")
+            || x.eq_ignore_ascii_case("on")
+        {
+            Ok(Self::Yes)
+        } else if x.eq_ignore_ascii_case("no")
+            || x.eq_ignore_ascii_case("false")
+            || x.eq_ignore_ascii_case("0")
+            || x.eq_ignore_ascii_case("off")
+        {
+            Ok(Self::No)
+        } else if x.eq_ignore_ascii_case("maybe") || x.eq_ignore_ascii_case("sometimes") {
+            Ok(Self::Maybe)
+        } else {
+            err!("Tri value must be yes, no or maybe '{}'", x)
+        }
+    }
+}
+
 /// pointers into a vector, simulating a slice without the ownership issues
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FakeSlice {
@@ -128,27 +161,30 @@ pub struct FakeSlice {
 }
 impl FakeSlice {
     /// new from text, like '7' or '3-6'
-    pub fn new(spec : &str) -> Result<Self> {
-	if let Some((a, b)) = spec.split_once('-') {
-	    let begin = a.parse::<u32>()?;
-	    let end = b.parse::<u32>()?;
-	    if begin == 0 || end == 0 {
-		err!("Invalid range, both number must be greater than zero")
-	    }
-	    else if begin > end {
-		err!("Invalid range, begin is greater than end")
-	    }
-	    else {
-		Ok(Self { begin:begin-1, end })
-	    }
+    pub fn new(spec: &str) -> Result<Self> {
+        if let Some((a, b)) = spec.split_once('-') {
+            let begin = a.parse::<u32>()?;
+            let end = b.parse::<u32>()?;
+            if begin == 0 || end == 0 {
+                err!("Invalid range, both number must be greater than zero")
+            } else if begin > end {
+                err!("Invalid range, begin is greater than end")
+            } else {
+                Ok(Self {
+                    begin: begin - 1,
+                    end,
+                })
+            }
         } else {
-	    let num = spec.parse::<u32>()?;
-	    if num == 0 {
-		err!("Invalid offset, must be greater than zero")
-	    }
-	    else {
-		Ok(Self { begin : num-1, end : num })
-	    }
+            let num = spec.parse::<u32>()?;
+            if num == 0 {
+                err!("Invalid offset, must be greater than zero")
+            } else {
+                Ok(Self {
+                    begin: num - 1,
+                    end: num,
+                })
+            }
         }
     }
     /// get slice from FakeSlice
@@ -1749,6 +1785,19 @@ pub fn find_close(spec: &str) -> Result<usize> {
         }
     }
     err!("Had no closing delimiter '{}'", spec)
+}
+
+/// remove trailing end of line characters
+pub fn chomp(mut x: &[u8]) -> &[u8] {
+    while !x.is_empty() {
+        let len = x.len() - 1;
+        if x[len] != b'\n' && x[len] != b'\r' {
+            break;
+        } else {
+            x = &x[..len];
+        }
+    }
+    x
 }
 
 #[cfg(test)]

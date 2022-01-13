@@ -2,19 +2,15 @@
 
 use crate::column::{ColumnFun, ColumnHeader, ColumnSingle, NamedCol, Writer};
 use crate::comp::{Comp, CompMaker};
+use crate::num;
 use crate::text::Text;
 use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use std::cell::RefCell;
-use std::cmp::Ordering;
+use std::cmp::{self, Ordering};
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Mutex;
-
-// uniq says : Column,Min,Method,Pattern
-// make Writer from Column or AggColumn, option to add agg as new column or to replace
-// error if multuple agg for same column,
-// ColumnFun from Agg and Column
 
 /// Aggregate Values
 pub trait Agg {
@@ -24,6 +20,115 @@ pub trait Agg {
     fn result(&mut self, w: &mut dyn Write) -> Result<()>;
     /// reset to empty or zero state
     fn reset(&mut self);
+    /// return floating point value of Agg, as possible
+    fn value(&self) -> f64 {
+        0.0
+    }
+    /// set floating point format for 'result'
+    fn fmt(&mut self, _f: num::NumFormat) {}
+}
+
+/// get number of things in data
+pub trait Counter {
+    /// get number of things in data
+    fn counter(&mut self, data: &[u8]) -> usize;
+}
+
+struct Chars {
+    utf8: bool,
+}
+impl Chars {
+    const fn new(utf8: bool) -> Self {
+        Self { utf8 }
+    }
+}
+impl Counter for Chars {
+    fn counter(&mut self, data: &[u8]) -> usize {
+        if self.utf8 {
+            String::from_utf8_lossy(data).chars().count()
+        } else {
+            data.len()
+        }
+    }
+}
+
+struct Swords {
+    utf8: bool,
+}
+impl Swords {
+    const fn new(utf8: bool) -> Self {
+        Self { utf8 }
+    }
+}
+
+impl Counter for Swords {
+    fn counter(&mut self, data: &[u8]) -> usize {
+        let mut saw_space = true;
+        let mut ret = 0;
+        if self.utf8 {
+            for x in String::from_utf8_lossy(data).chars() {
+                if !x.is_whitespace() {
+                    if saw_space {
+                        ret += 1;
+                        saw_space = false;
+                    }
+                } else {
+                    saw_space = true;
+                }
+            }
+        } else {
+            for x in data {
+                if *x > b' ' {
+                    if saw_space {
+                        ret += 1;
+                        saw_space = false;
+                    }
+                } else {
+                    saw_space = true;
+                }
+            }
+        }
+        ret
+    }
+}
+
+struct Awords {
+    utf8: bool,
+}
+impl Awords {
+    const fn new(utf8: bool) -> Self {
+        Self { utf8 }
+    }
+}
+impl Counter for Awords {
+    fn counter(&mut self, data: &[u8]) -> usize {
+        let mut saw_space = true;
+        let mut ret = 0;
+        if self.utf8 {
+            for x in String::from_utf8_lossy(data).chars() {
+                if x.is_alphanumeric() {
+                    if saw_space {
+                        ret += 1;
+                        saw_space = false;
+                    }
+                } else {
+                    saw_space = true;
+                }
+            }
+        } else {
+            for x in data {
+                if x.is_ascii_alphanumeric() {
+                    if saw_space {
+                        ret += 1;
+                        saw_space = false;
+                    }
+                } else {
+                    saw_space = true;
+                }
+            }
+        }
+        ret
+    }
 }
 
 type AggRef = Rc<RefCell<dyn Agg>>;
@@ -119,6 +224,113 @@ impl ColumnFun for AggCol {
     }
 }
 
+/// An Agg with a source column and an output designation
+#[derive(Clone)]
+pub struct AggWhole {
+    /// orig spec
+    pub spec: String,
+    /// Aggregator
+    pub agg: AggRef,
+    /// output column name
+    pub name: String,
+}
+impl ColumnFun for AggWhole {
+    /// write the column names (called once)
+    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+        w.push(&self.name)
+    }
+    /// write the column values (called many times)
+    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
+        self.agg.borrow_mut().result(w)
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+        Ok(())
+    }
+}
+impl AggWhole {
+    /// new replace
+    pub fn new(spec: &str) -> Result<Self> {
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::new2(a, b, spec)
+        } else {
+            Self::new2("", spec, spec)
+        }
+    }
+    /// new from AggType and spec
+    pub fn new2(name: &str, spec: &str, orig: &str) -> Result<Self> {
+        Ok(Self {
+            spec: orig.to_string(),
+            name: name.to_string(),
+            agg: AggMaker::make(spec)?,
+        })
+    }
+}
+
+/// A list of AggCol
+#[derive(Clone, Default, Debug)]
+pub struct AggWholeList {
+    /// The aggregators
+    v: Vec<AggWhole>,
+}
+impl std::fmt::Debug for AggWhole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.spec)
+    }
+}
+
+impl AggWholeList {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// len
+    pub fn len(&self) -> usize {
+        self.v.len()
+    }
+    /// fmt
+    pub fn fmt(&mut self, f: num::NumFormat) {
+        for x in &mut self.v {
+            x.agg.borrow_mut().fmt(f);
+        }
+    }
+    /// index
+    pub fn get(&self, pos: usize) -> &AggWhole {
+        &self.v[pos]
+    }
+    /// reset to empty or zero
+    pub fn reset(&mut self) {
+        for x in &mut self.v {
+            x.agg.borrow_mut().reset();
+        }
+    }
+    /// is empty?
+    pub fn is_empty(&self) -> bool {
+        self.v.is_empty()
+    }
+    /// OutName,Agg,Pattern
+    pub fn push(&mut self, spec: &str) -> Result<()> {
+        self.do_push(AggWhole::new(spec)?)
+    }
+    /// add item
+    pub fn do_push(&mut self, item: AggWhole) -> Result<()> {
+        self.v.push(item);
+        Ok(()) // fail if replace and duplicate column
+    }
+    /// update all aggregators with new data
+    pub fn add(&mut self, data: &[u8]) {
+        for x in &mut self.v {
+            x.agg.borrow_mut().add(data);
+        }
+    }
+    /// fill Writer with aggregators
+    pub fn fill(&self, w: &mut Writer) {
+        for x in &self.v {
+            w.push(Box::new(x.clone()));
+        }
+    }
+}
+
 /// A list of AggCol
 #[derive(Clone, Default, Debug)]
 pub struct AggList {
@@ -130,6 +342,12 @@ impl AggList {
     /// new
     pub fn new() -> Self {
         Self::default()
+    }
+    /// fmt
+    pub fn fmt(&mut self, f: num::NumFormat) {
+        for x in &mut self.v {
+            x.agg.borrow_mut().fmt(f);
+        }
     }
     /// reset to empty or zero
     pub fn reset(&mut self) {
@@ -372,6 +590,9 @@ impl Min {
 }
 
 impl Agg for Min {
+    fn value(&self) -> f64 {
+        self.val.to_f64_lossy()
+    }
     fn add(&mut self, data: &[u8]) {
         if self.empty {
             self.empty = false;
@@ -396,12 +617,17 @@ impl Agg for Min {
 struct Mean {
     val: f64,
     cnt: f64,
+    fmt: num::NumFormat,
 }
 
 impl Mean {
     fn new(spec: &str) -> Result<Self> {
         if spec.is_empty() {
-            Ok(Self { val: 0.0, cnt: 0.0 })
+            Ok(Self {
+                val: 0.0,
+                cnt: 0.0,
+                fmt: num::NumFormat::default(),
+            })
         } else {
             err!("Unexpected pattern with 'Mean' aggregator : '{}'", spec)
         }
@@ -409,13 +635,23 @@ impl Mean {
 }
 
 impl Agg for Mean {
+    fn fmt(&mut self, f: num::NumFormat) {
+        self.fmt = f;
+    }
     fn add(&mut self, data: &[u8]) {
         self.val += data.to_f64_lossy();
         self.cnt += 1.0;
     }
+
     fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        write!(w, "{}", self.val / self.cnt)?;
-        Ok(())
+        num::format_hnum(self.value(), self.fmt, w)
+    }
+    fn value(&self) -> f64 {
+        if self.cnt > 0.0 {
+            self.val / self.cnt
+        } else {
+            0.0
+        }
     }
     fn reset(&mut self) {
         self.val = 0.0;
@@ -425,12 +661,16 @@ impl Agg for Mean {
 
 struct Sum {
     val: f64,
+    fmt: num::NumFormat,
 }
 
 impl Sum {
     fn new(spec: &str) -> Result<Self> {
         if spec.is_empty() {
-            Ok(Self { val: 0.0 })
+            Ok(Self {
+                val: 0.0,
+                fmt: num::NumFormat::default(),
+            })
         } else {
             err!("Unexpected pattern with 'Sum' aggregator : '{}'", spec)
         }
@@ -438,15 +678,164 @@ impl Sum {
 }
 
 impl Agg for Sum {
+    fn fmt(&mut self, f: num::NumFormat) {
+        self.fmt = f;
+    }
     fn add(&mut self, data: &[u8]) {
         self.val += data.to_f64_lossy();
     }
     fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        write!(w, "{}", self.val)?;
-        Ok(())
+        num::format_hnum(self.value(), self.fmt, w)
+    }
+    fn value(&self) -> f64 {
+        self.val
     }
     fn reset(&mut self) {
         self.val = 0.0;
+    }
+}
+
+struct ASum {
+    val: usize,
+    cnt: Box<dyn Counter>,
+    fmt: num::NumFormat,
+}
+
+impl ASum {
+    fn new(spec: &str) -> Result<Self> {
+        Ok(Self {
+            val: 0,
+            cnt: AggMaker::make_counter(spec)?,
+            fmt: num::NumFormat::default(),
+        })
+    }
+}
+
+impl Agg for ASum {
+    fn fmt(&mut self, f: num::NumFormat) {
+        self.fmt = f;
+    }
+    fn value(&self) -> f64 {
+        self.val as f64
+    }
+    fn add(&mut self, data: &[u8]) {
+        self.val += self.cnt.counter(data);
+    }
+    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+        num::format_hnum(self.val as f64, self.fmt, w)
+    }
+    fn reset(&mut self) {
+        self.val = 0;
+    }
+}
+
+struct AMin {
+    val: usize,
+    cnt: Box<dyn Counter>,
+    fmt: num::NumFormat,
+}
+
+impl AMin {
+    fn new(spec: &str) -> Result<Self> {
+        Ok(Self {
+            val: usize::MAX,
+            cnt: AggMaker::make_counter(spec)?,
+            fmt: num::NumFormat::default(),
+        })
+    }
+}
+
+impl Agg for AMin {
+    fn fmt(&mut self, f: num::NumFormat) {
+        self.fmt = f;
+    }
+    fn value(&self) -> f64 {
+        self.val as f64
+    }
+    fn add(&mut self, data: &[u8]) {
+        self.val = cmp::min(self.val, self.cnt.counter(data));
+    }
+    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+        num::format_hnum(self.val as f64, self.fmt, w)
+    }
+    fn reset(&mut self) {
+        self.val = usize::MAX;
+    }
+}
+
+struct AMax {
+    val: usize,
+    cnt: Box<dyn Counter>,
+    fmt: num::NumFormat,
+}
+
+impl AMax {
+    fn new(spec: &str) -> Result<Self> {
+        Ok(Self {
+            val: 0,
+            cnt: AggMaker::make_counter(spec)?,
+            fmt: num::NumFormat::default(),
+        })
+    }
+}
+
+impl Agg for AMax {
+    fn fmt(&mut self, f: num::NumFormat) {
+        self.fmt = f;
+    }
+    fn value(&self) -> f64 {
+        self.val as f64
+    }
+    fn add(&mut self, data: &[u8]) {
+        self.val = cmp::max(self.val, self.cnt.counter(data));
+    }
+    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+        num::format_hnum(self.val as f64, self.fmt, w)
+    }
+    fn reset(&mut self) {
+        self.val = 0;
+    }
+}
+
+struct AMean {
+    val: usize,
+    num: usize,
+    cnt: Box<dyn Counter>,
+    fmt: num::NumFormat,
+}
+
+impl AMean {
+    fn new(spec: &str) -> Result<Self> {
+        Ok(Self {
+            val: 0,
+            num: 0,
+            cnt: AggMaker::make_counter(spec)?,
+            fmt: num::NumFormat::default(),
+        })
+    }
+}
+
+impl Agg for AMean {
+    fn fmt(&mut self, f: num::NumFormat) {
+        self.fmt = f;
+    }
+    fn value(&self) -> f64 {
+        if self.num > 0 {
+            self.val as f64 / self.num as f64
+        } else {
+            0.0
+        }
+    }
+    fn add(&mut self, data: &[u8]) {
+        self.val += self.cnt.counter(data);
+        self.num += 1;
+    }
+    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+        num::format_hnum(self.val as f64, self.fmt, w)
+    }
+    fn reset(&mut self) {
+        self.val = 0;
+        self.num = 0;
     }
 }
 
@@ -477,6 +866,9 @@ impl Agg for Max {
     }
     fn reset(&mut self) {
         self.val.clear();
+    }
+    fn value(&self) -> f64 {
+        self.val.to_f64_lossy()
     }
 }
 
@@ -589,12 +981,16 @@ impl Agg for Suffix {
 
 struct Count {
     val: usize,
+    fmt: num::NumFormat,
 }
 
 impl Count {
     fn new(spec: &str) -> Result<Self> {
         if spec.is_empty() {
-            Ok(Self { val: 0 })
+            Ok(Self {
+                val: 0,
+                fmt: num::NumFormat::default(),
+            })
         } else {
             err!("Unexpected pattern passed to Count aggregator : '{}'", spec)
         }
@@ -602,12 +998,17 @@ impl Count {
 }
 
 impl Agg for Count {
+    fn fmt(&mut self, f: num::NumFormat) {
+        self.fmt = f;
+    }
+    fn value(&self) -> f64 {
+        self.val as f64
+    }
     fn add(&mut self, _data: &[u8]) {
         self.val += 1;
     }
     fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        write!(w, "{}", self.val)?;
-        Ok(())
+        num::format_hnum(self.value(), self.fmt, w)
     }
     fn reset(&mut self) {
         self.val = 0;
@@ -617,12 +1018,23 @@ impl Agg for Count {
 type MakerBox = Box<dyn Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send>;
 /// A named constructor for a [Agg], used by [AggMaker]
 struct AggMakerItem {
-    /// name or Agg
+    /// name of Agg
     tag: &'static str,
     /// what this Agg does
     help: &'static str,
     /// Create a dyn Agg from a pattern
     maker: MakerBox,
+}
+
+type CounterBox = Box<dyn Fn(bool, &str) -> Result<Box<dyn Counter>> + Send>;
+/// A named constructor for a [Counter], used by [AggMaker]
+struct CounterMakerItem {
+    /// name of Counter
+    tag: &'static str,
+    /// what this Counter does
+    help: &'static str,
+    /// Create a dyn Counter from a pattern
+    maker: CounterBox,
 }
 
 struct AggMakerAlias {
@@ -631,12 +1043,13 @@ struct AggMakerAlias {
 }
 
 lazy_static! {
+    static ref COUNTER_MAKER: Mutex<Vec<CounterMakerItem>> = Mutex::new(Vec::new());
     static ref AGG_MAKER: Mutex<Vec<AggMakerItem>> = Mutex::new(Vec::new());
     static ref AGG_ALIAS: Mutex<Vec<AggMakerAlias>> = Mutex::new(Vec::new());
     static ref MODIFIERS: Vec<&'static str> = vec![];
 }
 
-/// Makes an [Agg]
+/// Makes an [Agg] or a [Counter]
 #[derive(Debug, Clone, Default)]
 pub struct AggMaker {}
 
@@ -648,6 +1061,28 @@ impl AggMaker {
         Self::do_add_alias("min", "minimum")?;
         Self::do_add_alias("max", "maximum")?;
         Self::do_add_alias("mean", "avg")?;
+        Self::do_add_alias("amean", "aavg")?;
+        Self::do_push_counter("chars", "Count the characters", |utf8, _p| {
+            Ok(Box::new(Chars::new(utf8)))
+        })?;
+        Self::do_push_counter("swords", "Count words, meaning non-space", |utf8, _p| {
+            Ok(Box::new(Swords::new(utf8)))
+        })?;
+        Self::do_push_counter("awords", "Count words, meaning alphanumeric", |utf8, _p| {
+            Ok(Box::new(Awords::new(utf8)))
+        })?;
+        Self::do_push("asum", "Sum of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(ASum::new(p)?)))
+        })?;
+        Self::do_push("amin", "Min of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(AMin::new(p)?)))
+        })?;
+        Self::do_push("amax", "Max of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(AMax::new(p)?)))
+        })?;
+        Self::do_push("mean", "Mean of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(AMean::new(p)?)))
+        })?;
         Self::do_push("merge", "Merge into a delimited list of values", |p| {
             Ok(Rc::new(RefCell::new(Merge::new(p)?)))
         })?;
@@ -689,6 +1124,14 @@ impl AggMaker {
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
+    }
+    /// Add a new Counter. If a Counter already exists by that name, replace it.
+    pub fn push_counter<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    where
+        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send,
+    {
+        Self::init()?;
+        Self::do_push_counter(tag, help, maker)
     }
     /// Add a new alias. If an alias already exists by that name, replace it.
     pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
@@ -742,13 +1185,42 @@ impl AggMaker {
         mm.push(m);
         Ok(())
     }
+    fn do_push_counter<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    where
+        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send,
+    {
+        if MODIFIERS.contains(&tag) {
+            return err!(
+                "You can't add a counter named {} because that is reserved for a modifier"
+            );
+        }
+        let m = CounterMakerItem {
+            tag,
+            help,
+            maker: Box::new(maker),
+        };
+        let mut mm = COUNTER_MAKER.lock().unwrap();
+        for x in mm.iter_mut() {
+            if x.tag == m.tag {
+                *x = m;
+                return Ok(());
+            }
+        }
+        mm.push(m);
+        Ok(())
+    }
     /// Print all available Matchers to stdout.
     pub fn help() {
-        //        println!("Modifers :");
         Self::init().unwrap();
+        println!("Modifers :");
+        println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
-        Self::init().unwrap();
         let mm = AGG_MAKER.lock().unwrap();
+        for x in &*mm {
+            println!("{:12}{}", x.tag, x.help);
+        }
+        println!("Counters :");
+        let mm = COUNTER_MAKER.lock().unwrap();
         for x in &*mm {
             println!("{:12}{}", x.tag, x.help);
         }
@@ -785,12 +1257,44 @@ impl AggMaker {
         }
         err!("No Agg found with name '{}'", name)
     }
-    /// Create a matcher from a full spec, i.e. "Agg,Pattern"
+    /// Create a Agg from a name and a pattern
+    pub fn make_counter2(spec: &str, pattern: &str) -> Result<Box<dyn Counter>> {
+        // we can't call init here, because mutex is already held by make2()
+        //        Self::init()?;
+        let mut name = "";
+        let mut utf8 = false;
+        if !spec.is_empty() {
+            for x in spec.split('.') {
+                if x.eq_ignore_ascii_case("utf8") {
+                    utf8 = true;
+                } else {
+                    name = x;
+                }
+            }
+            name = Self::resolve_alias(name);
+        }
+        let mm = COUNTER_MAKER.lock().unwrap();
+        for x in &*mm {
+            if x.tag == name {
+                return (x.maker)(utf8, pattern);
+            }
+        }
+        err!("No Counter found with name '{}'", name)
+    }
+    /// Create an Agg from a full spec, i.e. "Agg,Pattern"
     pub fn make(spec: &str) -> Result<AggRef> {
         if let Some((a, b)) = spec.split_once(',') {
             Self::make2(a, b)
         } else {
             Self::make2(spec, "")
+        }
+    }
+    /// Create a counterer from a full spec, i.e. "chars"
+    pub fn make_counter(spec: &str) -> Result<Box<dyn Counter>> {
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::make_counter2(a, b)
+        } else {
+            Self::make_counter2(spec, "")
         }
     }
 }
