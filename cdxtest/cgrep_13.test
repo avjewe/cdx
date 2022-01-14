@@ -1,0 +1,9 @@
+#command cdx cgrep -p 1,integer
+#stdin
+-123
+123
+ 123
+xxx
+#stdout
+-123
+123

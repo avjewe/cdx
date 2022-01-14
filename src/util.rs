@@ -121,7 +121,7 @@ impl fmt::Display for Error {
 }
 
 /// Yes, No or Maybe
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Tri {
     /// always do the thing
     Yes,

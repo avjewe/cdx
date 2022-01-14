@@ -1,0 +1,12 @@
+#command cdx cgrep -p 1,float
+#stdin
+1.2
+1.2e3
+ 1.2
+a.2
+7
+abc
+#stdout
+1.2
+1.2e3
+7

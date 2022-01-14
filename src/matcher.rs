@@ -1129,6 +1129,28 @@ impl MatchMaker {
                 })
             },
         )?;
+        Self::do_push("float", "Valid floating point number", |_m, _p| {
+            Ok(Box::new(RegexMatch::new(
+                "^[-]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?$",
+                Case::Sens,
+            )?))
+        })?;
+        Self::do_push("integer", "Valid integer", |_m, _p| {
+            Ok(Box::new(RegexMatch::new("^[-]?[0-9]+$", Case::Sens)?))
+        })?;
+        Self::do_push(
+            "number",
+            "Valid number, with optional decimal, e.g. 42 or 1.23",
+            |_m, _p| {
+                Ok(Box::new(RegexMatch::new(
+                    "^[-]?[0-9]+(\\.[0-9]+)?$",
+                    Case::Sens,
+                )?))
+            },
+        )?;
+        Self::do_push("ip", "Valid IPv4 address", |_m, _p| {
+            Ok(Box::new(RegexMatch::new("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", Case::Sens)?))
+        })?;
         Self::do_push(
             "regex",
             "Interpret the pattern as a regex, as per the eponymous crate",

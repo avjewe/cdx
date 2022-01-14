@@ -1,0 +1,11 @@
+#command cdx cgrep -p 1,number
+#stdin
+1.2
+.2
+-1.2
++1.2
+42
+#stdout
+1.2
+-1.2
+42

@@ -225,7 +225,6 @@ impl ColumnFun for AggCol {
 }
 
 /// An Agg with a source column and an output designation
-#[derive(Clone)]
 pub struct AggWhole {
     /// orig spec
     pub spec: String,
@@ -233,6 +232,11 @@ pub struct AggWhole {
     pub agg: AggRef,
     /// output column name
     pub name: String,
+}
+impl Clone for AggWhole {
+    fn clone(&self) -> Self {
+        Self::new(&self.spec).unwrap()
+    }
 }
 impl ColumnFun for AggWhole {
     /// write the column names (called once)
@@ -1261,6 +1265,7 @@ impl AggMaker {
     pub fn make_counter2(spec: &str, pattern: &str) -> Result<Box<dyn Counter>> {
         // we can't call init here, because mutex is already held by make2()
         //        Self::init()?;
+        // we need to split the list of counters into a separate init
         let mut name = "";
         let mut utf8 = false;
         if !spec.is_empty() {
