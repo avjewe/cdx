@@ -109,13 +109,13 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut w = get_writer("-")?;
     let mut first_file = true;
     let mut totals = Vec::new();
-    totals.resize(agg.len(), 0.0);
     let do_totals;
     let show_file;
     if do_columns {
         if agg.is_empty() {
             agg.push("bytes,asum,chars")?;
         }
+        totals.resize(agg.len(), 0.0);
         agg.fmt(fmt);
         let mut aggs: Vec<NamedAgg> = Vec::new();
         let mut colmap: Vec<usize> = Vec::new();
@@ -201,6 +201,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         if agg.is_empty() {
             agg.push("lines,count")?;
         }
+        totals.resize(agg.len(), 0.0);
         agg.fmt(fmt);
         show_file = match show_file_name {
             Tri::Yes => true,

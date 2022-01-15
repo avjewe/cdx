@@ -9,6 +9,7 @@ mod cdxmain;
 mod cgrep_main;
 mod cut_main;
 mod join_main;
+mod sample_main;
 mod sort_main;
 mod tabs_main;
 mod tooltest_main;
