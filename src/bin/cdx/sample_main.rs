@@ -1,6 +1,7 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::sampler::Smooth;
+use cdx::tabs::Rect;
 use cdx::util::{
     err, get_writer, Error, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE,
 };
@@ -130,6 +131,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     }
     if !saw_for && !saw_sample && !saw_range {
         saw_sample = true;
+        sample = Rect::from_screen().height;
     }
 
     let mut w = get_writer("-")?;

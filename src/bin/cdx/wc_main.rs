@@ -131,7 +131,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                     colmap.push(pos);
                 } else {
                     colmap.push(aggs.len());
-                    aggs.push(NamedAgg::new(x, agg.clone()));
+                    aggs.push(NamedAgg::new(x, agg.deep_clone()));
                 }
             }
             if f.is_done() {

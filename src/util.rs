@@ -11,7 +11,6 @@ use std::error;
 use std::ffi::OsStr;
 use std::io::{self, BufRead, Read, Write};
 use std::ops::{Deref, DerefMut};
-use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::str::FromStr;
 use std::{fmt, str};
@@ -700,29 +699,6 @@ fn unescape_vec(data: &[u8]) -> Vec<u8> {
         ret.push(b'\\');
     }
     ret
-}
-
-/// Make an Infile from a file name
-pub fn get_reader2<P: AsRef<Path>>(name: P) -> Result<Infile> {
-    let name = name.as_ref().as_os_str();
-    let inner: Box<dyn Read> = {
-        if name == OsStr::new("-") {
-            //	    unsafe { Box::new(std::fs::File::from_raw_fd(1)) }
-            Box::new(io::stdin())
-        //        } else if name.starts_with("s3://") {
-        //            Box::new(S3Reader::new_path(name)?)
-        } else if name.as_bytes().starts_with(b"<<") {
-            Box::new(std::io::Cursor::new(unescape_vec(&name.as_bytes()[2..])))
-        } else {
-            Box::new(fs::File::open(name)?)
-        }
-    };
-    let mut outer = io::BufReader::new(inner);
-    let start = outer.fill_buf()?;
-    if start.starts_with(&[0x1fu8, 0x8bu8, 0x08u8]) {
-        outer = io::BufReader::new(Box::new(MultiGzDecoder::new(outer)));
-    }
-    Ok(Infile::new(outer))
 }
 
 /// Make an Infile from a file name

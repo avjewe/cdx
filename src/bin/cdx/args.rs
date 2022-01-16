@@ -115,22 +115,14 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
     for x in spec {
         let mut b = clap::Arg::new(x.name);
         if x.positional {
-            b = b
-                .takes_value(true)
-                .help(x.help)
-                .allow_invalid_utf8(true)
-                .required(true)
+            b = b.takes_value(true).help(x.help).required(true)
         } else {
             if !x.short.is_empty() {
                 b = b.short(x.short.first());
             }
             b = b.long(x.name).help(x.help).multiple_occurrences(true);
             if !x.value.is_empty() {
-                b = b
-                    .value_name(x.value)
-                    .number_of_values(1)
-                    .takes_value(true)
-                    .allow_invalid_utf8(true);
+                b = b.value_name(x.value).number_of_values(1).takes_value(true)
             }
             if !x.values.is_empty() {
                 b = b.possible_values(x.values).ignore_case(true);
@@ -141,18 +133,13 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
     match prog.files {
         FileCount::Zero => {}
         FileCount::One => {
-            a = a.arg(
-                clap::Arg::new("input_files")
-                    .takes_value(true)
-                    .allow_invalid_utf8(true),
-            );
+            a = a.arg(clap::Arg::new("input_files").takes_value(true));
         }
         FileCount::Many => {
             a = a.arg(
                 clap::Arg::new("input_files")
                     .multiple_occurrences(true)
-                    .takes_value(true)
-                    .allow_invalid_utf8(true),
+                    .takes_value(true),
             );
         }
     }
@@ -166,23 +153,17 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
                     v.push(ArgValue::new(x.name, "", i));
                 }
             }
-        } else if let Some(arg) = m.values_of_lossy(x.name) {
+        } else if let Some(arg) = m.values_of(x.name) {
             let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
-            if arg.is_empty() {
-                for i in ind {
-                    v.push(ArgValue::new(x.name, "", i));
-                }
-            } else {
-                assert_eq!(ind.len(), arg.len());
-                for i in 0..ind.len() {
-                    v.push(ArgValue::new(x.name, &arg[i], ind[i]));
-                }
+            assert_eq!(ind.len(), arg.len());
+            for (i, val) in arg.enumerate() {
+                v.push(ArgValue::new(x.name, val, ind[i]));
             }
         }
     }
     // values_of_os
     let mut files: Vec<String> = Vec::new();
-    if let Some(arg) = m.values_of_lossy("input_files") {
+    if let Some(arg) = m.values_of("input_files") {
         for f in arg {
             files.push(f.to_string());
         }

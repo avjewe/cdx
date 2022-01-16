@@ -225,6 +225,7 @@ impl ColumnFun for AggCol {
 }
 
 /// An Agg with a source column and an output designation
+#[derive(Clone)]
 pub struct AggWhole {
     /// orig spec
     pub spec: String,
@@ -232,11 +233,6 @@ pub struct AggWhole {
     pub agg: AggRef,
     /// output column name
     pub name: String,
-}
-impl Clone for AggWhole {
-    fn clone(&self) -> Self {
-        Self::new(&self.spec).unwrap()
-    }
 }
 impl ColumnFun for AggWhole {
     /// write the column names (called once)
@@ -269,6 +265,10 @@ impl AggWhole {
             agg: AggMaker::make(spec)?,
         })
     }
+    /// clone, but make a whole new Agg
+    pub fn deep_clone(&self) -> Self {
+        Self::new(&self.spec).unwrap()
+    }
 }
 
 /// A list of AggCol
@@ -291,6 +291,14 @@ impl AggWholeList {
     /// len
     pub fn len(&self) -> usize {
         self.v.len()
+    }
+    /// clone, but make a all new Aggs
+    pub fn deep_clone(&self) -> Self {
+        let mut n = Self::new();
+        for x in &self.v {
+            n.push(&x.spec).unwrap();
+        }
+        n
     }
     /// fmt
     pub fn fmt(&mut self, f: num::NumFormat) {
