@@ -13,7 +13,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"expr", "e", "Name:Expr", "The result of an arithmetic expression"},
         arg! {"composite", "c", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
-        arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail","Allow","Warn", "Numeric"]},
+        arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail", "Allow", "Numeric"]},
     ];
     let (args, files) = args::parse(&prog, &A, argv);
     let mut checker = HeaderChecker::new();

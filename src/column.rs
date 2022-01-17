@@ -15,10 +15,8 @@ use std::{fmt, str};
 pub enum DupColHandling {
     /// Fail if there are duplicate columns names
     Fail,
-    /// Allow duplicate columns names
-    Allow,
     /// Allow duplicate columns names, but write a message to stderr
-    Warn,
+    Allow,
     /// if "foo" is taken, try "foo1", then "foo2" until it's unique
     Numeric,
 }
@@ -30,12 +28,10 @@ impl DupColHandling {
             Ok(Self::Fail)
         } else if spec.to_ascii_lowercase() == "allow" {
             Ok(Self::Allow)
-        } else if spec.to_ascii_lowercase() == "warn" {
-            Ok(Self::Warn)
         } else if spec.to_ascii_lowercase() == "numeric" {
             Ok(Self::Numeric)
         } else {
-            err!("Duplicate Column Mode must be one of : Fail, Allow, Warn, Numeric")
+            err!("Duplicate Column Mode must be one of : Fail, Allow, Numeric")
         }
     }
 }
@@ -46,11 +42,36 @@ impl Default for DupColHandling {
     }
 }
 
+#[derive(Default, Clone, Debug)]
+struct NameMap {
+    from: String,
+    to: String,
+}
+impl NameMap {
+    fn new(spec: &str) -> Result<Self> {
+        if let Some((a, b)) = spec.split_once('.') {
+            Ok(Self {
+                from: a.to_string(),
+                to: b.to_string(),
+            })
+        } else {
+            err!("Format for rename is 'old.new' not '{spec}'")
+        }
+    }
+}
+impl fmt::Display for NameMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}", self.from, self.to)
+    }
+}
+
 /// build the CDX header for an output file
 #[derive(Debug, Default, Clone)]
 pub struct ColumnHeader {
     cols: Vec<String>,
     dups: DupColHandling,
+    rename: Vec<NameMap>,
+    sloppy: bool,
 }
 
 /// is 'name' a valid column name
@@ -94,12 +115,39 @@ impl ColumnHeader {
     pub fn clear(&mut self) {
         self.cols.clear();
     }
+    /// set some renames
+    pub fn rename(&mut self, spec: &str) -> Result<()> {
+        if !spec.is_empty() {
+            for x in spec.split(',') {
+                self.rename.push(NameMap::new(x)?);
+            }
+        }
+        Ok(())
+    }
+    /// set sloppy
+    pub fn rename_sloppy(&mut self) {
+        self.sloppy = true;
+    }
+    /// get fieldnames suitable for lookup()
+    pub fn fieldnames(&self) -> Vec<&str> {
+        let mut v: Vec<&str> = Vec::with_capacity(self.cols.len());
+        for x in &self.cols {
+            v.push(x);
+        }
+        v
+    }
     /// add all of the columns from 'cols'
     pub fn push_all(&mut self, cols: &StringLine) -> Result<()> {
         for x in cols.into_iter() {
             self.push(x)?;
         }
         Ok(())
+    }
+    /// add all of the columns from 'cols', unchecked
+    pub fn push_all_unchecked(&mut self, cols: &StringLine) {
+        for x in cols.into_iter() {
+            self.push_unchecked(x);
+        }
     }
 
     /// do we already have this column name
@@ -112,20 +160,56 @@ impl ColumnHeader {
         false
     }
 
+    /// add new column name, no checking
+    pub fn push_unchecked(&mut self, name: &str) {
+        self.cols.push(name.to_string());
+    }
+    /// return err if unused renames
+    pub fn check_rename(&self) -> Result<()> {
+        if !self.sloppy & !self.rename.is_empty() {
+            let mut s = self.rename[0].to_string();
+            for x in self.rename.iter().skip(1) {
+                s.push(',');
+                s.push_str(&x.to_string());
+            }
+            err!("Unused rename : '{}'", s)
+        } else {
+            Ok(())
+        }
+    }
     /// add new column name
     pub fn push(&mut self, name: &str) -> Result<()> {
         validate_column_name(name)?;
         if self.contains(name) {
+            let mut key: Option<usize> = None;
+            for (i, x) in self.rename.iter().enumerate() {
+                if x.from == name {
+                    key = Some(i);
+                    break;
+                }
+            }
+            if let Some(k) = key {
+                if self.contains(&self.rename[k].to) {
+                    return err!(
+                        "Applied rename of {} to {}, but {} was already used",
+                        self.rename[k].from,
+                        self.rename[k].to,
+                        self.rename[k].to
+                    );
+                }
+                self.cols.push(self.rename[k].to.clone());
+                self.rename.remove(k);
+                return Ok(());
+            }
             match self.dups {
                 DupColHandling::Fail => return err!("Duplicate column name {}", name),
-                DupColHandling::Allow => self.cols.push(name.to_string()),
-                DupColHandling::Warn => {
+                DupColHandling::Allow => {
                     self.cols.push(name.to_string());
                     eprintln!("Warning : creating duplicate column name {}", name);
                 }
                 DupColHandling::Numeric => {
                     for x in 1..10000 {
-                        let new_name = format!("name{}", x);
+                        let new_name = format!("{name}{}", x);
                         if !self.contains(&new_name) {
                             self.cols.push(new_name);
                             break;
@@ -362,8 +446,9 @@ impl ScopedValues {
         for x in &mut self.data {
             x.lookup(fieldnames)?;
             for i in 0..x.cols.columns.len() {
-                self.strings[i] = x.value.clone();
-                self.has_value[i] = true;
+                let j = x.cols.columns[i].num;
+                self.strings[j] = x.value.clone();
+                self.has_value[j] = true;
             }
         }
         Ok(())

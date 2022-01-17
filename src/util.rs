@@ -949,6 +949,16 @@ impl LookbackReader {
         tmp.cont.read_header(&mut *tmp.file, &mut tmp.lines[0])?;
         Ok(tmp)
     }
+    /// get current line contents, without the trailing newline
+    pub fn curr_nl(&self) -> &[u8] {
+        let line = self.curr_line();
+        &line.line[0..line.line.len() - 1]
+    }
+    /// get previous line contents, without the trailing newline
+    pub fn prev_nl(&self, n: usize) -> &[u8] {
+        let line = self.prev_line(n);
+        &line.line[0..line.line.len() - 1]
+    }
     /// get delimiter
     pub const fn delim(&self) -> u8 {
         self.cont.delim

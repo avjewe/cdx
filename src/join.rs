@@ -1,10 +1,9 @@
 //! Join files together by matching column values
 
-use crate::column::{self, ColumnSet, OutCol, ScopedValue};
+use crate::column::{ColumnSet, DupColHandling, OutCol, ScopedValue};
 use crate::comp::{CompMaker, LineCompList};
 use crate::util::{err, get_writer, Error, Outfile, Reader, Result};
 use std::cmp::Ordering;
-use std::fmt;
 use std::io::Write;
 
 /// How to search and combine input files
@@ -29,32 +28,6 @@ pub enum JoinType {
 impl Default for JoinType {
     fn default() -> Self {
         Self::Quick
-    }
-}
-
-/// What to do if there would be duplicate column names
-#[derive(Clone)]
-pub enum DupColHandling {
-    /// all the usual stuff
-    Std(column::DupColHandling),
-    /// Any would-be duplicate names are change based on this spec
-    /// spec is comma delimited list, first applies to first file, second to the second, ...
-    /// last also applies to all following files.
-    /// ':' is replaced with the original named and '#' is replaced with the file number
-    MapIf(String),
-    /// As MapIf, but always apply the mapping, even if not a duplicate
-    MapAll(String),
-}
-
-impl fmt::Debug for DupColHandling {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "DupColHandling")
-    }
-}
-
-impl Default for DupColHandling {
-    fn default() -> Self {
-        Self::Std(column::DupColHandling::Fail)
     }
 }
 

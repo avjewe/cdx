@@ -26,7 +26,7 @@ impl Rect {
             ws_xpixel: 0,
             ws_ypixel: 0,
         };
-        if unsafe { libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) } >= 0 {
+        if unsafe { libc::ioctl(2, libc::TIOCGWINSZ, &mut ws) } >= 0 {
             Self {
                 width: ws.ws_col as usize,
                 height: (ws.ws_row - 1) as usize,

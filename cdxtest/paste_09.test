@@ -1,0 +1,13 @@
+#command cdx paste $TMP/aaa $TMP/bbb -D Numeric
+#infile aaa
+ CDX	one	two	three
+111	222	333
+11a	22b	33c
+#infile bbb
+ CDX	one	two	three
+444	555	666
+44d	55e	66f
+#stdout
+ CDX	one	two	three	one1	two1	three1
+111	222	333	444	555	666
+11a	22b	33c	44d	55e	66f
