@@ -1,7 +1,7 @@
 use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::column::{ColumnHeader, DupColHandling, ScopedValues};
-use cdx::util::{err, get_writer, Error, LookbackReader, Result};
+use cdx::util::{err, get_writer, Error, Reader, Result};
 use std::io::Write;
 
 /*
@@ -62,14 +62,14 @@ pub fn main(argv: &[String]) -> Result<()> {
             unreachable!();
         }
     }
-    let mut fds: Vec<LookbackReader> = Vec::with_capacity(files.len());
+    let mut fds: Vec<Reader> = Vec::with_capacity(files.len());
     let mut num_live = 0;
     let mut num_dead = 0;
     let mut do_header = true;
     let mut rngs: Vec<std::ops::Range<usize>> = Vec::new();
     let mut curr_cols = 0;
     for x in &files {
-        let mut f = LookbackReader::new(1);
+        let mut f = Reader::new();
         f.open(x)?;
         if !f.has_header() {
             do_header = false;

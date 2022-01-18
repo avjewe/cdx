@@ -8,12 +8,12 @@
 //!
 //! ```
 //! use cdx::comp::LineCompList;
-//! use cdx::util::LookbackReader;
+//! use cdx::util::Reader;
 //! let mut comp = LineCompList::new();
 //! comp.add("price,float")?;
 //! comp.add("quant,num")?;
 //! let input = "<< CDX\tname\tquant\tprice\naaa\t42\t1.23\nbbb\t12\t2.34\nccc\t12\t2.34\n";
-//! let mut reader = LookbackReader::new(2);
+//! let mut reader = Reader::new_with(2);
 //! reader.open(input);
 //! comp.lookup(&reader.names())?;
 //! reader.getline()?;
@@ -27,7 +27,7 @@ use crate::column::{get_col, NamedCol};
 use crate::expr::Expr;
 use crate::num::{fcmp, ulp_to_ulong, Junk, JunkType, JunkVal};
 use crate::text::Text;
-use crate::util::{err, prerr_n, Error, LookbackReader, Result, TextLine};
+use crate::util::{err, prerr_n, Error, Reader, Result, TextLine};
 use lazy_static::lazy_static;
 use std::cmp::Ordering;
 use std::fmt;
@@ -1875,7 +1875,7 @@ impl LineCompare for LineCompExpr {
 
 /// return true if ordering is bad.
 /// print appropriate message to stderr
-pub fn comp_check(f: &LookbackReader, cmp: &mut LineCompList, unique: bool) -> bool {
+pub fn comp_check(f: &Reader, cmp: &mut LineCompList, unique: bool) -> bool {
     let c = cmp.comp_cols(f.prev_line(1), f.curr_line());
     let bad = match c {
         Ordering::Less => false,

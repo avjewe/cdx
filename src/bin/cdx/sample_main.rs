@@ -2,9 +2,7 @@ use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::sampler::Smooth;
 use cdx::tabs::Rect;
-use cdx::util::{
-    err, get_writer, Error, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE,
-};
+use cdx::util::{err, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
 use std::io::Write;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
@@ -136,7 +134,7 @@ pub fn main(argv: &[String]) -> Result<()> {
 
     let mut w = get_writer("-")?;
     for x in &files {
-        let mut f = LookbackReader::new(1);
+        let mut f = Reader::new();
         f.open(x)?;
         if f.is_empty() {
             continue;

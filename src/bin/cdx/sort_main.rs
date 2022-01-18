@@ -3,7 +3,7 @@ use crate::args;
 use crate::args::ArgSpec;
 use cdx::comp::{comp_check, CompMaker, LineCompList};
 use cdx::sort;
-use cdx::util::{err, get_writer, Error, LookbackReader, Result};
+use cdx::util::{err, get_writer, Error, Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
@@ -51,7 +51,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     if check {
         let mut reported = 0;
         for x in &files {
-            let mut f = LookbackReader::new_open(x, 1)?;
+            let mut f = Reader::new_open(x)?;
             if f.is_done() {
                 continue;
             }

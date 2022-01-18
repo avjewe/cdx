@@ -3,7 +3,7 @@ use crate::{arg, args};
 use cdx::comp::{comp_check, LineCompList};
 use cdx::expr;
 use cdx::matcher::*;
-use cdx::util::{CheckLine, Error, LookbackReader, Result};
+use cdx::util::{CheckLine, Error, Reader, Result};
 
 // MORE MATCHERS
 // number of columns
@@ -76,7 +76,7 @@ pub fn main(argv: &[String]) -> Result<()> {
 
     let mut fails = 0;
     for x in &files {
-        let mut f = LookbackReader::new(1);
+        let mut f = Reader::new();
         f.open(x)?;
         if f.is_empty() {
             continue;

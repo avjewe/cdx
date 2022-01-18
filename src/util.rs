@@ -807,109 +807,8 @@ impl InfileContext {
 
 #[derive(Debug, Default)]
 /// File reader for text file broken into lines with columns
-pub struct Reader {
-    file: Infile,
-    /// The current line of text
-    pub line: TextLine,
-    /// context
-    pub cont: InfileContext,
-    /// automatically split each TextLine
-    pub do_split: bool,
-}
-
-impl Reader {
-    /// make a new Reader
-    pub fn new() -> Self {
-        Self {
-            file: Infile::default(),
-            line: TextLine::new(),
-            cont: InfileContext::new(),
-            do_split: true,
-        }
-    }
-    /// make a new Reader
-    pub fn new_open(name: &str) -> Result<Self> {
-        let mut tmp = Self {
-            file: get_reader(name)?,
-            line: TextLine::new(),
-            cont: InfileContext::new(),
-            do_split: true,
-        };
-        tmp.cont.read_header(&mut *tmp.file, &mut tmp.line)?;
-        Ok(tmp)
-    }
-    /// get current line
-    pub const fn curr(&self) -> &TextLine {
-        &self.line
-    }
-    /// get current line
-    pub const fn curr_line(&self) -> &TextLine {
-        &self.line
-    }
-    /// get current line contents, without the trailing newline
-    pub fn curr_nl(&self) -> &[u8] {
-        &self.line.line[0..self.line.line.len() - 1]
-    }
-    /// get header
-    pub const fn header(&self) -> &StringLine {
-        &self.cont.header
-    }
-    /// get header
-    pub const fn header_line(&self) -> &String {
-        &self.cont.header.line
-    }
-    /// has header
-    pub const fn has_header(&self) -> bool {
-        self.cont.has_header
-    }
-    /// get column names
-    pub fn names(&self) -> Vec<&str> {
-        self.cont.header.vec()
-    }
-    /// open file for reading
-    pub fn open(&mut self, name: &str) -> Result<()> {
-        self.file = get_reader(name)?;
-        self.cont.read_header(&mut *self.file, &mut self.line)
-    }
-    /// was the file zero bytes?
-    pub const fn is_empty(&self) -> bool {
-        self.cont.is_empty
-    }
-    /// get delimiter
-    pub const fn delim(&self) -> u8 {
-        self.cont.delim
-    }
-    /// have we read all the lines?
-    pub const fn is_done(&self) -> bool {
-        self.cont.is_done
-    }
-    /// write the current text line with newline
-    pub fn write(&self, w: &mut impl Write) -> Result<()> {
-        w.write_all(&self.line.line)?;
-        Ok(())
-    }
-    /// write header
-    pub fn write_header(&self, w: &mut impl Write) -> Result<()> {
-        w.write_all(self.cont.header.line.as_bytes())?;
-        Ok(())
-    }
-    /// get the next line of text. Return true if no more data available.
-    pub fn getline(&mut self) -> Result<bool> {
-        if !self.cont.is_done {
-            if self.line.read(&mut *self.file)? {
-                self.cont.is_done = true;
-            } else if self.do_split {
-                self.line.split(self.cont.delim);
-            }
-        }
-        Ok(self.cont.is_done)
-    }
-}
-
-#[derive(Debug, Default)]
-/// File reader for text file broken into lines with columns
 /// previous N lines are stil available
-pub struct LookbackReader {
+pub struct Reader {
     file: Infile,
     lines: Vec<TextLine>,
     /// context
@@ -920,9 +819,13 @@ pub struct LookbackReader {
     line_num: usize,
 }
 
-impl LookbackReader {
-    /// make a new LookbackReader
-    pub fn new(lookback: usize) -> Self {
+impl Reader {
+    /// make a new Reader
+    pub fn new() -> Self {
+        Self::new_with(1)
+    }
+    /// make a new Reader, with explicit lookback
+    pub fn new_with(lookback: usize) -> Self {
         let mut lines: Vec<TextLine> = Vec::new();
         lines.resize(lookback + 1, TextLine::new());
         Self {
@@ -934,8 +837,12 @@ impl LookbackReader {
             line_num: 1,
         }
     }
-    /// make a new LookbackReader
-    pub fn new_open(name: &str, lookback: usize) -> Result<Self> {
+    /// make a new Reader
+    pub fn new_open(name: &str) -> Result<Self> {
+        Self::new_open_with(name, 1)
+    }
+    /// make a new Reader
+    pub fn new_open_with(name: &str, lookback: usize) -> Result<Self> {
         let mut lines: Vec<TextLine> = Vec::new();
         lines.resize(lookback + 1, TextLine::new());
         let mut tmp = Self {
@@ -1013,6 +920,10 @@ impl LookbackReader {
     /// get current line of text
     pub fn curr_line(&self) -> &TextLine {
         &self.lines[self.curr]
+    }
+    /// get current line of text
+    pub fn curr_mut(&mut self) -> &mut TextLine {
+        &mut self.lines[self.curr]
     }
     /// get current line of text
     pub fn curr(&self) -> &TextLine {

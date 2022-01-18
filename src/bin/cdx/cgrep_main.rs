@@ -2,7 +2,7 @@ use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::expr;
 use cdx::matcher::*;
-use cdx::util::{get_writer, HeaderChecker, HeaderMode, LookbackReader, Result, HEADER_MODE};
+use cdx::util::{get_writer, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
 use std::str::FromStr;
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -49,7 +49,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut first_file = true;
 
     for x in &files {
-        let mut f = LookbackReader::new(1);
+        let mut f = Reader::new();
         f.open(x)?;
         if f.is_empty() {
             continue;

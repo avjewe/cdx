@@ -9,8 +9,8 @@ fancier sort
 
 use crate::comp::{Item, LineCompList};
 use crate::util::{
-    copy, err, get_reader, get_writer, is_cdx, make_header, Error, HeaderChecker, LookbackReader,
-    Reader, Result, TextLine,
+    copy, err, get_reader, get_writer, is_cdx, make_header, Error, HeaderChecker, Reader, Result,
+    TextLine,
 };
 use std::cmp::Ordering;
 use std::io::{BufRead, Read, Write};
@@ -32,9 +32,9 @@ pub fn merge_t(
         let r = get_reader(&in_files[0])?;
         return copy(r.0, w);
     }
-    let mut open_files: Vec<LookbackReader> = Vec::with_capacity(in_files.len());
+    let mut open_files: Vec<Reader> = Vec::with_capacity(in_files.len());
     for x in in_files {
-        open_files.push(LookbackReader::new_open(x, 1)?);
+        open_files.push(Reader::new_open(x)?);
     }
     if !cmp.need_split() {
         for x in &mut open_files {
@@ -132,15 +132,15 @@ pub fn merge_2(
             let ord = cmp.comp_lines(&left_file.curr().line, &right_file.curr().line);
             if ord == Ordering::Less {
                 left_file.write(&mut w)?;
-                mem::swap(&mut prev, &mut left_file.line.line);
+                mem::swap(&mut prev, &mut left_file.curr_mut().line);
                 left_file.getline()?;
             } else if ord == Ordering::Greater {
                 right_file.write(&mut w)?;
-                mem::swap(&mut prev, &mut left_file.line.line);
+                mem::swap(&mut prev, &mut left_file.curr_mut().line);
                 right_file.getline()?;
             } else {
                 left_file.write(&mut w)?;
-                mem::swap(&mut prev, &mut left_file.line.line);
+                mem::swap(&mut prev, &mut left_file.curr_mut().line);
                 left_file.getline()?;
                 right_file.getline()?;
             }
@@ -413,10 +413,10 @@ impl NodeData {
             right_data: None,
         }
     }
-    fn left_cols<'a>(&self, files: &'a [LookbackReader]) -> &'a TextLine {
+    fn left_cols<'a>(&self, files: &'a [Reader]) -> &'a TextLine {
         files[self.left_data.unwrap()].curr_line()
     }
-    fn right_cols<'a>(&self, files: &'a [LookbackReader]) -> &'a TextLine {
+    fn right_cols<'a>(&self, files: &'a [Reader]) -> &'a TextLine {
         files[self.right_data.unwrap()].curr_line()
     }
 }
@@ -431,7 +431,7 @@ enum MergeTreeItem {
 }
 
 impl MergeTreeItem {
-    fn new_tree(files: &[LookbackReader], nums: &[usize]) -> Self {
+    fn new_tree(files: &[Reader], nums: &[usize]) -> Self {
         if nums.is_empty() {
             panic!("Can't make a MergeTreeItem from zero files")
         } else if nums.len() == 1 {
@@ -453,11 +453,7 @@ impl MergeTreeItem {
             first: true,
         })
     }
-    fn next(
-        &mut self,
-        cmp: &mut LineCompList,
-        files: &mut [LookbackReader],
-    ) -> Result<Option<usize>> {
+    fn next(&mut self, cmp: &mut LineCompList, files: &mut [Reader]) -> Result<Option<usize>> {
         match self {
             Self::Leaf(r) => {
                 if files[r.file_num].is_done() {

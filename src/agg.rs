@@ -585,6 +585,27 @@ impl Agg for Merge {
     }
 }
 
+struct Literal {
+    val: Vec<u8>,
+}
+
+impl Literal {
+    fn new(spec: &str) -> Result<Self> {
+        Ok(Self {
+	    val : spec.as_bytes().to_vec()
+        })
+    }
+}
+
+impl Agg for Literal {
+    fn add(&mut self, _data: &[u8]) {}
+    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+        w.write_all(&self.val)?;
+        Ok(())
+    }
+    fn reset(&mut self) {}
+}
+
 struct Min {
     comp: Comp,
     val: Vec<u8>,
@@ -992,8 +1013,9 @@ impl Agg for Suffix {
 }
 
 struct Count {
-    val: usize,
+    val: i64,
     fmt: num::NumFormat,
+    init: i64,
 }
 
 impl Count {
@@ -1002,9 +1024,14 @@ impl Count {
             Ok(Self {
                 val: 0,
                 fmt: num::NumFormat::default(),
+		init: 0,
             })
         } else {
-            err!("Unexpected pattern passed to Count aggregator : '{}'", spec)
+            Ok(Self {
+                val: 0,
+                fmt: num::NumFormat::default(),
+		init: spec.parse::<i64>()?,
+            })
         }
     }
 }
@@ -1023,7 +1050,7 @@ impl Agg for Count {
         num::format_hnum(self.value(), self.fmt, w)
     }
     fn reset(&mut self) {
-        self.val = 0;
+        self.val = self.init;
     }
 }
 
@@ -1073,6 +1100,7 @@ impl AggMaker {
         Self::do_add_alias("min", "minimum")?;
         Self::do_add_alias("max", "maximum")?;
         Self::do_add_alias("mean", "avg")?;
+        Self::do_add_alias("literal", "lit")?;
         Self::do_add_alias("amean", "aavg")?;
         Self::do_push_counter("chars", "Count the characters", |utf8, _p| {
             Ok(Box::new(Chars::new(utf8)))
@@ -1092,7 +1120,7 @@ impl AggMaker {
         Self::do_push("amax", "Max of the given counter", |p| {
             Ok(Rc::new(RefCell::new(AMax::new(p)?)))
         })?;
-        Self::do_push("mean", "Mean of the given counter", |p| {
+        Self::do_push("amean", "Mean of the given counter", |p| {
             Ok(Rc::new(RefCell::new(AMean::new(p)?)))
         })?;
         Self::do_push("merge", "Merge into a delimited list of values", |p| {
@@ -1100,6 +1128,9 @@ impl AggMaker {
         })?;
         Self::do_push("count", "The number of things aggregated", |p| {
             Ok(Rc::new(RefCell::new(Count::new(p)?)))
+        })?;
+        Self::do_push("literal", "A fixed string", |p| {
+            Ok(Rc::new(RefCell::new(Literal::new(p)?)))
         })?;
         Self::do_push(
             "prefix",

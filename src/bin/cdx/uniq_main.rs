@@ -4,7 +4,7 @@ use crate::args::ArgSpec;
 use cdx::agg::{AggList, AggMaker};
 use cdx::column::{ColumnHeader, Writer};
 use cdx::comp::{CompMaker, LineComp, LineCompList};
-use cdx::util::{err, get_writer, Error, LookbackReader, Result, TextLine};
+use cdx::util::{err, get_writer, Error, Reader, Result, TextLine};
 use std::cmp::Ordering;
 use std::io::Write;
 
@@ -198,7 +198,7 @@ pub fn main(argv: &[String]) -> Result<()> {
 
     assert_eq!(files.len(), 1);
 
-    let mut f = LookbackReader::new(1);
+    let mut f = Reader::new();
     f.open(&files[0])?;
     if f.is_empty() {
         return Ok(());
