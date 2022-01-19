@@ -242,7 +242,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                 continue;
             }
 
-            f.do_split = false;
+            f.do_split(false);
             loop {
                 agg.add(&f.curr_line().line);
                 if f.getline()? {

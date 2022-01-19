@@ -38,11 +38,11 @@ pub fn merge_t(
     }
     if !cmp.need_split() {
         for x in &mut open_files {
-            x.do_split = false;
+            x.do_split(false);
         }
     }
     // FIXME -- Check Header
-    if open_files[0].cont.has_header {
+    if open_files[0].has_header() {
         w.write_all(open_files[0].header().line.as_bytes())?;
     }
 
@@ -117,12 +117,12 @@ pub fn merge_2(
     let mut right_file = Reader::new();
     left_file.open(left)?;
     right_file.open(right)?;
-    left_file.do_split = false;
-    right_file.do_split = false;
+    left_file.do_split(false);
+    right_file.do_split(false);
     cmp.lookup(&left_file.names())?;
 
     // FIXME -- Check Header
-    if left_file.cont.has_header {
+    if left_file.has_header() {
         w.write_all(left_file.header().line.as_bytes())?;
     }
 

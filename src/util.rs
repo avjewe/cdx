@@ -1,5 +1,6 @@
 //! Misc utility stuff
 
+use crate::column::ColumnHeader;
 use crate::comp::{CompMaker, Compare, LineCompList};
 use crate::text::Text;
 use flate2::read::MultiGzDecoder;
@@ -725,17 +726,17 @@ pub fn get_reader(name: &str) -> Result<Infile> {
 
 #[derive(Debug, Default)]
 /// shared context for any input file type
-pub struct InfileContext {
-    /// CDX header, contructed if necessary
-    pub header: StringLine,
-    /// delimter
-    pub delim: u8,
-    /// have we read all the btes of the file
-    pub is_done: bool,
-    /// is the file length zero
-    pub is_empty: bool,
-    /// was there a CDX header?
-    pub has_header: bool,
+struct InfileContext {
+    // CDX header, contructed if necessary
+    header: StringLine,
+    // delimter
+    delim: u8,
+    // have we read all the btes of the file
+    is_done: bool,
+    // is the file length zero
+    is_empty: bool,
+    // was there a CDX header?
+    has_header: bool,
 }
 
 /// create appropriate header from first line of file
@@ -805,24 +806,169 @@ impl InfileContext {
     }
 }
 
+/// where are we, in which file?
+#[derive(Debug, Default, Clone)]
+pub struct FileLocData {
+    /// full file name
+    name: String,
+    /// byte offset, uncompressed
+    bytes: usize,
+    /// line number
+    line: usize,
+}
+
+/// types of file location data
+#[derive(Debug, Copy, Clone)]
+enum FileLocItem {
+    /// byte offset of start of line
+    Bytes,
+    /// 1-based line number
+    Line,
+    /// file name, with given number of parts
+    Name(usize),
+}
+impl FileLocItem {
+    fn new(spec: &str) -> Result<Self> {
+        if spec.eq_ignore_ascii_case("bytes") {
+            Ok(Self::Bytes)
+        } else if spec.eq_ignore_ascii_case("line") {
+            Ok(Self::Line)
+        } else if spec.eq_ignore_ascii_case("name") {
+            Ok(Self::Name(0))
+        } else if let Some((a, b)) = spec.split_once('.') {
+            if a.eq_ignore_ascii_case("name") {
+                Ok(Self::Name(b.parse::<usize>()?))
+            } else {
+                err!("File Loc must be once of Bytes, Line, Name : '{}'", spec)
+            }
+        } else {
+            err!("File Loc must be once of Bytes, Line, Name : '{}'", spec)
+        }
+    }
+    const fn dflt_name(&self) -> &'static str {
+        match self {
+            Self::Bytes => "bytes",
+            Self::Line => "line",
+            Self::Name(_) => "filename",
+        }
+    }
+    fn write_data(&mut self, data: &mut impl Write, loc: &FileLocData) -> Result<()> {
+        match self {
+            Self::Bytes => write!(data, "{}", loc.bytes).unwrap(),
+            Self::Line => write!(data, "{}", loc.line).unwrap(),
+            Self::Name(n) => {
+                if *n == 0 {
+                    data.write_all(loc.name.as_bytes())?;
+                } else {
+                    // FIXME - this should really be cached somehow
+                    data.write_all(loc.name.tail_path_u8(*n, b'/').as_bytes())?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// FileLocItem with column name
+#[derive(Debug, Clone)]
+struct FileLoc {
+    col_name: String,
+    item: FileLocItem,
+}
+impl FileLoc {
+    fn new(spec: &str) -> Result<Self> {
+        if let Some((a, b)) = spec.split_once(':') {
+            Ok(Self {
+                col_name: a.to_string(),
+                item: FileLocItem::new(b)?,
+            })
+        } else {
+            let item = FileLocItem::new(spec)?;
+            Ok(Self {
+                col_name: item.dflt_name().to_string(),
+                item,
+            })
+        }
+    }
+    fn write_data(&mut self, data: &mut impl Write, loc: &FileLocData) -> Result<()> {
+        self.item.write_data(data, loc)
+    }
+}
+
+/// List of FileLoc
+#[derive(Default, Debug, Clone)]
+pub struct FileLocList {
+    v: Vec<FileLoc>,
+}
+impl FileLocList {
+    /// new
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// new
+    pub fn is_empty(&self) -> bool {
+        self.v.is_empty()
+    }
+    /// add Name:Spec
+    pub fn push(&mut self, spec: &str) -> Result<()> {
+        for x in spec.split(',') {
+            self.v.push(FileLoc::new(x)?);
+        }
+        Ok(())
+    }
+    /// fill data with file loc data
+    pub fn write_data(
+        &mut self,
+        data: &mut impl Write,
+        delim: u8,
+        loc: &FileLocData,
+    ) -> Result<()> {
+        for x in &mut self.v {
+            x.write_data(data, loc)?;
+            data.write_all(&[delim])?;
+        }
+        Ok(())
+    }
+    /// fill data with column names
+    pub fn write_names(&mut self, data: &mut String, delim: u8) {
+        for x in &mut self.v {
+            data.push_str(&x.col_name);
+            data.push(delim as char);
+        }
+    }
+    /// add new columns to header
+    pub fn add(&self, header: &mut ColumnHeader) -> Result<()> {
+        for x in &self.v {
+            header.push(&x.col_name)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default)]
 /// File reader for text file broken into lines with columns
-/// previous N lines are stil available
+/// previous N lines are still available
 pub struct Reader {
     file: Infile,
     lines: Vec<TextLine>,
-    /// context
-    pub cont: InfileContext,
-    /// Automatically split each line into columns
-    pub do_split: bool,
+    cont: InfileContext,
+    do_split: bool,
     curr: usize,
-    line_num: usize,
+    loc: FileLocData,
 }
 
 impl Reader {
+    /// loc
+    pub const fn loc(&self) -> &FileLocData {
+        &self.loc
+    }
     /// make a new Reader
     pub fn new() -> Self {
         Self::new_with(1)
+    }
+    /// set to false to skip breaking into columns
+    pub fn do_split(&mut self, val: bool) {
+        self.do_split = val;
     }
     /// make a new Reader, with explicit lookback
     pub fn new_with(lookback: usize) -> Self {
@@ -834,7 +980,7 @@ impl Reader {
             cont: InfileContext::new(),
             do_split: true,
             curr: 0,
-            line_num: 1,
+            loc: FileLocData::default(),
         }
     }
     /// make a new Reader
@@ -851,9 +997,16 @@ impl Reader {
             cont: InfileContext::new(),
             do_split: true,
             curr: 0,
-            line_num: 1,
+            loc: FileLocData::default(),
         };
         tmp.cont.read_header(&mut *tmp.file, &mut tmp.lines[0])?;
+        tmp.loc.name = name.to_string();
+        tmp.loc.line = 1;
+        tmp.loc.bytes = if tmp.has_header() {
+            tmp.header().line.len()
+        } else {
+            0
+        };
         Ok(tmp)
     }
     /// get current line contents, without the trailing newline
@@ -898,10 +1051,10 @@ impl Reader {
     }
     /// line number of curr_line
     pub const fn line_number(&self) -> usize {
-        self.line_num
+        self.loc.line
     }
     fn incr(&mut self) {
-        self.line_num += 1;
+        self.loc.line += 1;
         self.curr += 1;
         if self.curr >= self.lines.len() {
             self.curr = 0;
@@ -909,6 +1062,7 @@ impl Reader {
     }
     /// get next line of text
     pub fn getline(&mut self) -> Result<bool> {
+        self.loc.bytes += self.curr().line.len();
         self.incr();
         if self.lines[self.curr].read(&mut *self.file)? {
             self.cont.is_done = true;
@@ -1224,14 +1378,14 @@ impl HeaderChecker {
     }
     /// call for the first line of every input file
     /// return true if the header should be written
-    pub fn check_file(&mut self, file: &InfileContext, fname: &str) -> Result<bool> {
+    pub fn check_file(&mut self, file: &Reader, fname: &str) -> Result<bool> {
         let first = !self.saw_one;
-        if file.has_header {
-            self.check(file.header.line.as_bytes(), fname)?;
+        if file.has_header() {
+            self.check(file.header().line.as_bytes(), fname)?;
         } else {
             self.check(b"fake", fname)?;
         }
-        Ok(file.has_header && first)
+        Ok(file.has_header() && first)
     }
 
     /// call for the first line of every input file

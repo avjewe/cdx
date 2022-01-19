@@ -413,7 +413,7 @@ impl Match for ExactMatch {
 
 fn load_hashset(data: &mut HashSet<Vec<u8>>, fname: &str) -> Result<()> {
     let mut f = Reader::new();
-    f.do_split = false;
+    f.do_split(false);
     f.open(fname)?;
     if f.is_done() {
         return Ok(());
@@ -460,7 +460,7 @@ impl Match for FileExactMatch {
 
 fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Result<()> {
     let mut f = Reader::new();
-    f.do_split = false;
+    f.do_split(false);
     f.open(fname)?;
     if f.is_done() {
         return Ok(());
@@ -1336,6 +1336,7 @@ impl MatchMaker {
     }
     /// Create a Matcher from a matcher spec and a pattern
     pub fn make2(matcher: &str, pattern: &str) -> Result<Matcher> {
+        Self::init()?;
         let mut m = Matcher::default();
         if !matcher.is_empty() {
             for x in matcher.split('.') {

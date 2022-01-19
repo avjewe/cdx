@@ -235,7 +235,7 @@ impl Joiner {
             return err!("No output columns specified");
         }
 
-        if self.r[0].cont.has_header {
+        if self.r[0].has_header() {
             self.yes_match.write_all(b" CDX")?;
             for x in &self.out_cols {
                 self.yes_match.write_all(&[config.out_delim])?;

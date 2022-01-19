@@ -139,13 +139,13 @@ pub fn main(argv: &[String]) -> Result<()> {
         if f.is_empty() {
             continue;
         }
-        if checker.check_file(&f.cont, x)? {
+        if checker.check_file(&f, x)? {
             w.write_all(f.header().line.as_bytes())?;
         }
         if f.is_done() {
             return Ok(());
         }
-        f.do_split = false;
+        f.do_split(false);
         if saw_sample {
             let mut s = Smooth::new(sample);
             loop {

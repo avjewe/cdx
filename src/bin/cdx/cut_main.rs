@@ -57,7 +57,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         header.clear();
         not_header.clear();
         v.add_names(&mut header, f.header())?;
-        if f.cont.has_header {
+        if f.has_header() {
             not_header = header.get_head(b'\t');
         }
         if checker.check(not_header.as_bytes(), x)? {

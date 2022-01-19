@@ -238,7 +238,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    f.do_split = comp.need_split();
+    f.do_split(comp.need_split());
     let mut matches = 1;
     if !agg.is_empty() {
         agg.add(f.curr_line());

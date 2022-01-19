@@ -155,8 +155,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         let mut not_header = String::new();
 
         for x in &files {
-            let mut f = Reader::new();
-            f.open(x)?;
+            let mut f = Reader::new_open(x)?;
             if f.is_empty() {
                 continue;
             }
@@ -164,7 +163,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             header.clear();
             not_header.clear();
             v.add_names(&mut header, f.header())?;
-            if f.cont.has_header {
+            if f.has_header() {
                 not_header = header.get_head(b'\t');
             }
             if checker.check(not_header.as_bytes(), x)? {
@@ -173,7 +172,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             if f.is_done() {
                 return Ok(());
             }
-            f.do_split = false;
+            f.do_split(false);
             loop {
                 if !removes.umatch(f.curr_nl()) {
                     if skips.umatch(f.curr_nl()) {

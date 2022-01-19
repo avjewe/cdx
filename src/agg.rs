@@ -12,6 +12,7 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Mutex;
 
+// FIXME -- maybe result taks fmt and we delete fmt()
 /// Aggregate Values
 pub trait Agg {
     /// add one more value to the aggregate
@@ -26,6 +27,8 @@ pub trait Agg {
     }
     /// set floating point format for 'result'
     fn fmt(&mut self, _f: num::NumFormat) {}
+    /// set or reset the pattern part of the Agg
+    fn pattern(&mut self, _spec: &str) {}
 }
 
 /// get number of things in data
@@ -299,6 +302,22 @@ impl AggWholeList {
             n.push(&x.spec).unwrap();
         }
         n
+    }
+    /// fill vec with data
+    pub fn write(&mut self, data: &mut Vec<u8>, delim: u8) -> Result<()> {
+        for x in &mut self.v {
+            x.agg.borrow_mut().result(data)?;
+            data.push(delim);
+        }
+        Ok(())
+    }
+    /// fill vec with data
+    pub fn write_names(&mut self, data: &mut String, delim: u8) -> Result<()> {
+        for x in &mut self.v {
+            data.push_str(&x.name);
+            data.push(delim as char);
+        }
+        Ok(())
     }
     /// fmt
     pub fn fmt(&mut self, f: num::NumFormat) {
@@ -592,7 +611,7 @@ struct Literal {
 impl Literal {
     fn new(spec: &str) -> Result<Self> {
         Ok(Self {
-	    val : spec.as_bytes().to_vec()
+            val: spec.as_bytes().to_vec(),
         })
     }
 }
@@ -604,6 +623,11 @@ impl Agg for Literal {
         Ok(())
     }
     fn reset(&mut self) {}
+    fn pattern(&mut self, spec: &str) {
+        eprintln!("Setting to '{}'", spec);
+        self.val.clear();
+        self.val.extend(spec.as_bytes());
+    }
 }
 
 struct Min {
@@ -1024,13 +1048,14 @@ impl Count {
             Ok(Self {
                 val: 0,
                 fmt: num::NumFormat::default(),
-		init: 0,
+                init: 0,
             })
         } else {
+            let val = spec.parse::<i64>()?;
             Ok(Self {
-                val: 0,
+                val,
                 fmt: num::NumFormat::default(),
-		init: spec.parse::<i64>()?,
+                init: val,
             })
         }
     }
