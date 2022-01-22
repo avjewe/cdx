@@ -9,7 +9,6 @@ use std::io::Write;
 
 /*
 
---columns =>treat each column as a separate named file. Merge if multiple files.
 --report-every-million-input-lines
 
 */
@@ -88,35 +87,18 @@ pub fn main(argv: &[String]) -> Result<()> {
             unreachable!();
         }
     }
-    /*
-        let show_file = match show_file_name {
-            Tri::Yes => true,
-            Tri::No => false,
-            Tri::Maybe => files.len() > 1 && !total_only,
-        };
-        let do_totals = match show_totals {
-            Tri::Yes => true,
-            Tri::No => false,
-            Tri::Maybe => files.len() > 1,
-        } || total_only;
-        let do_header = match show_header {
-            Tri::Yes => true,
-            Tri::No => false,
-            Tri::Maybe => agg.len() > 1 || show_file,
-        };
-    */
     let nada = TextLine::new();
     let mut w = get_writer("-")?;
     let mut first_file = true;
     let mut totals = Vec::new();
     let do_totals;
     let show_file;
+    agg.fmt(fmt);
     if do_columns {
         if agg.is_empty() {
             agg.push("bytes,asum,chars")?;
         }
         totals.resize(agg.len(), 0.0);
-        agg.fmt(fmt);
         let mut aggs: Vec<NamedAgg> = Vec::new();
         let mut colmap: Vec<usize> = Vec::new();
         for x in &files {
@@ -145,9 +127,6 @@ pub fn main(argv: &[String]) -> Result<()> {
                     break;
                 }
             }
-        }
-        for x in &mut aggs {
-            x.agg.fmt(fmt);
         }
         show_file = match show_file_name {
             Tri::Yes => true,
@@ -184,7 +163,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                     if i != 0 {
                         w.write_all(b"\t")?;
                     }
-                    x.agg.get(i).agg.borrow_mut().result(&mut w)?;
+                    x.agg.get(i).agg.borrow_mut().result(&mut w, fmt)?;
                 }
                 w.write_all(b"\n")?;
             }
@@ -202,7 +181,6 @@ pub fn main(argv: &[String]) -> Result<()> {
             agg.push("lines,count")?;
         }
         totals.resize(agg.len(), 0.0);
-        agg.fmt(fmt);
         show_file = match show_file_name {
             Tri::Yes => true,
             Tri::No => false,

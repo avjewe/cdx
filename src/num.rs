@@ -99,9 +99,9 @@ pub fn ulp_to_ulong(d: f64) -> u64 {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum NumFormat {
     /// as integer
-    Plain,
+    Plain(usize),
     /// 1.2e34
-    Float,
+    Float(usize),
     /// power of 2, e.g. 3K
     Power2,
     /// power of 10 e.g. 3k
@@ -109,37 +109,58 @@ pub enum NumFormat {
 }
 impl Default for NumFormat {
     fn default() -> Self {
-        Self::Plain
+        Self::Plain(0)
     }
 }
 impl NumFormat {
     /// new from string
     pub fn new(spec: &str) -> Result<Self> {
-        if spec.eq_ignore_ascii_case("plain")
-            || spec.eq_ignore_ascii_case("int")
-            || spec.eq_ignore_ascii_case("integer")
-        {
-            Ok(Self::Plain)
-        } else if spec.eq_ignore_ascii_case("float") || spec.eq_ignore_ascii_case("exp") {
-            Ok(Self::Float)
+        if spec.eq_ignore_ascii_case("plain") {
+            Ok(Self::Plain(0))
+        } else if spec.eq_ignore_ascii_case("float") {
+            Ok(Self::Float(0))
         } else if spec.eq_ignore_ascii_case("power2") || spec.eq_ignore_ascii_case("p2") {
             Ok(Self::Power2)
         } else if spec.eq_ignore_ascii_case("power10") || spec.eq_ignore_ascii_case("p10") {
             Ok(Self::Power10)
-        } else {
-            err!("Number format must be plain, float, power1 or power10")
-        }
+        } else if let Some((a, b)) = spec.split_once('.') {
+	    let p = b.parse::<usize>()?;
+            if a.eq_ignore_ascii_case("plain") {
+		Ok(Self::Plain(p))
+            } else if a.eq_ignore_ascii_case("float") {
+		Ok(Self::Float(p))
+	    } else {
+		err!("Number format must be plain[.N], float[.N], power2 or power10")
+	    }
+	} else {
+            err!("Number format must be plain[.N], float[.N], power2 or power10")
+	}
     }
 }
 
 /// format a number
 pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()> {
-    if fmt == NumFormat::Plain || num.abs() < 1000.0 {
-        write!(w, "{}", num)?;
+    if let NumFormat::Plain(n) = fmt {
+	if n == 0 {
+            write!(w, "{num}")?;
+	}
+	else {
+            write!(w, "{num:.0$}", n)?;
+	}
         return Ok(());
     }
-    if fmt == NumFormat::Float {
-        write!(w, "{:.2e}", num)?;
+    if let NumFormat::Float(n) = fmt {
+	if n == 0 {
+            write!(w, "{num:e}")?;
+	}
+	else {
+            write!(w, "{num:.0$e}", n)?;
+	}
+        return Ok(());
+    }
+    num = num.round();
+    if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
+        write!(w, "{num}")?;
         return Ok(());
     }
     const P2_LETTERS: &[u8] = b"0KMGTPEZY";

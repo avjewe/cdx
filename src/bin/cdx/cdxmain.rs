@@ -30,6 +30,7 @@ pub const MAINLIST: &[OneMain] = &[
     proc! {"cat",  "Concatenate Files.",  cat_main::main},
     proc! {"cgrep",  "Search files.",  cgrep_main::main},
     proc! {"cut",  "Select colums.",  cut_main::main},
+    proc! {"filegen",  "Generate text files",  filegen_main::main},
     proc! {"join",  "Join files on a matching column",  join_main::main},
     proc! {"paste",  "Combine columns of files.",  paste_main::main},
     proc! {"sample", "Show some lines from a file.", sample_main::main},

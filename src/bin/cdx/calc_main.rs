@@ -33,10 +33,10 @@ pub fn main(argv: &[String]) -> Result<()> {
                 Ok(v) => {
                     let mut vec: Vec<u8> = Vec::new();
                     vec.clear();
-                    num::format_hnum(v, num::NumFormat::Plain, &mut vec)?;
+                    num::format_hnum(v, num::NumFormat::Plain(4), &mut vec)?;
                     prerr(&[&vec]);
                     vec.clear();
-                    num::format_hnum(v, num::NumFormat::Float, &mut vec)?;
+                    num::format_hnum(v, num::NumFormat::Float(4), &mut vec)?;
                     prerr(&[&vec]);
                     vec.clear();
                     num::format_hnum(v, num::NumFormat::Power2, &mut vec)?;

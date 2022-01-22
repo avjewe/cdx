@@ -163,11 +163,14 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
     }
     // values_of_os
     let mut files: Vec<String> = Vec::new();
-    if let Some(arg) = m.values_of("input_files") {
-        for f in arg {
-            files.push(f.to_string());
-        }
-    } else if prog.files != FileCount::Zero {
+    if prog.files != FileCount::Zero {
+	if let Some(arg) = m.values_of("input_files") {
+            for f in arg {
+		files.push(f.to_string());
+            }
+	}
+    }
+    if prog.files != FileCount::Zero && files.is_empty() {
         files.push("-".to_string());
     }
     v.sort_by(|a, b| a.index.cmp(&b.index));

@@ -2,7 +2,7 @@
 
 use crate::column::{ColumnFun, ColumnHeader, ColumnSingle, NamedCol, Writer};
 use crate::comp::{Comp, CompMaker};
-use crate::num;
+use crate::num::{self,NumFormat};
 use crate::text::Text;
 use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
@@ -12,23 +12,18 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Mutex;
 
-// FIXME -- maybe result taks fmt and we delete fmt()
 /// Aggregate Values
 pub trait Agg {
     /// add one more value to the aggregate
     fn add(&mut self, data: &[u8]);
     /// print result of aggregation
-    fn result(&mut self, w: &mut dyn Write) -> Result<()>;
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()>;
     /// reset to empty or zero state
     fn reset(&mut self);
     /// return floating point value of Agg, as possible
     fn value(&self) -> f64 {
         0.0
     }
-    /// set floating point format for 'result'
-    fn fmt(&mut self, _f: num::NumFormat) {}
-    /// set or reset the pattern part of the Agg
-    fn pattern(&mut self, _spec: &str) {}
 }
 
 /// get number of things in data
@@ -162,6 +157,8 @@ pub struct AggCol {
     pub agg: AggRef,
     /// output style
     pub mode: AggType,
+    /// format
+    pub fmt : NumFormat
 }
 impl std::fmt::Debug for AggCol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -204,6 +201,7 @@ impl AggCol {
             src: NamedCol::new_from(src)?,
             agg: AggMaker::make(spec)?,
             mode,
+	    fmt : NumFormat::default(),
         })
     }
 }
@@ -219,7 +217,7 @@ impl ColumnFun for AggCol {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
-        self.agg.borrow_mut().result(w)
+        self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -236,6 +234,8 @@ pub struct AggWhole {
     pub agg: AggRef,
     /// output column name
     pub name: String,
+    /// format
+    pub fmt : NumFormat
 }
 impl ColumnFun for AggWhole {
     /// write the column names (called once)
@@ -244,7 +244,7 @@ impl ColumnFun for AggWhole {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
-        self.agg.borrow_mut().result(w)
+        self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
     fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
@@ -266,6 +266,7 @@ impl AggWhole {
             spec: orig.to_string(),
             name: name.to_string(),
             agg: AggMaker::make(spec)?,
+	    fmt : NumFormat::default(),
         })
     }
     /// clone, but make a whole new Agg
@@ -279,6 +280,8 @@ impl AggWhole {
 pub struct AggWholeList {
     /// The aggregators
     v: Vec<AggWhole>,
+    /// fmt
+    fmt : NumFormat,
 }
 impl std::fmt::Debug for AggWhole {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -295,18 +298,27 @@ impl AggWholeList {
     pub fn len(&self) -> usize {
         self.v.len()
     }
+    /// fmt
+    pub fn fmt(&mut self, fmt : NumFormat) {
+	self.fmt = fmt;
+	for x in &mut self.v {
+	    x.fmt = fmt;
+	}
+    }
     /// clone, but make a all new Aggs
     pub fn deep_clone(&self) -> Self {
         let mut n = Self::new();
         for x in &self.v {
             n.push(&x.spec).unwrap();
         }
+	n.fmt(self.fmt);
         n
     }
+    /*
     /// fill vec with data
-    pub fn write(&mut self, data: &mut Vec<u8>, delim: u8) -> Result<()> {
+    pub fn write(&mut self, data: &mut Vec<u8>, delim: u8, fmt : NumFormat) -> Result<()> {
         for x in &mut self.v {
-            x.agg.borrow_mut().result(data)?;
+            x.agg.borrow_mut().result(data, fmt)?;
             data.push(delim);
         }
         Ok(())
@@ -319,12 +331,7 @@ impl AggWholeList {
         }
         Ok(())
     }
-    /// fmt
-    pub fn fmt(&mut self, f: num::NumFormat) {
-        for x in &mut self.v {
-            x.agg.borrow_mut().fmt(f);
-        }
-    }
+*/
     /// index
     pub fn get(&self, pos: usize) -> &AggWhole {
         &self.v[pos]
@@ -374,17 +381,17 @@ impl AggList {
     pub fn new() -> Self {
         Self::default()
     }
-    /// fmt
-    pub fn fmt(&mut self, f: num::NumFormat) {
-        for x in &mut self.v {
-            x.agg.borrow_mut().fmt(f);
-        }
-    }
     /// reset to empty or zero
     pub fn reset(&mut self) {
         for x in &mut self.v {
             x.agg.borrow_mut().reset();
         }
+    }
+    /// fmt
+    pub fn fmt(&mut self, fmt : NumFormat) {
+	for x in &mut self.v {
+	    x.fmt = fmt;
+	}
     }
     /// is empty?
     pub fn is_empty(&self) -> bool {
@@ -566,7 +573,7 @@ impl Agg for Merge {
             self.data.line.extend_from_slice(data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
         self.data.split(self.delim);
         if self.do_sort {
             self.data.parts.sort_by(|a, b| {
@@ -581,7 +588,7 @@ impl Agg for Merge {
             });
         }
         if self.do_count {
-            write!(w, "{}", self.data.parts.len())?;
+	    num::format_hnum(self.data.parts.len() as f64, fmt, w)?;
         } else {
             let mut num_written = 0;
             for x in &self.data.parts {
@@ -601,32 +608,6 @@ impl Agg for Merge {
     }
     fn reset(&mut self) {
         self.data.line.clear();
-    }
-}
-
-struct Literal {
-    val: Vec<u8>,
-}
-
-impl Literal {
-    fn new(spec: &str) -> Result<Self> {
-        Ok(Self {
-            val: spec.as_bytes().to_vec(),
-        })
-    }
-}
-
-impl Agg for Literal {
-    fn add(&mut self, _data: &[u8]) {}
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        w.write_all(&self.val)?;
-        Ok(())
-    }
-    fn reset(&mut self) {}
-    fn pattern(&mut self, spec: &str) {
-        eprintln!("Setting to '{}'", spec);
-        self.val.clear();
-        self.val.extend(spec.as_bytes());
     }
 }
 
@@ -661,7 +642,7 @@ impl Agg for Min {
             self.val.extend_from_slice(data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -674,7 +655,6 @@ impl Agg for Min {
 struct Mean {
     val: f64,
     cnt: f64,
-    fmt: num::NumFormat,
 }
 
 impl Mean {
@@ -683,7 +663,6 @@ impl Mean {
             Ok(Self {
                 val: 0.0,
                 cnt: 0.0,
-                fmt: num::NumFormat::default(),
             })
         } else {
             err!("Unexpected pattern with 'Mean' aggregator : '{}'", spec)
@@ -692,16 +671,13 @@ impl Mean {
 }
 
 impl Agg for Mean {
-    fn fmt(&mut self, f: num::NumFormat) {
-        self.fmt = f;
-    }
     fn add(&mut self, data: &[u8]) {
         self.val += data.to_f64_lossy();
         self.cnt += 1.0;
     }
 
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        num::format_hnum(self.value(), self.fmt, w)
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+        num::format_hnum(self.value(), fmt, w)
     }
     fn value(&self) -> f64 {
         if self.cnt > 0.0 {
@@ -718,7 +694,6 @@ impl Agg for Mean {
 
 struct Sum {
     val: f64,
-    fmt: num::NumFormat,
 }
 
 impl Sum {
@@ -726,7 +701,6 @@ impl Sum {
         if spec.is_empty() {
             Ok(Self {
                 val: 0.0,
-                fmt: num::NumFormat::default(),
             })
         } else {
             err!("Unexpected pattern with 'Sum' aggregator : '{}'", spec)
@@ -735,14 +709,11 @@ impl Sum {
 }
 
 impl Agg for Sum {
-    fn fmt(&mut self, f: num::NumFormat) {
-        self.fmt = f;
-    }
     fn add(&mut self, data: &[u8]) {
         self.val += data.to_f64_lossy();
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        num::format_hnum(self.value(), self.fmt, w)
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+        num::format_hnum(self.value(), fmt, w)
     }
     fn value(&self) -> f64 {
         self.val
@@ -755,7 +726,6 @@ impl Agg for Sum {
 struct ASum {
     val: usize,
     cnt: Box<dyn Counter>,
-    fmt: num::NumFormat,
 }
 
 impl ASum {
@@ -763,23 +733,19 @@ impl ASum {
         Ok(Self {
             val: 0,
             cnt: AggMaker::make_counter(spec)?,
-            fmt: num::NumFormat::default(),
         })
     }
 }
 
 impl Agg for ASum {
-    fn fmt(&mut self, f: num::NumFormat) {
-        self.fmt = f;
-    }
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val += self.cnt.counter(data);
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        num::format_hnum(self.val as f64, self.fmt, w)
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+        num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
         self.val = 0;
@@ -789,7 +755,6 @@ impl Agg for ASum {
 struct AMin {
     val: usize,
     cnt: Box<dyn Counter>,
-    fmt: num::NumFormat,
 }
 
 impl AMin {
@@ -797,23 +762,19 @@ impl AMin {
         Ok(Self {
             val: usize::MAX,
             cnt: AggMaker::make_counter(spec)?,
-            fmt: num::NumFormat::default(),
         })
     }
 }
 
 impl Agg for AMin {
-    fn fmt(&mut self, f: num::NumFormat) {
-        self.fmt = f;
-    }
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::min(self.val, self.cnt.counter(data));
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        num::format_hnum(self.val as f64, self.fmt, w)
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+        num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
         self.val = usize::MAX;
@@ -823,7 +784,6 @@ impl Agg for AMin {
 struct AMax {
     val: usize,
     cnt: Box<dyn Counter>,
-    fmt: num::NumFormat,
 }
 
 impl AMax {
@@ -831,23 +791,19 @@ impl AMax {
         Ok(Self {
             val: 0,
             cnt: AggMaker::make_counter(spec)?,
-            fmt: num::NumFormat::default(),
         })
     }
 }
 
 impl Agg for AMax {
-    fn fmt(&mut self, f: num::NumFormat) {
-        self.fmt = f;
-    }
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::max(self.val, self.cnt.counter(data));
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        num::format_hnum(self.val as f64, self.fmt, w)
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+        num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
         self.val = 0;
@@ -858,7 +814,6 @@ struct AMean {
     val: usize,
     num: usize,
     cnt: Box<dyn Counter>,
-    fmt: num::NumFormat,
 }
 
 impl AMean {
@@ -867,15 +822,11 @@ impl AMean {
             val: 0,
             num: 0,
             cnt: AggMaker::make_counter(spec)?,
-            fmt: num::NumFormat::default(),
         })
     }
 }
 
 impl Agg for AMean {
-    fn fmt(&mut self, f: num::NumFormat) {
-        self.fmt = f;
-    }
     fn value(&self) -> f64 {
         if self.num > 0 {
             self.val as f64 / self.num as f64
@@ -887,8 +838,8 @@ impl Agg for AMean {
         self.val += self.cnt.counter(data);
         self.num += 1;
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        num::format_hnum(self.val as f64, self.fmt, w)
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+        num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
         self.val = 0;
@@ -917,7 +868,7 @@ impl Agg for Max {
             self.val.extend_from_slice(data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -972,7 +923,7 @@ impl Agg for Prefix {
             common_prefix(&mut self.val, data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -1026,7 +977,7 @@ impl Agg for Suffix {
             common_suffix(&mut self.val, data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -1038,7 +989,6 @@ impl Agg for Suffix {
 
 struct Count {
     val: i64,
-    fmt: num::NumFormat,
     init: i64,
 }
 
@@ -1047,14 +997,12 @@ impl Count {
         if spec.is_empty() {
             Ok(Self {
                 val: 0,
-                fmt: num::NumFormat::default(),
                 init: 0,
             })
         } else {
             let val = spec.parse::<i64>()?;
             Ok(Self {
                 val,
-                fmt: num::NumFormat::default(),
                 init: val,
             })
         }
@@ -1062,17 +1010,14 @@ impl Count {
 }
 
 impl Agg for Count {
-    fn fmt(&mut self, f: num::NumFormat) {
-        self.fmt = f;
-    }
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, _data: &[u8]) {
         self.val += 1;
     }
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
-        num::format_hnum(self.value(), self.fmt, w)
+    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+        num::format_hnum(self.value(), fmt, w)
     }
     fn reset(&mut self) {
         self.val = self.init;
@@ -1125,7 +1070,6 @@ impl AggMaker {
         Self::do_add_alias("min", "minimum")?;
         Self::do_add_alias("max", "maximum")?;
         Self::do_add_alias("mean", "avg")?;
-        Self::do_add_alias("literal", "lit")?;
         Self::do_add_alias("amean", "aavg")?;
         Self::do_push_counter("chars", "Count the characters", |utf8, _p| {
             Ok(Box::new(Chars::new(utf8)))
@@ -1153,9 +1097,6 @@ impl AggMaker {
         })?;
         Self::do_push("count", "The number of things aggregated", |p| {
             Ok(Rc::new(RefCell::new(Count::new(p)?)))
-        })?;
-        Self::do_push("literal", "A fixed string", |p| {
-            Ok(Rc::new(RefCell::new(Literal::new(p)?)))
         })?;
         Self::do_push(
             "prefix",

@@ -27,12 +27,14 @@ nom = "1" # Should upgrade to version 7 at some point
 libc = "0.2"
 unicode-width = "0.1"
 unicode-truncate = "0.2"
+rand = "0.8"
+rand_distr = "0.4"
 
-aws-config = "0.4.0"
-aws-sdk-s3 = "0.4.0"
+aws-config = "0.5"
+aws-sdk-s3 = "0.5"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1.8"
-aws-smithy-http = "0.34"
+aws-smithy-http = "0.35"
 bytes = "1.1"
 base64 = "0.13"
 

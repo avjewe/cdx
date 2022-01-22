@@ -44,6 +44,7 @@ mod shunting_yard;
 pub mod sort;
 pub mod tabs;
 pub mod text;
+pub mod textgen;
 mod tokenizer;
 pub mod tooltest;
 pub mod trans;

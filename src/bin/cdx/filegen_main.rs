@@ -1,0 +1,59 @@
+use crate::arg;
+use crate::args;
+use crate::args::ArgSpec;
+use cdx::textgen::{GenList};
+use cdx::util::{get_writer, Result, err, Error};
+use std::io::Write;
+
+pub fn main(argv: &[String]) -> Result<()> {
+    let prog = args::ProgSpec::new("Generate a text file.", args::FileCount::Zero);
+    const A: [ArgSpec; 4] = [
+        arg! {"lines", "l", "Number", "Generate this many lines of data. Default 10."},
+        arg! {"column", "c", "Spec", "Generate one column of this type"},
+        arg! {"multi", "m", "N,Spec", "Generate N columns of this type"},
+        arg! {"header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
+    ];
+    let (args, _files) = args::parse(&prog, &A, argv);
+
+    let mut num_lines = 10;
+    let mut list = GenList::new();
+    let mut header = false;
+
+    for x in args {
+        if x.name == "lines" {
+	    num_lines = x.value.parse::<usize>()?;
+        } else if x.name == "header" {
+	    header = true;
+        } else if x.name == "column" {
+	    list.push(&x.value)?;
+        } else if x.name == "multi" {
+            if let Some((a, b)) = x.value.split_once(',') {
+		let a = a.parse::<usize>()?;
+		for _ in 0..a {
+		    list.push(b)?;
+		}
+            } else {
+		return err!("Multi format is Number,Spec : '{}'", x.value);
+            }
+        } else {
+            unreachable!();
+        }
+    }
+    if list.is_empty() {
+	list.push("grid")?;
+    }
+    let mut w = get_writer("-")?;
+
+    if header {
+	w.write_all(b" CDX")?;
+	for i in 1..=list.len() {
+	    write!(w, "\tc{}", i)?;
+	}
+	w.write_all(b"\n")?;
+    }
+    
+    for _i in 0..num_lines {
+	list.write(&mut w, b'\t')?;
+    }
+    Ok(())
+}

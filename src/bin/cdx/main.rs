@@ -8,6 +8,7 @@ mod cat_main;
 mod cdxmain;
 mod cgrep_main;
 mod cut_main;
+mod filegen_main;
 mod join_main;
 mod paste_main;
 mod sample_main;
