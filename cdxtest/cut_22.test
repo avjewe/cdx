@@ -1,0 +1,7 @@
+#command cdx cut -f 2+normspace -f 3+utf8.normspace
+#stdin
+ CDX	one	two	three
+ a b c 	   d    e    f   	   g     h    i   
+#stdout
+ CDX	two	three
+d e f	g h i

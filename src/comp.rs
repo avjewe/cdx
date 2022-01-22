@@ -875,6 +875,9 @@ impl CompMaker {
         Self::do_push("length", "Sort by length of string", |_p| {
             Ok(Box::new(CompareLen::new()))
         })?;
+        Self::do_push("random", "Sort randomly", |_p| {
+            Ok(Box::new(CompareRandom::new()))
+        })?;
         Self::do_push("ip", "Sort as IP address or 1.2.3 section numbers", |_p| {
             Ok(Box::new(CompareIP::new()))
         })?;
@@ -1450,6 +1453,41 @@ impl LineCompList {
         true
     }
 }
+
+#[derive(Default, Debug)]
+struct CompareRandom {
+    rng : fastrand::Rng
+}
+impl CompareRandom {
+    fn new() -> Self {
+	Self::default()
+    }
+    fn ord(&self) -> Ordering {
+	if self.rng.bool() {
+	    Ordering::Less
+	}
+	else {
+	    Ordering::Greater
+	}
+    }
+}
+impl Compare for CompareRandom {
+    fn comp(&self, _left: &[u8], _right: &[u8]) -> Ordering {
+	self.ord()
+    }
+    fn equal(&self, _left: &[u8], _right: &[u8]) -> bool {
+	self.rng.bool()
+    }
+    fn fill_cache(&self, _item: &mut Item, _value: &[u8]) {}
+    fn set(&mut self, _value: &[u8]) {}
+    fn comp_self(&self, _right: &[u8]) -> Ordering {
+	self.ord()
+    }
+    fn equal_self(&self, _right: &[u8]) -> bool {
+	self.rng.bool()
+    }
+}
+
 
 /// IP Address Comparison
 #[derive(Default, Debug)]

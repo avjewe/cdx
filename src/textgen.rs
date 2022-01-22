@@ -70,7 +70,7 @@ struct CountGen {start : i64}
 impl CountGen {
     fn new(spec : &str) -> Result<Self> {
 	Ok(Self {
-	    start : spec.parse::<i64>()?
+	    start : if spec.is_empty() { 0 } else {spec.parse::<i64>()?}
 	})
     }
 }

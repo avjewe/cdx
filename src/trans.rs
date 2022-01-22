@@ -18,6 +18,7 @@ pub trait Trans {
     }
 }
 
+// get ranges of bytes
 struct BytesTrans {
     v: Vec<FakeSlice>,
 }
@@ -38,6 +39,8 @@ impl Trans for BytesTrans {
         Ok(())
     }
 }
+
+// transform to and from base64
 struct Base64Trans {
     encode: bool,
     config: base64::Config,
@@ -86,6 +89,7 @@ impl Trans for Base64Trans {
     }
 }
 
+// make lowercase, ascii
 struct LowerTrans {}
 impl Trans for LowerTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
@@ -97,6 +101,7 @@ impl Trans for LowerTrans {
 }
 
 #[derive(Default)]
+// make lowercase, utf8
 struct LowerUtfTrans {
     tmp: String,
 }
@@ -109,7 +114,9 @@ impl Trans for LowerUtfTrans {
         Ok(())
     }
 }
+
 #[derive(Default)]
+// make uppercase, utf8
 struct UpperUtfTrans {
     tmp: String,
 }
@@ -123,12 +130,60 @@ impl Trans for UpperUtfTrans {
     }
 }
 
+// make uppercase, ascii
 struct UpperTrans {}
 impl Trans for UpperTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
         for x in src {
             dst.push(x.to_ascii_uppercase());
         }
+        Ok(())
+    }
+}
+
+// normalize space, ascii
+struct NormSpace {}
+impl Trans for NormSpace {
+    fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
+	let mut need_space = false;
+        for x in src {
+	    if *x <= b' ' {
+		need_space = true;
+	    }
+	    else {
+		if need_space && !dst.is_empty() {
+		    dst.push(b' ');
+		    need_space = false;
+		}
+		dst.push(*x);
+	    }
+        }
+        Ok(())
+    }
+}
+
+// normalize space, ascii
+#[derive(Default)]
+struct NormSpaceUtf8 {
+    tmp : String,
+}
+impl Trans for NormSpaceUtf8 {
+    fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
+	let mut need_space = false;
+	self.tmp.clear();
+	for x in String::from_utf8_lossy(src).chars() {
+	    if x.is_whitespace() || x == std::char::REPLACEMENT_CHARACTER {
+		need_space = true;
+	    }
+	    else {
+		if need_space && !self.tmp.is_empty() {
+		    self.tmp.push(' ');
+		    need_space = false;
+		}
+		self.tmp.push(x);
+	    }
+	}
+	dst.extend(self.tmp.bytes());
         Ok(())
     }
 }
@@ -257,6 +312,13 @@ impl TransMaker {
         }
         Self::do_add_alias("lower", "lowercase")?;
         Self::do_add_alias("upper", "uppercase")?;
+        Self::do_push("normspace", "normalize white space", |c, _p| {
+            if c.utf8 {
+                Ok(Box::new(NormSpaceUtf8::default()))
+            } else {
+                Ok(Box::new(NormSpace{}))
+            }
+        })?;
         Self::do_push("lower", "make lower case", |c, _p| {
             if c.utf8 {
                 Ok(Box::new(LowerUtfTrans::default()))

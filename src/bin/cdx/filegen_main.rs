@@ -8,7 +8,7 @@ use std::io::Write;
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Generate a text file.", args::FileCount::Zero);
     const A: [ArgSpec; 4] = [
-        arg! {"lines", "l", "Number", "Generate this many lines of data. Default 10."},
+        arg! {"lines", "n", "Number", "Generate this many lines of data. Default 10."},
         arg! {"column", "c", "Spec", "Generate one column of this type"},
         arg! {"multi", "m", "N,Spec", "Generate N columns of this type"},
         arg! {"header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
