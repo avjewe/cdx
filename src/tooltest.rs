@@ -198,7 +198,7 @@ impl Test {
                 /* do nothing */
             } else if let Some(x) = line.strip_prefix(b"#status") {
                 let y = x.trimw_start();
-                self.code = y.to_isize_whole()? as i32;
+                self.code = y.to_isize_whole(&line, "status")? as i32;
             } else if let Some(x) = line.strip_prefix(b"#infile") {
                 let y = x.trimw_start();
                 let mut f = InFile {

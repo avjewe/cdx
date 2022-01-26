@@ -830,7 +830,7 @@ impl ColumnSet {
     /// ```
     pub fn single(fieldnames: &[&str], colname: &str) -> Result<usize> {
         if let Some(stripped) = colname.strip_prefix('+') {
-            let n = stripped.to_usize_whole()?;
+            let n = stripped.to_usize_whole(colname.as_bytes(), "column")?;
             let len = fieldnames.len();
             if n > len {
                 err!("Column {} out of bounds", colname)
@@ -840,7 +840,7 @@ impl ColumnSet {
         } else {
             let ch = colname.first();
             if ch.is_ascii_digit() && ch != '0' {
-                let n = colname.to_usize_whole()?;
+                let n = colname.to_usize_whole(colname.as_bytes(), "column")?;
                 if n < 1 {
                     err!("Column {} out of bounds", colname)
                 } else {

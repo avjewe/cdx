@@ -7,10 +7,10 @@
 //! [RPN]: https://en.wikipedia.org/wiki/Reverse_Polish_notation
 //! [shunting]: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
 use self::Associativity::*;
-use crate::tokenizer::BinaryOp::*;
-use crate::tokenizer::Token;
-use crate::tokenizer::Token::*;
-use crate::tokenizer::UnaryOp;
+use crate::tok2::BinaryOp::*;
+use crate::tok2::Token;
+use crate::tok2::Token::*;
+use crate::tok2::UnaryOp;
 use crate::util::{err, Error, Result};
 
 #[derive(Debug, Clone, Copy)]
@@ -95,7 +95,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
                 while let Some((i, t)) = stack.pop() {
                     match t {
                         LParen => {
-                            return err!("Unexpected Comma");
+                            return err!("Unexpected Comma a");
                         }
                         Func(name, nargs) => {
                             found = true;
@@ -106,7 +106,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
                     }
                 }
                 if !found {
-                    return err!("Unexpected Comma");
+                    return err!("Unexpected Comma b");
                 }
             }
             Func(..) => stack.push((index, token)),
@@ -149,7 +149,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tokenizer::UnaryOp;
+    use crate::tok2::UnaryOp;
 
     #[test]
     fn test_to_rpn() {

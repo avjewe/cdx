@@ -1,7 +1,7 @@
 //! The Text trait, with implementations for str and &[u8]
 //! for all those things that are needed for both types
 
-use crate::num::{Junk, JunkType};
+use crate::num::{suffix_valu, suffix_valf, Junk, JunkType};
 use crate::util::{err, Error, Result};
 use std::cmp::Ordering;
 use std::ops::Range;
@@ -103,10 +103,10 @@ pub trait Text {
         self.to_usize().0
     }
     /// to_usize, but fail if any text remains
-    fn to_usize_whole(&self) -> Result<usize> {
+    fn to_usize_whole(&self, spec : &[u8], what : &str) -> Result<usize> {
         let (val, rest) = self.to_usize();
         if !rest.is_empty() {
-            err!("Malformed unsigned integer {}", self.to_str())
+            err!("Malformed unsigned integer '{}' trying to make '{what}' from '{}'", self.to_str(), String::from_utf8_lossy(spec))
         } else {
             Ok(val)
         }
@@ -139,10 +139,10 @@ pub trait Text {
         self.to_isize().0
     }
     /// to_isize, but fail if any text remains
-    fn to_isize_whole(&self) -> Result<isize> {
+    fn to_isize_whole(&self, spec : &[u8], what : &str) -> Result<isize> {
         let (val, rest) = self.to_isize();
         if !rest.is_empty() {
-            err!("Malformed signed integer {}", self.to_str())
+            err!("Malformed signed integer '{}' trying to make '{what}' from '{}'", self.to_str(), String::from_utf8_lossy(spec))
         } else {
             Ok(val)
         }
@@ -175,10 +175,10 @@ pub trait Text {
         self.to_f64().0
     }
     /// to_f64, but fail if any text remains
-    fn to_f64_whole(&self) -> Result<f64> {
+    fn to_f64_whole(&self, spec : &[u8], what : &str) -> Result<f64> {
         let (val, rest) = self.to_f64();
         if !rest.is_empty() {
-            err!("Malformed float {}", self.to_str())
+            err!("Malformed float '{}' trying to make '{what}' from '{}'", self.to_str(), String::from_utf8_lossy(spec))
         } else {
             Ok(val)
         }
@@ -626,6 +626,12 @@ impl Text for [u8] {
             ret += (curr[0] - b'0') as usize;
             curr = &curr[1..];
         }
+	if !curr.is_empty() {
+	    if let Some(mul) = suffix_valu(curr[0]) {
+		curr = &curr[1..];
+		ret *= mul;
+	    }
+	}
         (ret, curr)
     }
     fn to_isize(&self) -> (isize, &Self) {
@@ -648,7 +654,13 @@ impl Text for [u8] {
             ret += (curr[0] - b'0') as isize;
             curr = &curr[1..];
         }
-        ret *= neg;
+	if !curr.is_empty() {
+	    if let Some(mul) = suffix_valu(curr[0]) {
+		curr = &curr[1..];
+		ret *= mul as isize;
+	    }
+	}
+	ret *= neg;
         (ret, curr)
     }
     fn to_f64(&self) -> (f64, &Self) {
@@ -722,6 +734,12 @@ impl Text for [u8] {
                 }
             }
         }
+	if !curr.is_empty() {
+	    if let Some(mul) = suffix_valf(curr[0]) {
+		curr = &curr[1..];
+		ret *= mul;
+	    }
+	}
         (neg * ret, curr)
     }
 }

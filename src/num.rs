@@ -138,6 +138,31 @@ impl NumFormat {
     }
 }
 
+const P2_LETTERS: &[u8] = b"0KMGTPEZY";
+const P10_LETTERS: &[u8] = b"0kmgtpezy";
+const P2_VALUES_U: [usize; 9] = [
+    1,
+    1024,
+    1024^2,
+    1024^3,
+    1024^4,
+    1024^5,
+    1024^6,
+    usize::MAX,
+    usize::MAX,
+];
+const P2_VALUES_F: [f64; 9] = [
+    1.0,
+    1024.0,
+    1024.0*1024.0,
+    1024.0*1024.0*1024.0,
+    1024.0*1024.0*1024.0*1024.0,
+    1024.0*1024.0*1024.0*1024.0*1024.0,
+    1024.0*1024.0*1024.0*1024.0*1024.0*1024.0,
+    1024.0*1024.0*1024.0*1024.0*1024.0*1024.0*1024.0,
+    1024.0*1024.0*1024.0*1024.0*1024.0*1024.0*1024.0*1024.0,
+];
+
 /// format a number
 pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()> {
     if let NumFormat::Plain(n) = fmt {
@@ -163,8 +188,6 @@ pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()
         write!(w, "{num}")?;
         return Ok(());
     }
-    const P2_LETTERS: &[u8] = b"0KMGTPEZY";
-    const P10_LETTERS: &[u8] = b"0kmgtpezy";
     let sign = if num < 0.0 {
         num = -num;
         "-"
@@ -210,4 +233,23 @@ pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()
             return Ok(());
         }
     }
+}
+
+/// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
+pub fn suffix_valf(ch : u8) -> Option<f64> {
+    for (i,x) in P2_LETTERS.iter().enumerate(){
+	if *x == ch {
+	    return Some(P2_VALUES_F[i]);
+	}
+    }
+    None
+}
+/// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
+pub fn suffix_valu(ch : u8) -> Option<usize> {
+    for (i,x) in P2_LETTERS.iter().enumerate(){
+	if *x == ch {
+	    return Some(P2_VALUES_U[i]);
+	}
+    }
+    None
 }

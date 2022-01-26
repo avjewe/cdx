@@ -4,7 +4,8 @@
 use crate::column::{get_col, ColumnSet};
 use crate::shunting_yard::*;
 use crate::text::Text;
-use crate::tokenizer::*;
+//use crate::tokenizer::*;
+use crate::tok2::*;
 use crate::util::{err, find_close, Error, Result, TextLine};
 use lazy_static::lazy_static;
 use libm;
