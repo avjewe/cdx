@@ -424,7 +424,7 @@ pub struct ScopedValues {
 
     has_value: Vec<bool>,
     strings: Vec<String>,
-    ints: Vec<i64>,
+    ints: Vec<isize>,
     floats: Vec<f64>,
 }
 
@@ -457,7 +457,9 @@ impl ScopedValues {
     pub fn make_ints(&mut self) -> Result<()> {
         self.ints.clear();
         for i in 0..self.strings.len() {
-            self.ints[i] = self.get(i).parse::<i64>()?;
+            self.ints[i] = self
+                .get(i)
+                .to_isize_whole(self.get(i).as_bytes(), "number")?;
         }
         Ok(())
     }
@@ -465,7 +467,7 @@ impl ScopedValues {
     pub fn make_floats(&mut self) -> Result<()> {
         self.floats.clear();
         for i in 0..self.strings.len() {
-            self.floats[i] = self.get(i).parse::<f64>()?;
+            self.floats[i] = self.get(i).to_f64_whole(self.get(i).as_bytes(), "float")?;
         }
         Ok(())
     }
@@ -489,7 +491,7 @@ impl ScopedValues {
         }
     }
     /// get appropriate int value for the column
-    pub fn get_int(&self, col: usize) -> i64 {
+    pub fn get_int(&self, col: usize) -> isize {
         if col < self.ints.len() {
             self.ints[col]
         } else {
@@ -633,13 +635,13 @@ impl ColumnFun for ColumnWhole {
 /// write an increasing count, e.g. cat -n
 #[derive(Debug, Default, Clone)]
 pub struct ColumnCount {
-    num: i64,
+    num: isize,
     name: String,
 }
 
 impl ColumnCount {
     /// new
-    pub fn new(num: i64, name: &str) -> Self {
+    pub fn new(num: isize, name: &str) -> Self {
         Self {
             num,
             name: name.to_string(),

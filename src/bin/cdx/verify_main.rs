@@ -3,8 +3,10 @@ use crate::{arg, args};
 use cdx::comp::{comp_check, LineCompList};
 use cdx::expr;
 use cdx::matcher::*;
+use cdx::text::Text;
 use cdx::util::{CheckLine, Error, Reader, Result};
 
+// check for contant number of columns
 // MORE MATCHERS
 // number of columns
 // --full-name - exact column names in order
@@ -12,7 +14,7 @@ use cdx::util::{CheckLine, Error, Reader, Result};
 // lines and bytes relative to another file
 // a bunch of columns not equaling each other
 // two columns compared to each other
-// only check first N, ot maybe also last N? or maybe tht's just a script with head and tail?
+// only check first N, or maybe also last N? or maybe that's just a script with head and tail?
 // still return OK if N lines or N% of the lines are bad
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -50,7 +52,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "or" {
             list.multi = Combiner::Or;
         } else if x.name == "fail" {
-            max_fails = x.value.parse::<usize>()?;
+            max_fails = x.value.to_usize_whole(x.value.as_bytes(), "max fails")?;
         } else if x.name == "sort" {
             do_sort = true;
         } else if x.name == "first" {

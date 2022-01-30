@@ -1,0 +1,13 @@
+#command cdx uniq -k 1 --agg-post ,expr,x,1,x*c2
+#stdin
+aaa	1
+aaa	2
+aaa	3
+aaa	4
+bbb	2
+bbb	4
+bbb	6
+bbb	8
+#stdout
+aaa	1	24
+bbb	2	384

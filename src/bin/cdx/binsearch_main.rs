@@ -28,10 +28,10 @@ impl FileNameColumn {
         if spec.as_bytes().contains(&b':') {
             let (name, tail) = spec.split_once(':').unwrap();
             self.name = name.to_string();
-            self.tail = tail.parse::<usize>()?;
+            self.tail = tail.to_usize_whole(spec.as_bytes(), "file path parts")?;
         } else if spec.as_bytes()[0].is_ascii_digit() {
             self.name.clear();
-            self.tail = spec.parse::<usize>()?;
+            self.tail = spec.to_usize_whole(spec.as_bytes(), "file path parts")?;
         } else {
             self.tail = 0;
             self.name = spec.to_string();
@@ -51,11 +51,11 @@ struct Context {
 fn do_set(spec: &str, yes_match: &mut usize, no_match: &mut usize) -> Result<()> {
     let v: Vec<&str> = spec.split('.').collect();
     if v.len() == 1 {
-        *yes_match = v[0].parse::<usize>()?;
+        *yes_match = v[0].to_usize_whole(spec.as_bytes(), "context lines")?;
         *no_match = *yes_match;
     } else if v.len() == 2 {
-        *yes_match = v[0].parse::<usize>()?;
-        *no_match = v[1].parse::<usize>()?;
+        *yes_match = v[0].to_usize_whole(spec.as_bytes(), "context lines")?;
+        *no_match = v[1].to_usize_whole(spec.as_bytes(), "context lines")?;
     } else {
         return err!("each context piece must be one or two comma delimited integers");
     }

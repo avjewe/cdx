@@ -254,13 +254,23 @@ struct VarMap {
     val: f64,
     col: Option<usize>, //  associated column number
 }
+impl VarMap {
+    fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            val: 0.0,
+            col: None,
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 /// A floating point expression
 pub struct Expr {
     expr_str: String,
     expr: Vec<Node>,
-    vars: Vec<VarMap>,
-    stack: Vec<f64>, // temp space for eval
+    vars: Vec<VarMap>, // FIXME - Rc<RefCell<Vec<VarMap>>>, shared
+    stack: Vec<f64>,   // temp space for eval
 }
 
 const fn to_f(x: bool) -> f64 {
@@ -441,8 +451,9 @@ impl Expr {
             }
             n.replace_range(pos..pos + len, &nval);
         }
+        let start_vars = self.vars.len();
         self.parse(&n)?;
-        'outer: for y in &mut self.vars {
+        'outer: for y in self.vars.iter_mut().skip(start_vars) {
             for (i, x) in fieldnames.iter().enumerate() {
                 if *x == y.name {
                     y.col = Some(i);
@@ -453,7 +464,7 @@ impl Expr {
                 static ref CN: Regex = Regex::new("^c([0-9]+)$").unwrap();
             }
             if let Some(cn) = CN.captures(&y.name) {
-                y.col = Some(cn.get(1).unwrap().as_str().parse::<usize>().unwrap() - 1);
+                y.col = Some(cn.get(1).unwrap().as_str().to_usize_whole(b"", "").unwrap() - 1);
                 continue;
             }
             // FIXME - some way to declare other variables
@@ -475,17 +486,18 @@ impl Expr {
             }
         }
     }
-    fn find_var(&mut self, name: &str) -> usize {
+    /// set the value of a variable
+    pub fn set_var(&mut self, which: usize, val: f64) {
+        self.vars[which].val = val;
+    }
+    /// return index of var, adding if necessary
+    pub fn find_var(&mut self, name: &str) -> usize {
         for (i, x) in self.vars.iter().enumerate() {
             if x.name == name {
                 return i;
             }
         }
-        self.vars.push(VarMap {
-            name: name.to_string(),
-            val: 0.0,
-            col: None,
-        });
+        self.vars.push(VarMap::new(name));
         self.vars.len() - 1
     }
     fn rpn_to_expr(&mut self, rpn: &[Token]) -> Result<()> {

@@ -1,5 +1,6 @@
 use crate::args::ArgSpec;
 use crate::{arg, args};
+use cdx::text::Text;
 use cdx::util::Result;
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -16,7 +17,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         if x.name == "head" {
             head = true;
         } else if x.name == "lines" {
-            lines = x.value.parse::<usize>()?;
+            lines = x
+                .value
+                .to_usize_whole(x.value.as_bytes(), "number of lines")?;
         } else {
             unreachable!();
         }

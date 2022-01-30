@@ -20,7 +20,7 @@ enum PadMode {
 /// how to number lines
 struct LineNumber {
     pub do_it: bool,
-    pub start: i64,
+    pub start: isize,
     pub name: String,
     pub end: bool,
 }
@@ -44,7 +44,7 @@ impl LineNumber {
         if second.is_none() {
             return Ok(());
         }
-        self.start = second.unwrap().parse::<i64>()?;
+        self.start = second.unwrap().to_isize_whole(spec.as_bytes(), "start")?;
 
         let third = iter.next();
         if third.is_none() {

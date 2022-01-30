@@ -16,7 +16,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"show-func", "", "", "Print available functions"},
         arg! {"or", "o", "", "A line matches if any of the matchers matches."},
         arg! {"invert", "v", "", "Print lines that don't match."},
-        arg! {"location", "l", "line,bytes,name", "prefix extra columns of location context."},
+        arg! {"location", "l", "name:what", "prefix extra columns of location context."},
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
     ];
     let (args, files) = args::parse(&prog, &A, argv);

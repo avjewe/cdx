@@ -1,7 +1,7 @@
 use crate::arg;
 use crate::args;
 use crate::args::ArgSpec;
-use cdx::agg::{AggList, AggMaker};
+use cdx::agg::{AggMaker, LineAggList};
 use cdx::column::{ColumnHeader, Writer};
 use cdx::comp::{CompMaker, LineComp, LineCompList};
 use cdx::util::{err, get_writer, Error, Reader, Result, TextLine};
@@ -171,7 +171,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
-    let mut agg = AggList::new();
+    let mut agg = LineAggList::new();
     let mut comp = LineCompList::new();
     let mut count = Count::default();
 

@@ -2,6 +2,7 @@ use crate::args::ArgSpec;
 use crate::{arg, arg_enum, args};
 use cdx::sampler::Smooth;
 use cdx::tabs::Rect;
+use cdx::text::Text;
 use cdx::util::{err, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
 use std::io::Write;
 use std::ops::RangeInclusive;
@@ -14,9 +15,12 @@ struct Ranges {
 impl Ranges {
     fn push(&mut self, spec: &str) -> Result<()> {
         self.v.push(if let Some((a, b)) = spec.split_once('-') {
-            RangeInclusive::new(a.parse::<usize>()?, b.parse::<usize>()?)
+            RangeInclusive::new(
+                a.to_usize_whole(spec.as_bytes(), "from")?,
+                b.to_usize_whole(spec.as_bytes(), "to")?,
+            )
         } else {
-            let val = spec.parse::<usize>()?;
+            let val = spec.to_usize_whole(spec.as_bytes(), "line number")?;
             RangeInclusive::new(val, val)
         });
         Ok(())
@@ -61,9 +65,9 @@ impl For {
         let mut f = For::default();
         for (i, x) in spec.split(',').enumerate() {
             match i {
-                0 => f.by = x.parse::<usize>()?,
-                1 => f.from = x.parse::<usize>()?,
-                2 => f.to = x.parse::<usize>()?,
+                0 => f.by = x.to_usize_whole(spec.as_bytes(), "by")?,
+                1 => f.from = x.to_usize_whole(spec.as_bytes(), "from")?,
+                2 => f.to = x.to_usize_whole(spec.as_bytes(), "to")?,
                 _ => {
                     return err!(
                         "No more than three comma delimited pieces in a For loop spec '{}'",
@@ -121,7 +125,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             if saw_for || saw_sample || saw_range {
                 return err!("No more that one --sample, --range  or --for allowed");
             }
-            sample = x.value.parse::<usize>()?;
+            sample = x.value.to_usize_whole(x.value.as_bytes(), "sample size")?;
             saw_sample = true;
         } else {
             unreachable!();

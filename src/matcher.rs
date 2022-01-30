@@ -615,9 +615,9 @@ impl LengthMatch {
         let mut val = Self::default();
         for (n, x) in data.split(',').enumerate() {
             if n == 0 {
-                val.min = x.parse::<usize>()?;
+                val.min = x.to_usize_whole(data.as_bytes(), "length matcher")?;
             } else if n == 1 {
-                val.max = Some(x.parse::<usize>()?);
+                val.max = Some(x.to_usize_whole(data.as_bytes(), "length matcher")?);
             } else {
                 return err!("Length spec can't have more than one comma.");
             }

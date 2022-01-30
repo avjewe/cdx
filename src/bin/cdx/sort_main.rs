@@ -3,6 +3,7 @@ use crate::args;
 use crate::args::ArgSpec;
 use cdx::comp::{comp_check, CompMaker, LineCompList};
 use cdx::sort;
+use cdx::text::Text;
 use cdx::util::{err, get_writer, Error, Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -32,7 +33,9 @@ pub fn main(argv: &[String]) -> Result<()> {
             num_checks = 1;
         } else if x.name == "Check" {
             check = true;
-            num_checks = x.value.parse::<usize>()?;
+            num_checks = x
+                .value
+                .to_usize_whole(x.value.as_bytes(), "number of reports")?;
         } else if x.name == "unique" {
             unique = true;
         } else if x.name == "show-comp" {

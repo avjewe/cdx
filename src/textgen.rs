@@ -1,99 +1,114 @@
 //! Generate random text
 
-use crate::util::{Result, err, Error};
 use crate::num::{self, NumFormat};
+use crate::text::Text;
+use crate::util::{err, Error, Result};
+use lazy_static::lazy_static;
+use rand_distr::{Distribution, Normal};
 use std::fmt;
 use std::io::Write;
-use lazy_static::lazy_static;
 use std::sync::Mutex;
-use rand_distr::{Normal,Distribution};
 
 /// location context for Gen
 #[derive(Debug, Default)]
 pub struct Where {
     /// 1-based column number
-    pub col : usize,
+    pub col: usize,
     /// 1-based line number
-    pub line : usize,
+    pub line: usize,
 }
 
 /// generate some text
 pub trait Gen {
     /// write one column value
-    fn write(&mut self, w : &mut dyn Write, loc : &Where) -> Result<()>;
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()>;
 }
 
 struct NormalDistGen {
-    fmt : NumFormat,
-    norm : Normal<f64>,
+    fmt: NumFormat,
+    norm: Normal<f64>,
 }
 impl NormalDistGen {
-    fn new(spec : &str) -> Result<Self> {
-	let mut mean = 0.0;
-	let mut dev = 1.0;
-	let mut fmt = NumFormat::Plain(0);
-	if !spec.is_empty() {
-	    for (i,x) in spec.split(',').enumerate() {
-		match i {
-		    0 => mean = x.parse::<f64>()?,
-		    1 => dev = x.parse::<f64>()?,
-		    2 => fmt = NumFormat::new(x)?,
-		    _ => return err!("Normal Dist Spec must be no more than three comma delimited pieces"),
-		}
-	    }
-	}
-	Ok(Self{fmt, norm : Normal::new(mean, dev).unwrap()})
+    fn new(spec: &str) -> Result<Self> {
+        let mut mean = 0.0;
+        let mut dev = 1.0;
+        let mut fmt = NumFormat::Plain(0);
+        if !spec.is_empty() {
+            for (i, x) in spec.split(',').enumerate() {
+                match i {
+                    0 => mean = x.to_f64_whole(spec.as_bytes(), "normal distribution")?,
+                    1 => dev = x.to_f64_whole(spec.as_bytes(), "normal distribution")?,
+                    2 => fmt = NumFormat::new(x)?,
+                    _ => {
+                        return err!(
+                            "Normal Dist Spec must be no more than three comma delimited pieces"
+                        )
+                    }
+                }
+            }
+        }
+        Ok(Self {
+            fmt,
+            norm: Normal::new(mean, dev).unwrap(),
+        })
     }
 }
 impl Gen for NormalDistGen {
-    fn write(&mut self, w : &mut dyn Write, _loc : &Where) -> Result<()>{
-	let v = self.norm.sample(&mut rand::thread_rng());
-	num::format_hnum(v, self.fmt, w)
+    fn write(&mut self, w: &mut dyn Write, _loc: &Where) -> Result<()> {
+        let v = self.norm.sample(&mut rand::thread_rng());
+        num::format_hnum(v, self.fmt, w)
     }
 }
 
-
 struct NullGen {}
 impl Gen for NullGen {
-    fn write(&mut self, _w : &mut dyn Write, _loc : &Where) -> Result<()> {Ok(())}
+    fn write(&mut self, _w: &mut dyn Write, _loc: &Where) -> Result<()> {
+        Ok(())
+    }
 }
 
 struct GridGen {}
 impl Gen for GridGen {
-    fn write(&mut self, w : &mut dyn Write, loc : &Where) -> Result<()> {
-	write!(w, "{}_{}", loc.line, loc.col)?;
-	Ok(())
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
+        write!(w, "{}_{}", loc.line, loc.col)?;
+        Ok(())
     }
 }
 
-struct CountGen {start : i64}
+struct CountGen {
+    start: isize,
+}
 impl CountGen {
-    fn new(spec : &str) -> Result<Self> {
-	Ok(Self {
-	    start : if spec.is_empty() { 0 } else {spec.parse::<i64>()?}
-	})
+    fn new(spec: &str) -> Result<Self> {
+        Ok(Self {
+            start: if spec.is_empty() {
+                0
+            } else {
+                spec.to_isize_whole(spec.as_bytes(), "count generator")?
+            },
+        })
     }
 }
 impl Gen for CountGen {
-    fn write(&mut self, w : &mut dyn Write, loc : &Where) -> Result<()> {
-	write!(w, "{}", loc.line as i64 + self.start - 1)?;
-	Ok(())
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
+        write!(w, "{}", loc.line as isize + self.start - 1)?;
+        Ok(())
     }
 }
 
 /// A dyn Gen with some context
 pub struct TextGen {
     /// the spec
-    pub spec : String,
+    pub spec: String,
     /// the Gen
-    pub gen : Box<dyn Gen>,
+    pub gen: Box<dyn Gen>,
 }
 impl Default for TextGen {
     fn default() -> Self {
-	Self {
-	    spec : "".to_string(),
-	    gen : Box::new(NullGen{}),
-	}
+        Self {
+            spec: "".to_string(),
+            gen: Box::new(NullGen {}),
+        }
     }
 }
 impl fmt::Debug for TextGen {
@@ -103,55 +118,57 @@ impl fmt::Debug for TextGen {
 }
 impl Clone for TextGen {
     fn clone(&self) -> Self {
-	GenMaker::make(&self.spec).unwrap()
+        GenMaker::make(&self.spec).unwrap()
     }
 }
 
 /// A List of Gen
 #[derive(Debug, Default)]
 pub struct GenList {
-    v : Vec<TextGen>,
-    tmp : Vec<u8>,
-    line : usize,
+    v: Vec<TextGen>,
+    tmp: Vec<u8>,
+    line: usize,
 }
 impl GenList {
     /// new
     pub fn new() -> Self {
-	Self::default()
+        Self::default()
     }
     /// add a Gen
-    pub fn push(&mut self, spec : &str) -> Result<()> {
-	self.v.push(GenMaker::make(spec)?);
-	Ok(())
+    pub fn push(&mut self, spec: &str) -> Result<()> {
+        self.v.push(GenMaker::make(spec)?);
+        Ok(())
     }
     /// is empty?
     pub fn is_empty(&self) -> bool {
-	self.v.is_empty()
+        self.v.is_empty()
     }
     /// length?
     pub fn len(&self) -> usize {
-	self.v.len()
+        self.v.len()
     }
     /// Write full line of Gens
-    pub fn write(&mut self, w : &mut impl Write, delim : u8) -> Result<()> {
-	self.line += 1;
-	let mut loc = Where{col : 1, line : self.line};
-	let mut need_delim = false;
-	for x in &mut self.v {
-	    if need_delim {
-		w.write_all(&[delim])?;
-	    }
-	    need_delim = true;
-	    self.tmp.clear();
-	    x.gen.write(&mut self.tmp, &loc)?;
-	    w.write_all(&self.tmp)?;
-	    loc.col += 1;
-	}
-	w.write_all(b"\n")?;
-	Ok(())
+    pub fn write(&mut self, w: &mut impl Write, delim: u8) -> Result<()> {
+        self.line += 1;
+        let mut loc = Where {
+            col: 1,
+            line: self.line,
+        };
+        let mut need_delim = false;
+        for x in &mut self.v {
+            if need_delim {
+                w.write_all(&[delim])?;
+            }
+            need_delim = true;
+            self.tmp.clear();
+            x.gen.write(&mut self.tmp, &loc)?;
+            w.write_all(&self.tmp)?;
+            loc.col += 1;
+        }
+        w.write_all(b"\n")?;
+        Ok(())
     }
 }
-
 
 type MakerBox = Box<dyn Fn(&str) -> Result<Box<dyn Gen>> + Send>;
 /// A named constructor for a [Gen], used by [GenMaker]
@@ -186,13 +203,13 @@ impl GenMaker {
         }
         Self::do_add_alias("min", "minimum")?;
         Self::do_push("null", "Produce empty column value", |_p| {
-            Ok(Box::new(NullGen{}))
+            Ok(Box::new(NullGen {}))
         })?;
         Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
             Ok(Box::new(NormalDistGen::new(p)?))
         })?;
         Self::do_push("grid", "Produce empty column value", |_p| {
-            Ok(Box::new(GridGen{}))
+            Ok(Box::new(GridGen {}))
         })?;
         Self::do_push("count", "Count up from starting place", |p| {
             Ok(Box::new(CountGen::new(p)?))
@@ -262,8 +279,8 @@ impl GenMaker {
     /// Print all available Matchers to stdout.
     pub fn help() {
         Self::init().unwrap();
-//        println!("Modifers :");
-//        println!("utf8 : do the unicode thing, rather than the ascii thing.");
+        //        println!("Modifers :");
+        //        println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
         let mm = GEN_MAKER.lock().unwrap();
         for x in &*mm {
@@ -273,7 +290,7 @@ impl GenMaker {
         println!("See also https://avjewe.github.io/cdxdoc/TextGen.html.");
     }
     /// Create a Gen from a name and a pattern
-    pub fn make2(spec: &str, pattern: &str, orig : &str) -> Result<TextGen> {
+    pub fn make2(spec: &str, pattern: &str, orig: &str) -> Result<TextGen> {
         Self::init()?;
         let mut name = "";
         if !spec.is_empty() {
@@ -288,9 +305,9 @@ impl GenMaker {
         for x in &*mm {
             if x.tag == name {
                 return Ok(TextGen {
-		    spec : orig.to_string(),
-		    gen : (x.maker)(pattern)?,
-		})
+                    spec: orig.to_string(),
+                    gen: (x.maker)(pattern)?,
+                });
             }
         }
         err!("No Gen found with name '{}'", name)

@@ -163,8 +163,8 @@ impl FakeSlice {
     /// new from text, like '7' or '3-6'
     pub fn new(spec: &str) -> Result<Self> {
         if let Some((a, b)) = spec.split_once('-') {
-            let begin = a.parse::<u32>()?;
-            let end = b.parse::<u32>()?;
+            let begin = a.to_usize_whole(spec.as_bytes(), "range")? as u32;
+            let end = b.to_usize_whole(spec.as_bytes(), "range")? as u32;
             if begin == 0 || end == 0 {
                 err!("Invalid range, both number must be greater than zero")
             } else if begin > end {
@@ -176,7 +176,7 @@ impl FakeSlice {
                 })
             }
         } else {
-            let num = spec.parse::<u32>()?;
+            let num = spec.to_usize_whole(spec.as_bytes(), "position")? as u32;
             if num == 0 {
                 err!("Invalid offset, must be greater than zero")
             } else {
@@ -837,7 +837,9 @@ impl FileLocItem {
             Ok(Self::Name(0))
         } else if let Some((a, b)) = spec.split_once('.') {
             if a.eq_ignore_ascii_case("name") {
-                Ok(Self::Name(b.parse::<usize>()?))
+                Ok(Self::Name(
+                    b.to_usize_whole(spec.as_bytes(), "File location")?,
+                ))
             } else {
                 err!("File Loc must be once of Bytes, Line, Name : '{}'", spec)
             }

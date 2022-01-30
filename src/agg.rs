@@ -1,28 +1,241 @@
 //! Aggregate Values
-
+#![allow(dead_code)]
 use crate::column::{ColumnFun, ColumnHeader, ColumnSingle, NamedCol, Writer};
 use crate::comp::{Comp, CompMaker};
-use crate::num::{self,NumFormat};
+use crate::expr::Expr;
+use crate::num::{self, NumFormat};
 use crate::text::Text;
 use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::cmp::{self, Ordering};
+use std::fmt;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Mutex;
 
 /// Aggregate Values
+
 pub trait Agg {
     /// add one more value to the aggregate
     fn add(&mut self, data: &[u8]);
     /// print result of aggregation
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()>;
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()>;
     /// reset to empty or zero state
     fn reset(&mut self);
     /// return floating point value of Agg, as possible
     fn value(&self) -> f64 {
         0.0
+    }
+}
+type AggRef = Rc<RefCell<dyn Agg>>;
+
+/// Agg with context
+#[derive(Clone)]
+pub struct Agger {
+    /// orig spec
+    pub spec: String,
+    /// Aggregator
+    pub agg: AggRef,
+    /// output column name
+    pub out: String,
+    /// format
+    pub fmt: NumFormat,
+}
+impl fmt::Debug for Agger {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} to {}", &self.spec, &self.out)
+    }
+}
+
+/// Aggregate Lines
+pub trait LineAgg {
+    /// add one more value to the aggregate
+    fn add(&mut self, data: &TextLine);
+    /// print result of aggregation
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()>;
+    /// reset to empty or zero state
+    fn reset(&mut self);
+    /// return floating point value of Agg, as possible
+    fn value(&self) -> f64 {
+        0.0
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
+    /// return self's column within head
+    fn replace<'a>(&self, head: &'a StringLine) -> &'a str;
+    /// is the replace function available
+    fn can_replace(&self) -> bool;
+    /// does this LineAgg specifically refer to this input column?
+    fn is_col(&self, col: usize) -> bool;
+}
+type LineAggRef = Rc<RefCell<dyn LineAgg>>;
+
+/// LineAgg with Context
+#[derive(Clone)]
+pub struct LineAgger {
+    /// orig spec
+    pub spec: String,
+    /// Aggregator
+    pub agg: LineAggRef,
+    /// output column name
+    pub out: AggType,
+    /// format
+    pub fmt: NumFormat,
+}
+impl fmt::Debug for LineAgger {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} to {:?}", &self.spec, &self.out)
+    }
+}
+
+impl LineAgger {
+    /// does this LineAgg specifically refer to this input column?
+    fn is_col(&self, col: usize) -> bool {
+        return self.agg.borrow().is_col(col);
+    }
+    /// add one more value to the aggregate
+    pub fn add(&mut self, data: &TextLine) {
+        self.agg.borrow_mut().add(data)
+    }
+    /// print result of aggregation
+    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+        self.agg.borrow_mut().result(w, self.fmt)
+    }
+    /// reset to empty or zero state
+    fn reset(&mut self) {
+        self.agg.borrow_mut().reset()
+    }
+    /// return floating point value of Agg, as possible
+    fn value(&self) -> f64 {
+        self.agg.borrow().value()
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.agg.borrow_mut().lookup(fieldnames)
+    }
+    /// return self's column within head
+    fn replace<'a>(&self, head: &'a StringLine) -> &'a str {
+        self.agg.borrow().replace(head)
+    }
+    /// is the replace function available
+    fn can_replace(&self) -> bool {
+        self.agg.borrow().can_replace()
+    }
+    /// new
+    pub fn new(spec: &str) -> Result<Self> {
+        if let Some((a, b)) = spec.split_once(',') {
+            if a.eq_ignore_ascii_case("replace") {
+                Self::new_replace2(b, spec)
+            } else if a.eq_ignore_ascii_case("prefix") || a.eq_ignore_ascii_case("prepend") {
+                Self::new_prefix2(spec, spec)
+            } else if a.eq_ignore_ascii_case("suffix") || a.eq_ignore_ascii_case("append") {
+                Self::new_append2(spec, spec)
+            } else {
+                err!("Unknown placement type '{}' in LineAgg spec '{}'", a, spec)
+            }
+        } else {
+            err!("No comma in LineAgg spec '{}'", spec)
+        }
+    }
+    /// new replace
+    pub fn new_replace2(rep: &str, spec: &str) -> Result<Self> {
+        Self::new2(AggType::Replace, rep, spec)
+    }
+    /// new replace
+    pub fn new_replace(spec: &str) -> Result<Self> {
+        Self::new_replace2(spec, &format!("replace,{}", spec))
+    }
+    /// new prefix
+    pub fn new_prefix(spec: &str) -> Result<Self> {
+        Self::new_prefix2(spec, &format!("prefix,{}", spec))
+    }
+    /// new prefix
+    pub fn new_prefix2(rep: &str, spec: &str) -> Result<Self> {
+        if let Some((a, b)) = rep.split_once(',') {
+            Self::new2(AggType::Prefix(a.to_string()), b, spec)
+        } else {
+            err!("Prefix format is NewName,Column,Spec : {}", spec)
+        }
+    }
+    /// new append
+    pub fn new_append(spec: &str) -> Result<Self> {
+        Self::new_append2(spec, &format!("append,{}", spec))
+    }
+    /// new append
+    pub fn new_append2(rep: &str, spec: &str) -> Result<Self> {
+        if let Some((a, b)) = rep.split_once(',') {
+            Self::new2(AggType::Append(a.to_string()), b, spec)
+        } else {
+            err!("Append format is NewName,Column,Spec : {}", spec)
+        }
+    }
+    /// new LineAgger
+    pub fn new2(out: AggType, rep: &str, spec: &str) -> Result<Self> {
+        Ok(Self {
+            spec: spec.to_string(),
+            agg: AggMaker::make_line(rep)?,
+            out,
+            fmt: NumFormat::default(),
+        })
+    }
+}
+
+struct ExprAgg {
+    var: String,
+    expr: Expr,
+    which: usize,
+    start: f64,
+    val: f64,
+}
+impl LineAgg for ExprAgg {
+    fn add(&mut self, data: &TextLine) {
+        self.val = self.expr.eval(data);
+        self.expr.set_var(self.which, self.val);
+    }
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
+        num::format_hnum(self.value(), fmt, w)
+    }
+    fn reset(&mut self) {
+        self.val = self.start;
+        self.expr.set_var(self.which, self.val);
+    }
+    fn value(&self) -> f64 {
+        self.val
+    }
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.expr.lookup(fieldnames)
+    }
+    fn replace<'a>(&self, _head: &'a StringLine) -> &'a str {
+        ""
+    }
+    fn can_replace(&self) -> bool {
+        false
+    }
+    fn is_col(&self, _col: usize) -> bool {
+        false
+    }
+}
+impl ExprAgg {
+    /// Var,Init,Expr
+    fn new(spec: &str) -> Result<Self> {
+        if let Some((a, b)) = spec.split_once(',') {
+            let var = a.to_string();
+            if let Some((c, d)) = b.split_once(',') {
+                let start = c.to_f64_whole(spec.as_bytes(), "Var,Init,Expr")?;
+                let mut expr = Expr::new(d)?;
+                let which = expr.find_var(a);
+                expr.set_var(which, start);
+                return Ok(Self {
+                    var,
+                    expr,
+                    which,
+                    start,
+                    val: start,
+                });
+            }
+        }
+        err!("Expr Agg format is Var,Init,Expr '{}'", spec)
     }
 }
 
@@ -129,10 +342,8 @@ impl Counter for Awords {
     }
 }
 
-type AggRef = Rc<RefCell<dyn Agg>>;
-
 #[derive(Clone, Debug)]
-/// Does this AggCol replace a column, or add a new column
+/// Does this LineAgger replace a column, or add a new column
 pub enum AggType {
     /// replace a column
     Replace,
@@ -149,68 +360,69 @@ impl Default for AggType {
 }
 
 /// An Agg with a source column and an output designation
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AggCol {
     /// source column
     pub src: NamedCol,
     /// Aggregator
-    pub agg: AggRef,
-    /// output style
-    pub mode: AggType,
-    /// format
-    pub fmt : NumFormat
-}
-impl std::fmt::Debug for AggCol {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("AggCol")
-    }
+    pub agg: Agger,
 }
 
+impl LineAgg for AggCol {
+    /// does this LineAgg specifically refer to this input column?
+    fn is_col(&self, col: usize) -> bool {
+        self.src.num == col
+    }
+    /// reset
+    fn reset(&mut self) {
+        self.agg.reset();
+    }
+    /// add
+    fn add(&mut self, data: &TextLine) {
+        self.agg.add(data.get(self.src.num));
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.src.lookup(fieldnames)
+    }
+
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
+        self.agg.result(w, fmt)
+    }
+    fn value(&self) -> f64 {
+        self.agg.value()
+    }
+    fn replace<'a>(&self, head: &'a StringLine) -> &'a str {
+        head.get(self.src.num)
+    }
+    fn can_replace(&self) -> bool {
+        true
+    }
+}
 impl AggCol {
-    /// new replace
-    pub fn new_replace(spec: &str) -> Result<Self> {
-        Self::new2(AggType::Replace, spec)
-    }
-    /// new prefix
-    pub fn new_prefix(spec: &str) -> Result<Self> {
-        if let Some((a, b)) = spec.split_once(',') {
-            Self::new2(AggType::Prefix(a.to_string()), b)
+    /// new from AggType and spec
+    pub fn new(spec: &str) -> Result<Self> {
+        if let Some((a, _)) = spec.split_once(',') {
+            Self::new2(a, spec)
         } else {
-            err!("Prefix format is NewName,Column,Spec : {}", spec)
-        }
-    }
-    /// new append
-    pub fn new_append(spec: &str) -> Result<Self> {
-        if let Some((a, b)) = spec.split_once(',') {
-            Self::new2(AggType::Append(a.to_string()), b)
-        } else {
-            err!("Append format is NewName,Column,Spec : {}", spec)
+            err!("No comma in AggCol spec")
+            //            Self::new3(mode, spec, "")
         }
     }
     /// new from AggType and spec
-    pub fn new2(mode: AggType, spec: &str) -> Result<Self> {
-        if let Some((a, b)) = spec.split_once(',') {
-            Self::new3(mode, a, b)
-        } else {
-            Self::new3(mode, spec, "")
-        }
-    }
-    /// new from AggType and spec
-    pub fn new3(mode: AggType, src: &str, spec: &str) -> Result<Self> {
+    pub fn new2(src: &str, spec: &str) -> Result<Self> {
         Ok(Self {
             src: NamedCol::new_from(src)?,
-            agg: AggMaker::make(spec)?,
-            mode,
-	    fmt : NumFormat::default(),
+            agg: Agger::new(spec)?,
         })
     }
 }
 
-impl ColumnFun for AggCol {
+impl ColumnFun for LineAgger {
     /// write the column names (called once)
     fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
-        match &self.mode {
-            AggType::Replace => w.push(head.get(self.src.num)),
+        match &self.out {
+            AggType::Replace => w.push(self.agg.borrow().replace(head)),
             AggType::Prefix(s) => w.push(s),
             AggType::Append(s) => w.push(s),
         }
@@ -221,13 +433,14 @@ impl ColumnFun for AggCol {
     }
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.src.lookup(fieldnames)
+        self.agg.borrow_mut().lookup(fieldnames)
     }
 }
 
+/*
 /// An Agg with a source column and an output designation
 #[derive(Clone)]
-pub struct AggWhole {
+pub struct Agger {
     /// orig spec
     pub spec: String,
     /// Aggregator
@@ -237,10 +450,11 @@ pub struct AggWhole {
     /// format
     pub fmt : NumFormat
 }
-impl ColumnFun for AggWhole {
+*/
+impl ColumnFun for Agger {
     /// write the column names (called once)
     fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
-        w.push(&self.name)
+        w.push(&self.out)
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
@@ -251,7 +465,24 @@ impl ColumnFun for AggWhole {
         Ok(())
     }
 }
-impl AggWhole {
+impl Agger {
+    /// add one more value to the aggregate
+    pub fn add(&mut self, data: &[u8]) {
+        self.agg.borrow_mut().add(data)
+    }
+    /// print result of aggregation
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
+        self.agg.borrow_mut().result(w, fmt)
+    }
+    /// reset to empty or zero state
+    fn reset(&mut self) {
+        self.agg.borrow_mut().reset()
+    }
+    /// return floating point value of Agg, as possible
+    fn value(&self) -> f64 {
+        self.agg.borrow().value()
+    }
+
     /// new replace
     pub fn new(spec: &str) -> Result<Self> {
         if let Some((a, b)) = spec.split_once(',') {
@@ -264,9 +495,9 @@ impl AggWhole {
     pub fn new2(name: &str, spec: &str, orig: &str) -> Result<Self> {
         Ok(Self {
             spec: orig.to_string(),
-            name: name.to_string(),
+            out: name.to_string(),
             agg: AggMaker::make(spec)?,
-	    fmt : NumFormat::default(),
+            fmt: NumFormat::default(),
         })
     }
     /// clone, but make a whole new Agg
@@ -275,21 +506,16 @@ impl AggWhole {
     }
 }
 
-/// A list of AggCol
+/// A list of Agger
 #[derive(Clone, Default, Debug)]
-pub struct AggWholeList {
+pub struct AggerList {
     /// The aggregators
-    v: Vec<AggWhole>,
+    v: Vec<Agger>,
     /// fmt
-    fmt : NumFormat,
-}
-impl std::fmt::Debug for AggWhole {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.spec)
-    }
+    fmt: NumFormat,
 }
 
-impl AggWholeList {
+impl AggerList {
     /// new
     pub fn new() -> Self {
         Self::default()
@@ -299,11 +525,11 @@ impl AggWholeList {
         self.v.len()
     }
     /// fmt
-    pub fn fmt(&mut self, fmt : NumFormat) {
-	self.fmt = fmt;
-	for x in &mut self.v {
-	    x.fmt = fmt;
-	}
+    pub fn fmt(&mut self, fmt: NumFormat) {
+        self.fmt = fmt;
+        for x in &mut self.v {
+            x.fmt = fmt;
+        }
     }
     /// clone, but make a all new Aggs
     pub fn deep_clone(&self) -> Self {
@@ -311,29 +537,29 @@ impl AggWholeList {
         for x in &self.v {
             n.push(&x.spec).unwrap();
         }
-	n.fmt(self.fmt);
+        n.fmt(self.fmt);
         n
     }
     /*
-    /// fill vec with data
-    pub fn write(&mut self, data: &mut Vec<u8>, delim: u8, fmt : NumFormat) -> Result<()> {
-        for x in &mut self.v {
-            x.agg.borrow_mut().result(data, fmt)?;
-            data.push(delim);
+        /// fill vec with data
+        pub fn write(&mut self, data: &mut Vec<u8>, delim: u8, fmt : NumFormat) -> Result<()> {
+            for x in &mut self.v {
+                x.agg.borrow_mut().result(data, fmt)?;
+                data.push(delim);
+            }
+            Ok(())
         }
-        Ok(())
-    }
-    /// fill vec with data
-    pub fn write_names(&mut self, data: &mut String, delim: u8) -> Result<()> {
-        for x in &mut self.v {
-            data.push_str(&x.name);
-            data.push(delim as char);
+        /// fill vec with data
+        pub fn write_names(&mut self, data: &mut String, delim: u8) -> Result<()> {
+            for x in &mut self.v {
+                data.push_str(&x.name);
+                data.push(delim as char);
+            }
+            Ok(())
         }
-        Ok(())
-    }
-*/
+    */
     /// index
-    pub fn get(&self, pos: usize) -> &AggWhole {
+    pub fn get(&self, pos: usize) -> &Agger {
         &self.v[pos]
     }
     /// reset to empty or zero
@@ -348,10 +574,10 @@ impl AggWholeList {
     }
     /// OutName,Agg,Pattern
     pub fn push(&mut self, spec: &str) -> Result<()> {
-        self.do_push(AggWhole::new(spec)?)
+        self.do_push(Agger::new(spec)?)
     }
     /// add item
-    pub fn do_push(&mut self, item: AggWhole) -> Result<()> {
+    pub fn do_push(&mut self, item: Agger) -> Result<()> {
         self.v.push(item);
         Ok(()) // fail if replace and duplicate column
     }
@@ -371,12 +597,12 @@ impl AggWholeList {
 
 /// A list of AggCol
 #[derive(Clone, Default, Debug)]
-pub struct AggList {
+pub struct LineAggList {
     /// The aggregators
-    v: Vec<AggCol>,
+    v: Vec<LineAgger>,
 }
 
-impl AggList {
+impl LineAggList {
     /// new
     pub fn new() -> Self {
         Self::default()
@@ -384,14 +610,14 @@ impl AggList {
     /// reset to empty or zero
     pub fn reset(&mut self) {
         for x in &mut self.v {
-            x.agg.borrow_mut().reset();
+            x.reset();
         }
     }
     /// fmt
-    pub fn fmt(&mut self, fmt : NumFormat) {
-	for x in &mut self.v {
-	    x.fmt = fmt;
-	}
+    pub fn fmt(&mut self, fmt: NumFormat) {
+        for x in &mut self.v {
+            x.fmt = fmt;
+        }
     }
     /// is empty?
     pub fn is_empty(&self) -> bool {
@@ -399,50 +625,50 @@ impl AggList {
     }
     /// Column,Agg,Pattern
     pub fn push_replace(&mut self, spec: &str) -> Result<()> {
-        self.push(AggCol::new_replace(spec)?)
+        self.push(LineAgger::new_replace(spec)?)
     }
     /// OutName,Column,Agg,Pattern
     pub fn push_prefix(&mut self, spec: &str) -> Result<()> {
-        self.push(AggCol::new_prefix(spec)?)
+        self.push(LineAgger::new_prefix(spec)?)
     }
     /// OutName,Column,Agg,Pattern
     pub fn push_first_prefix(&mut self, spec: &str) -> Result<()> {
-        self.v.insert(0, AggCol::new_prefix(spec)?);
+        self.v.insert(0, LineAgger::new_prefix(spec)?);
         Ok(())
     }
     /// OutName,Column,Agg,Pattern
     pub fn push_append(&mut self, spec: &str) -> Result<()> {
-        self.push(AggCol::new_append(spec)?)
+        self.push(LineAgger::new_append(spec)?)
     }
     /// add item
-    pub fn push(&mut self, item: AggCol) -> Result<()> {
+    pub fn push(&mut self, item: LineAgger) -> Result<()> {
         self.v.push(item);
         Ok(()) // fail if replace and duplicate column
     }
     /// update all aggregators with new data
     pub fn add(&mut self, data: &TextLine) {
         for x in &mut self.v {
-            x.agg.borrow_mut().add(data.get(x.src.num));
+            x.add(data);
         }
     }
     /// resolve any named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         for x in &mut self.v {
-            x.src.lookup(fieldnames)?;
+            x.lookup(fieldnames)?;
         }
         Ok(())
     }
     /// fill Writer with aggregators
     pub fn fill(&self, w: &mut Writer, head: &StringLine) {
         for x in &self.v {
-            if let AggType::Prefix(_s) = &x.mode {
+            if let AggType::Prefix(_s) = &x.out {
                 w.push(Box::new(x.clone()));
             }
         }
         'outer: for (i, x) in head.iter().enumerate() {
             for y in &self.v {
-                if let AggType::Replace = &y.mode {
-                    if y.src.num == i {
+                if let AggType::Replace = &y.out {
+                    if y.is_col(i) {
                         w.push(Box::new(y.clone()));
                         continue 'outer;
                     }
@@ -451,7 +677,7 @@ impl AggList {
             w.push(Box::new(ColumnSingle::with_name(x).unwrap()));
         }
         for x in &self.v {
-            if let AggType::Append(_s) = &x.mode {
+            if let AggType::Append(_s) = &x.out {
                 w.push(Box::new(x.clone()));
             }
         }
@@ -552,11 +778,11 @@ impl Merge {
         } else if let Some(val) = spec.strip_prefix("comp:") {
             self.comp = CompMaker::make_comp(val)?;
         } else if let Some(val) = spec.strip_prefix("min_len:") {
-            self.min_len = val.parse::<usize>()?;
+            self.min_len = val.to_usize_whole(spec.as_bytes(), "merge")?;
         } else if let Some(val) = spec.strip_prefix("max_len:") {
-            self.max_len = val.parse::<usize>()?;
+            self.max_len = val.to_usize_whole(spec.as_bytes(), "merge")?;
         } else if let Some(val) = spec.strip_prefix("max_parts:") {
-            self.max_parts = val.parse::<usize>()?;
+            self.max_parts = val.to_usize_whole(spec.as_bytes(), "merge")?;
         } else {
             return err!("Unrecognized Merge Part '{}'", spec);
         }
@@ -573,7 +799,7 @@ impl Agg for Merge {
             self.data.line.extend_from_slice(data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         self.data.split(self.delim);
         if self.do_sort {
             self.data.parts.sort_by(|a, b| {
@@ -588,7 +814,7 @@ impl Agg for Merge {
             });
         }
         if self.do_count {
-	    num::format_hnum(self.data.parts.len() as f64, fmt, w)?;
+            num::format_hnum(self.data.parts.len() as f64, fmt, w)?;
         } else {
             let mut num_written = 0;
             for x in &self.data.parts {
@@ -642,7 +868,7 @@ impl Agg for Min {
             self.val.extend_from_slice(data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt: NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -660,10 +886,7 @@ struct Mean {
 impl Mean {
     fn new(spec: &str) -> Result<Self> {
         if spec.is_empty() {
-            Ok(Self {
-                val: 0.0,
-                cnt: 0.0,
-            })
+            Ok(Self { val: 0.0, cnt: 0.0 })
         } else {
             err!("Unexpected pattern with 'Mean' aggregator : '{}'", spec)
         }
@@ -676,7 +899,7 @@ impl Agg for Mean {
         self.cnt += 1.0;
     }
 
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         num::format_hnum(self.value(), fmt, w)
     }
     fn value(&self) -> f64 {
@@ -699,9 +922,7 @@ struct Sum {
 impl Sum {
     fn new(spec: &str) -> Result<Self> {
         if spec.is_empty() {
-            Ok(Self {
-                val: 0.0,
-            })
+            Ok(Self { val: 0.0 })
         } else {
             err!("Unexpected pattern with 'Sum' aggregator : '{}'", spec)
         }
@@ -712,7 +933,7 @@ impl Agg for Sum {
     fn add(&mut self, data: &[u8]) {
         self.val += data.to_f64_lossy();
     }
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         num::format_hnum(self.value(), fmt, w)
     }
     fn value(&self) -> f64 {
@@ -744,7 +965,7 @@ impl Agg for ASum {
     fn add(&mut self, data: &[u8]) {
         self.val += self.cnt.counter(data);
     }
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
@@ -773,7 +994,7 @@ impl Agg for AMin {
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::min(self.val, self.cnt.counter(data));
     }
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
@@ -802,7 +1023,7 @@ impl Agg for AMax {
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::max(self.val, self.cnt.counter(data));
     }
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
@@ -838,7 +1059,7 @@ impl Agg for AMean {
         self.val += self.cnt.counter(data);
         self.num += 1;
     }
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         num::format_hnum(self.val as f64, fmt, w)
     }
     fn reset(&mut self) {
@@ -868,7 +1089,7 @@ impl Agg for Max {
             self.val.extend_from_slice(data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt: NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -923,7 +1144,7 @@ impl Agg for Prefix {
             common_prefix(&mut self.val, data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt: NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -977,7 +1198,7 @@ impl Agg for Suffix {
             common_suffix(&mut self.val, data);
         }
     }
-    fn result(&mut self, w: &mut dyn Write, _fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, _fmt: NumFormat) -> Result<()> {
         w.write_all(&self.val)?;
         Ok(())
     }
@@ -988,23 +1209,17 @@ impl Agg for Suffix {
 }
 
 struct Count {
-    val: i64,
-    init: i64,
+    val: isize,
+    init: isize,
 }
 
 impl Count {
     fn new(spec: &str) -> Result<Self> {
         if spec.is_empty() {
-            Ok(Self {
-                val: 0,
-                init: 0,
-            })
+            Ok(Self { val: 0, init: 0 })
         } else {
-            let val = spec.parse::<i64>()?;
-            Ok(Self {
-                val,
-                init: val,
-            })
+            let val = spec.to_isize_whole(spec.as_bytes(), "count")?;
+            Ok(Self { val, init: val })
         }
     }
 }
@@ -1016,7 +1231,7 @@ impl Agg for Count {
     fn add(&mut self, _data: &[u8]) {
         self.val += 1;
     }
-    fn result(&mut self, w: &mut dyn Write, fmt : NumFormat) -> Result<()> {
+    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         num::format_hnum(self.value(), fmt, w)
     }
     fn reset(&mut self) {
@@ -1245,6 +1460,15 @@ impl AggMaker {
         println!("comp:spec   -- Spec for comparator for sort or uniq. Must be last piece.");
         println!();
         println!("See also https://avjewe.github.io/cdxdoc/Aggregator.html.");
+    }
+    /// Create a Agg from a name and a pattern
+    pub fn make_line(spec: &str) -> Result<LineAggRef> {
+        if let Some((a, b)) = spec.split_once(',') {
+            if a == "expr" {
+                return Ok(Rc::new(RefCell::new(ExprAgg::new(b)?)));
+            }
+        }
+        Ok(Rc::new(RefCell::new(AggCol::new(spec)?)))
     }
     /// Create a Agg from a name and a pattern
     pub fn make2(spec: &str, pattern: &str) -> Result<AggRef> {

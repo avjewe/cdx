@@ -1,7 +1,7 @@
 use crate::arg;
 use crate::args;
 use crate::args::ArgSpec;
-use cdx::agg::{AggMaker, AggWholeList};
+use cdx::agg::{AggMaker, AggerList};
 use cdx::column::{ColumnHeader, Writer};
 use cdx::num;
 use cdx::util::{get_writer, Reader, Result, StringLine, TextLine, Tri};
@@ -14,10 +14,10 @@ use std::io::Write;
 */
 struct NamedAgg {
     name: String,
-    agg: AggWholeList,
+    agg: AggerList,
 }
 impl NamedAgg {
-    fn new(name: &str, agg: AggWholeList) -> Self {
+    fn new(name: &str, agg: AggerList) -> Self {
         Self {
             name: name.to_string(),
             agg,
@@ -42,7 +42,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     ];
     let (args, files) = args::parse(&prog, &A, argv);
 
-    let mut agg = AggWholeList::new();
+    let mut agg = AggerList::new();
     let mut file_name_col = "file".to_string();
     let mut show_file_name = Tri::Maybe;
     let mut show_header = Tri::Maybe;

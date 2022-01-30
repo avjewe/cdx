@@ -1,5 +1,6 @@
 //! Numeric Helpers
 
+use crate::text::Text;
 use crate::util::{err, Error, Result};
 use std::cmp::Ordering;
 use std::io::Write;
@@ -124,17 +125,17 @@ impl NumFormat {
         } else if spec.eq_ignore_ascii_case("power10") || spec.eq_ignore_ascii_case("p10") {
             Ok(Self::Power10)
         } else if let Some((a, b)) = spec.split_once('.') {
-	    let p = b.parse::<usize>()?;
+            let p = b.to_usize_whole(spec.as_bytes(), "Num Format")?;
             if a.eq_ignore_ascii_case("plain") {
-		Ok(Self::Plain(p))
+                Ok(Self::Plain(p))
             } else if a.eq_ignore_ascii_case("float") {
-		Ok(Self::Float(p))
-	    } else {
-		err!("Number format must be plain[.N], float[.N], power2 or power10")
-	    }
-	} else {
+                Ok(Self::Float(p))
+            } else {
+                err!("Number format must be plain[.N], float[.N], power2 or power10")
+            }
+        } else {
             err!("Number format must be plain[.N], float[.N], power2 or power10")
-	}
+        }
     }
 }
 
@@ -143,44 +144,42 @@ const P10_LETTERS: &[u8] = b"0kmgtpezy";
 const P2_VALUES_U: [usize; 9] = [
     1,
     1024,
-    1024^2,
-    1024^3,
-    1024^4,
-    1024^5,
-    1024^6,
+    1024 ^ 2,
+    1024 ^ 3,
+    1024 ^ 4,
+    1024 ^ 5,
+    1024 ^ 6,
     usize::MAX,
     usize::MAX,
 ];
 const P2_VALUES_F: [f64; 9] = [
     1.0,
     1024.0,
-    1024.0*1024.0,
-    1024.0*1024.0*1024.0,
-    1024.0*1024.0*1024.0*1024.0,
-    1024.0*1024.0*1024.0*1024.0*1024.0,
-    1024.0*1024.0*1024.0*1024.0*1024.0*1024.0,
-    1024.0*1024.0*1024.0*1024.0*1024.0*1024.0*1024.0,
-    1024.0*1024.0*1024.0*1024.0*1024.0*1024.0*1024.0*1024.0,
+    1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
 ];
 
 /// format a number
 pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()> {
     if let NumFormat::Plain(n) = fmt {
-	if n == 0 {
+        if n == 0 {
             write!(w, "{num}")?;
-	}
-	else {
+        } else {
             write!(w, "{num:.0$}", n)?;
-	}
+        }
         return Ok(());
     }
     if let NumFormat::Float(n) = fmt {
-	if n == 0 {
+        if n == 0 {
             write!(w, "{num:e}")?;
-	}
-	else {
+        } else {
             write!(w, "{num:.0$e}", n)?;
-	}
+        }
         return Ok(());
     }
     num = num.round();
@@ -236,20 +235,20 @@ pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()
 }
 
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
-pub fn suffix_valf(ch : u8) -> Option<f64> {
-    for (i,x) in P2_LETTERS.iter().enumerate(){
-	if *x == ch {
-	    return Some(P2_VALUES_F[i]);
-	}
+pub fn suffix_valf(ch: u8) -> Option<f64> {
+    for (i, x) in P2_LETTERS.iter().enumerate() {
+        if *x == ch {
+            return Some(P2_VALUES_F[i]);
+        }
     }
     None
 }
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
-pub fn suffix_valu(ch : u8) -> Option<usize> {
-    for (i,x) in P2_LETTERS.iter().enumerate(){
-	if *x == ch {
-	    return Some(P2_VALUES_U[i]);
-	}
+pub fn suffix_valu(ch: u8) -> Option<usize> {
+    for (i, x) in P2_LETTERS.iter().enumerate() {
+        if *x == ch {
+            return Some(P2_VALUES_U[i]);
+        }
     }
     None
 }

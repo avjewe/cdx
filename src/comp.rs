@@ -1456,38 +1456,36 @@ impl LineCompList {
 
 #[derive(Default, Debug)]
 struct CompareRandom {
-    rng : fastrand::Rng
+    rng: fastrand::Rng,
 }
 impl CompareRandom {
     fn new() -> Self {
-	Self::default()
+        Self::default()
     }
     fn ord(&self) -> Ordering {
-	if self.rng.bool() {
-	    Ordering::Less
-	}
-	else {
-	    Ordering::Greater
-	}
+        if self.rng.bool() {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
     }
 }
 impl Compare for CompareRandom {
     fn comp(&self, _left: &[u8], _right: &[u8]) -> Ordering {
-	self.ord()
+        self.ord()
     }
     fn equal(&self, _left: &[u8], _right: &[u8]) -> bool {
-	self.rng.bool()
+        self.rng.bool()
     }
     fn fill_cache(&self, _item: &mut Item, _value: &[u8]) {}
     fn set(&mut self, _value: &[u8]) {}
     fn comp_self(&self, _right: &[u8]) -> Ordering {
-	self.ord()
+        self.ord()
     }
     fn equal_self(&self, _right: &[u8]) -> bool {
-	self.rng.bool()
+        self.rng.bool()
     }
 }
-
 
 /// IP Address Comparison
 #[derive(Default, Debug)]

@@ -145,18 +145,17 @@ impl Trans for UpperTrans {
 struct NormSpace {}
 impl Trans for NormSpace {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
-	let mut need_space = false;
+        let mut need_space = false;
         for x in src {
-	    if *x <= b' ' {
-		need_space = true;
-	    }
-	    else {
-		if need_space && !dst.is_empty() {
-		    dst.push(b' ');
-		    need_space = false;
-		}
-		dst.push(*x);
-	    }
+            if *x <= b' ' {
+                need_space = true;
+            } else {
+                if need_space && !dst.is_empty() {
+                    dst.push(b' ');
+                    need_space = false;
+                }
+                dst.push(*x);
+            }
         }
         Ok(())
     }
@@ -165,25 +164,24 @@ impl Trans for NormSpace {
 // normalize space, ascii
 #[derive(Default)]
 struct NormSpaceUtf8 {
-    tmp : String,
+    tmp: String,
 }
 impl Trans for NormSpaceUtf8 {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
-	let mut need_space = false;
-	self.tmp.clear();
-	for x in String::from_utf8_lossy(src).chars() {
-	    if x.is_whitespace() || x == std::char::REPLACEMENT_CHARACTER {
-		need_space = true;
-	    }
-	    else {
-		if need_space && !self.tmp.is_empty() {
-		    self.tmp.push(' ');
-		    need_space = false;
-		}
-		self.tmp.push(x);
-	    }
-	}
-	dst.extend(self.tmp.bytes());
+        let mut need_space = false;
+        self.tmp.clear();
+        for x in String::from_utf8_lossy(src).chars() {
+            if x.is_whitespace() || x == std::char::REPLACEMENT_CHARACTER {
+                need_space = true;
+            } else {
+                if need_space && !self.tmp.is_empty() {
+                    self.tmp.push(' ');
+                    need_space = false;
+                }
+                self.tmp.push(x);
+            }
+        }
+        dst.extend(self.tmp.bytes());
         Ok(())
     }
 }
@@ -316,7 +314,7 @@ impl TransMaker {
             if c.utf8 {
                 Ok(Box::new(NormSpaceUtf8::default()))
             } else {
-                Ok(Box::new(NormSpace{}))
+                Ok(Box::new(NormSpace {}))
             }
         })?;
         Self::do_push("lower", "make lower case", |c, _p| {

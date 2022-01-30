@@ -3,6 +3,7 @@ use crate::args;
 use crate::args::ArgSpec;
 use cdx::column::ColumnSet;
 use cdx::join::*;
+use cdx::text::Text;
 use cdx::util::{err, Error, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
@@ -30,7 +31,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                         config.col_specs.push(OutColSpec::new(file.unwrap(), set));
                         set = ColumnSet::new();
                     }
-                    let fnum = num.parse::<usize>()?;
+                    let fnum = num.to_usize_whole(x.value.as_bytes(), "file number")?;
                     if fnum == 0 {
                         return err!("file number must be greater than zero {}", y);
                     }
@@ -54,9 +55,10 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "also" {
             let parts = x.value.split_once(',');
             if let Some((a, b)) = parts {
-                config
-                    .unmatch_out
-                    .push(NoMatch::new(a.parse::<usize>()?, b));
+                config.unmatch_out.push(NoMatch::new(
+                    a.to_usize_whole(x.value.as_bytes(), "file number")?,
+                    b,
+                ));
             } else {
                 return err!("--also format is FileNum,FileName {}", x.value);
             }
