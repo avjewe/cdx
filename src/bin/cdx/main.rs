@@ -1,7 +1,7 @@
 use cdx::util::{Error, Result};
 use std::env;
 
-mod args;
+pub mod args;
 mod binsearch_main;
 mod calc_main;
 mod cat_main;
@@ -11,6 +11,7 @@ mod cut_main;
 mod filegen_main;
 mod join_main;
 mod paste_main;
+mod prelude;
 mod sample_main;
 mod sort_main;
 mod tabs_main;

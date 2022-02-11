@@ -1,7 +1,6 @@
-use crate::args::ArgSpec;
-use crate::{arg, args};
+use crate::prelude::*;
+use cdx::prelude::*;
 use cdx::tabs;
-use cdx::util::Result;
 
 fn print_centered(txt: &str, width: usize) {
     if txt.len() > width {

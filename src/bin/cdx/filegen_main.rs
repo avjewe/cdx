@@ -1,10 +1,5 @@
-use crate::arg;
-use crate::args;
-use crate::args::ArgSpec;
-use cdx::text::Text;
-use cdx::textgen::GenList;
-use cdx::util::{err, get_writer, Error, Result};
-use std::io::Write;
+use crate::prelude::*;
+use cdx::prelude::*;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Generate a text file.", args::FileCount::Zero);

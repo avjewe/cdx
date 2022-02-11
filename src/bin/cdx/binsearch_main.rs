@@ -1,15 +1,11 @@
 #![allow(dead_code)]
 
-use crate::args::ArgSpec;
-use crate::{arg, arg_enum, arg_pos, args};
+use crate::prelude::*;
+use cdx::prelude::*;
 use cdx::binsearch::{equal_range_n, find_end, find_prev, MemMap};
-use cdx::comp::LineCompList;
-use cdx::text::Text;
 use cdx::util::{
-    err, get_writer, write_all_nl, Error, HeaderChecker, HeaderMode, Result, HEADER_MODE,
+    write_all_nl, HeaderChecker, HeaderMode, HEADER_MODE,
 };
-use std::io::Write;
-use std::str::FromStr;
 
 #[derive(Debug, Default, PartialEq)]
 struct FileNameColumn {

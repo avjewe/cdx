@@ -361,11 +361,11 @@ impl Default for AggType {
 
 /// An Agg with a source column and an output designation
 #[derive(Clone, Debug)]
-pub struct AggCol {
+struct AggCol {
     /// source column
-    pub src: NamedCol,
+    src: NamedCol,
     /// Aggregator
-    pub agg: Agger,
+    agg: Agger,
 }
 
 impl LineAgg for AggCol {
@@ -401,7 +401,7 @@ impl LineAgg for AggCol {
 }
 impl AggCol {
     /// new from AggType and spec
-    pub fn new(spec: &str) -> Result<Self> {
+    fn new(spec: &str) -> Result<Self> {
         if let Some((a, _)) = spec.split_once(',') {
             Self::new2(a, spec)
         } else {
@@ -410,7 +410,7 @@ impl AggCol {
         }
     }
     /// new from AggType and spec
-    pub fn new2(src: &str, spec: &str) -> Result<Self> {
+    fn new2(src: &str, spec: &str) -> Result<Self> {
         Ok(Self {
             src: NamedCol::new_from(src)?,
             agg: Agger::new(spec)?,
@@ -506,16 +506,16 @@ impl Agger {
     }
 }
 
-/// A list of Agger
+/// A collection of buffer-based aggregators
 #[derive(Clone, Default, Debug)]
-pub struct AggerList {
+pub struct AggList {
     /// The aggregators
     v: Vec<Agger>,
     /// fmt
     fmt: NumFormat,
 }
 
-impl AggerList {
+impl AggList {
     /// new
     pub fn new() -> Self {
         Self::default()
@@ -595,7 +595,7 @@ impl AggerList {
     }
 }
 
-/// A list of AggCol
+/// A collection of line-based aggregators
 #[derive(Clone, Default, Debug)]
 pub struct LineAggList {
     /// The aggregators
@@ -793,10 +793,10 @@ impl Merge {
 impl Agg for Merge {
     fn add(&mut self, data: &[u8]) {
         if !data.is_empty() {
-            if !self.data.line.is_empty() {
-                self.data.line.push(self.delim);
+            if !self.data.line().is_empty() {
+                self.data.raw().push(self.delim);
             }
-            self.data.line.extend_from_slice(data);
+            self.data.raw().extend_from_slice(data);
         }
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
@@ -814,7 +814,7 @@ impl Agg for Merge {
             });
         }
         if self.do_count {
-            num::format_hnum(self.data.parts.len() as f64, fmt, w)?;
+            num::format_hnum(self.data.parts().len() as f64, fmt, w)?;
         } else {
             let mut num_written = 0;
             for x in &self.data.parts {
@@ -822,7 +822,7 @@ impl Agg for Merge {
                     if num_written > 0 {
                         w.write_all(&[self.out_delim])?;
                     }
-                    w.write_all(x.get(&self.data.line))?;
+                    w.write_all(x.get(self.data.line()))?;
                     num_written += 1;
                     if num_written >= self.max_parts {
                         break;
@@ -833,7 +833,7 @@ impl Agg for Merge {
         Ok(())
     }
     fn reset(&mut self) {
-        self.data.line.clear();
+        self.data.clear();
     }
 }
 

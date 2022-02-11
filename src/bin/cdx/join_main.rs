@@ -1,10 +1,6 @@
-use crate::arg;
-use crate::args;
-use crate::args::ArgSpec;
-use cdx::column::ColumnSet;
-use cdx::join::*;
-use cdx::text::Text;
-use cdx::util::{err, Error, Result};
+use crate::prelude::*;
+use cdx::prelude::*;
+use cdx::join::{JoinConfig, OutColSpec, NoMatch};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Join files on a matching column.", args::FileCount::Many);

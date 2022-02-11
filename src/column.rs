@@ -623,7 +623,7 @@ impl ColumnFun for ColumnWhole {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
-        w.write_all(&line.line[0..line.line.len() - 1])?;
+        w.write_all(&line.line()[0..line.line().len() - 1])?;
         Ok(())
     }
     /// resolve any named columns

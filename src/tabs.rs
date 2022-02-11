@@ -74,7 +74,7 @@ pub fn show(file: &str, screen: &Rect) -> Result<()> {
     if !f.is_done() {
         while lines.len() < screen.height {
             let mut s = StringLine::new();
-            s.line = String::from_utf8_lossy(&f.curr().line).to_string();
+            s.line = String::from_utf8_lossy(f.curr().line()).to_string();
             s.split(f.delim());
             lines.push(s);
             if f.getline()? {
@@ -146,7 +146,7 @@ pub fn show2(file: &str, screen: &Rect, w: &mut Vec<String>) -> Result<usize> {
     if !f.is_done() {
         while lines.len() < screen.height {
             let mut s = StringLine::new();
-            s.line = String::from_utf8_lossy(&f.curr().line).to_string();
+            s.line = String::from_utf8_lossy(f.curr().line()).to_string();
             s.split(f.delim());
             lines.push(s);
             if f.getline()? {

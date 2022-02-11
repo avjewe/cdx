@@ -391,7 +391,7 @@ impl LineCompare for LineCompWhole {
         _left_file: usize,
         _right_file: usize,
     ) -> Ordering {
-        self.comp.comp(&left.line, &right.line)
+        self.comp.comp(left.line(), right.line())
     }
     /// compare lines
     fn equal_cols(
@@ -401,7 +401,7 @@ impl LineCompare for LineCompWhole {
         _left_file: usize,
         _right_file: usize,
     ) -> bool {
-        self.comp.equal(&left.line, &right.line)
+        self.comp.equal(left.line(), right.line())
     }
     /// compare lines
     fn comp_lines(
@@ -434,7 +434,7 @@ impl LineCompare for LineCompWhole {
     }
 
     fn fill_cache_cols(&mut self, item: &mut Item, value: &TextLine) {
-        self.comp.fill_cache(item, &value.line)
+        self.comp.fill_cache(item, value.line())
     }
 
     fn fill_cache_line(&mut self, item: &mut Item, value: &[u8], _delim: u8) {
@@ -446,11 +446,11 @@ impl LineCompare for LineCompWhole {
     }
 
     fn comp_self_cols(&mut self, right: &TextLine) -> Ordering {
-        self.comp.comp_self(&right.line)
+        self.comp.comp_self(right.line())
     }
 
     fn equal_self_cols(&mut self, right: &TextLine) -> bool {
-        self.comp.equal_self(&right.line)
+        self.comp.equal_self(right.line())
     }
 
     fn comp_self_line(&mut self, right: &[u8], _delim: u8) -> Ordering {
@@ -1925,9 +1925,9 @@ pub fn comp_check(f: &Reader, cmp: &mut LineCompList, unique: bool) -> bool {
     }
     if bad {
         eprint!("{} : ", f.line_number() - 1);
-        prerr_n(&[&f.prev_line(1).line]);
+        prerr_n(&[f.prev_line(1).line()]);
         eprint!("{} : ", f.line_number());
-        prerr_n(&[&f.curr_line().line]);
+        prerr_n(&[f.curr_line().line()]);
     }
     bad
 }

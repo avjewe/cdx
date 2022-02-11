@@ -36,7 +36,7 @@ macro_rules! err_type {
     };
 }
 
-/// Various errors
+/// Common CDX error type
 #[derive(Debug)]
 #[non_exhaustive]
 #[allow(clippy::large_enum_variant)]
@@ -66,7 +66,8 @@ pub enum Error {
     /// be an error, but don't report anything
     Silent,
 }
-/// Result type for cdx
+
+/// Common CDX result type
 pub type Result<T> = core::result::Result<T, Error>;
 impl error::Error for Error {}
 
@@ -205,10 +206,9 @@ impl FakeSlice {
     }
 }
 
-/// A line of a text file, broken into fields.
-/// Access to the `lines` and `parts` is allowed, but should seldom be necessary
-/// `line` includes the trailing newline, but no field contains the newline
-/// An empty line contains one empty field
+/// A line of a text file, broken into columns.
+/// A line ends with a newline character, but column values do not.
+/// An empty line contains one empty column
 ///```
 /// use std::io::BufRead;
 /// let mut data = b"one\ttwo\tthree\n";
@@ -222,14 +222,15 @@ impl FakeSlice {
 /// assert_eq!(line.get(1), b"two");
 ///```
 #[derive(Debug, Clone, Default)]
+// pub(crate) because the borrow checker can be a nuisance. 
 pub struct TextLine {
-    /// The whole input line, with newline
-    pub line: Vec<u8>,
-    /// the individual columns
-    pub parts: Vec<FakeSlice>,
+    // The whole input line, with newline
+    pub(crate) line: Vec<u8>,
+    // the individual columns, without newline
+    pub(crate) parts: Vec<FakeSlice>,
 }
 
-/// as TextLine, but String rather than Vec<u8>
+/// as TextLine, but [String] rather than `Vec<u8>`
 #[derive(Debug, Clone, Default)]
 pub struct StringLine {
     /// The whole input line, with newline
@@ -282,6 +283,18 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
 }
 
 impl TextLine {
+    /// whole line, with newline
+    pub fn parts(&mut self) -> &mut Vec<FakeSlice> {
+	&mut self.parts
+    }
+    /// whole line, with newline
+    pub fn line(&self) -> &[u8] {
+	&self.line
+    }
+    /// whole line, with newline, as Vec
+    pub fn raw(&mut self) -> &mut Vec<u8> {
+	&mut self.line
+    }
     /// assign TextLine into existing TextLine, avoiding allocation if possible
     pub fn assign(&mut self, x: &Self) {
         self.line.clear();
@@ -303,7 +316,8 @@ impl TextLine {
             index: 0,
         }
     }
-    fn clear(&mut self) {
+    /// empty the line
+    pub fn clear(&mut self) {
         self.parts.clear();
         self.line.clear();
     }
@@ -948,8 +962,7 @@ impl FileLocList {
 }
 
 #[derive(Debug, Default)]
-/// File reader for text file broken into lines with columns
-/// previous N lines are still available
+/// Text file reader. Lines broken into columns, with lookback
 pub struct Reader {
     file: Infile,
     lines: Vec<TextLine>,

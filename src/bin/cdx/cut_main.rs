@@ -1,9 +1,7 @@
-use crate::args::ArgSpec;
-use crate::{arg, arg_enum, args};
+use crate::prelude::*;
+use cdx::prelude::*;
 use cdx::column::*;
-use cdx::util::{get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
-use std::io::Write;
-use std::str::FromStr;
+use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);

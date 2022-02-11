@@ -39,6 +39,7 @@ pub mod expr;
 pub mod join;
 pub mod matcher;
 pub mod num;
+pub mod prelude;
 pub mod sampler;
 mod shunting_yard;
 pub mod sort;

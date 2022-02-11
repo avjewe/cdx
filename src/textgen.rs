@@ -192,7 +192,7 @@ lazy_static! {
     static ref MODIFIERS: Vec<&'static str> = vec![];
 }
 
-/// Makes an [Gen] or a [Counter]
+/// Makes an [TextGen]
 #[derive(Debug, Clone, Default)]
 pub struct GenMaker {}
 

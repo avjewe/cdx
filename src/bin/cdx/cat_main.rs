@@ -1,13 +1,8 @@
-use crate::args::ArgSpec;
-use crate::{arg, arg_enum, args};
-use cdx::column::{ColumnCount, ColumnHeader, ColumnLiteral, ColumnWhole, Writer};
-use cdx::matcher::{Combiner, Match, MatchMaker, MatcherList};
-use cdx::text::Text;
-use cdx::util::{
-    err, get_reader, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE,
-};
-use std::io::{BufRead, Read, Write};
-use std::str::FromStr;
+use crate::prelude::*;
+use cdx::prelude::*;
+use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole};
+use cdx::matcher::{Combiner, MatchMaker};
+use cdx::util::{get_reader, HeaderChecker, HeaderMode, HEADER_MODE};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum PadMode {

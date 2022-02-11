@@ -1,11 +1,8 @@
-use crate::args::ArgSpec;
-use crate::{arg, arg_enum, args};
-use cdx::column::ColumnHeader;
+use crate::prelude::*;
+use cdx::prelude::*;
 use cdx::expr;
 use cdx::matcher::*;
-use cdx::util::{get_writer, FileLocList, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
-use std::io::Write;
-use std::str::FromStr;
+use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);

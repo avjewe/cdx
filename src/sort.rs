@@ -54,7 +54,7 @@ pub fn merge_t(
             return Ok(());
         }
         let x = x.unwrap();
-        w.write_all(&open_files[x].curr_line().line)?;
+        w.write_all(open_files[x].curr_line().line())?;
         let mut prev = open_files[x].curr_line().clone();
         loop {
             let x = mm.next(cmp, &mut open_files)?;
@@ -63,7 +63,7 @@ pub fn merge_t(
             }
             let x = x.unwrap();
             if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
-                w.write_all(&open_files[x].curr_line().line)?;
+                w.write_all(open_files[x].curr_line().line())?;
             }
             prev.assign(open_files[x].curr_line());
         }
@@ -74,7 +74,7 @@ pub fn merge_t(
                 break;
             }
             let x = x.unwrap();
-            w.write_all(&open_files[x].curr_line().line)?;
+            w.write_all(open_files[x].curr_line().line())?;
         }
     }
     Ok(())
@@ -129,31 +129,31 @@ pub fn merge_2(
     if unique {
         let mut prev: Vec<u8> = Vec::new();
         while !left_file.is_done() && !right_file.is_done() {
-            let ord = cmp.comp_lines(&left_file.curr().line, &right_file.curr().line);
+            let ord = cmp.comp_lines(left_file.curr().line(), right_file.curr().line());
             if ord == Ordering::Less {
                 left_file.write(&mut w)?;
-                mem::swap(&mut prev, &mut left_file.curr_mut().line);
+                mem::swap(&mut prev, left_file.curr_mut().raw());
                 left_file.getline()?;
             } else if ord == Ordering::Greater {
                 right_file.write(&mut w)?;
-                mem::swap(&mut prev, &mut left_file.curr_mut().line);
+                mem::swap(&mut prev, left_file.curr_mut().raw());
                 right_file.getline()?;
             } else {
                 left_file.write(&mut w)?;
-                mem::swap(&mut prev, &mut left_file.curr_mut().line);
+                mem::swap(&mut prev, left_file.curr_mut().raw());
                 left_file.getline()?;
                 right_file.getline()?;
             }
-            while !left_file.is_done() && cmp.equal_lines(&left_file.curr().line, &prev) {
+            while !left_file.is_done() && cmp.equal_lines(left_file.curr().line(), &prev) {
                 left_file.getline()?;
             }
-            while !right_file.is_done() && cmp.equal_lines(&right_file.curr().line, &prev) {
+            while !right_file.is_done() && cmp.equal_lines(right_file.curr().line(), &prev) {
                 right_file.getline()?;
             }
         }
     } else {
         while !left_file.is_done() && !right_file.is_done() {
-            let ord = cmp.comp_lines(&left_file.curr().line, &right_file.curr().line);
+            let ord = cmp.comp_lines(left_file.curr().line(), right_file.curr().line());
             // if Equal, write both lines
             if ord != Ordering::Less {
                 right_file.write(&mut w)?;

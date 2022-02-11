@@ -1,10 +1,9 @@
-use crate::args::ArgSpec;
-use crate::{arg, args};
-use cdx::comp::{comp_check, LineCompList};
+use crate::prelude::*;
+use cdx::prelude::*;
+use cdx::comp::{comp_check};
 use cdx::expr;
 use cdx::matcher::*;
-use cdx::text::Text;
-use cdx::util::{CheckLine, Error, Reader, Result};
+use cdx::util::{CheckLine};
 
 // check for contant number of columns
 // MORE MATCHERS

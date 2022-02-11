@@ -1,12 +1,7 @@
-use crate::arg;
-use crate::args;
-use crate::args::ArgSpec;
-use cdx::agg::{AggMaker, LineAggList};
-use cdx::column::{ColumnHeader, Writer};
-use cdx::comp::{CompMaker, LineComp, LineCompList};
-use cdx::util::{err, get_writer, Error, Reader, Result, TextLine};
-use std::cmp::Ordering;
-use std::io::Write;
+use crate::prelude::*;
+use cdx::prelude::*;
+use cdx::agg::{AggMaker};
+use cdx::comp::{CompMaker, LineComp};
 
 // --min
 // --max
@@ -261,13 +256,13 @@ pub fn main(argv: &[String]) -> Result<()> {
     } else if count.which == Which::Last {
         loop {
             if f.getline()? {
-                count.write(&mut w, matches, &f.prev_line(1).line, f.delim())?;
+                count.write(&mut w, matches, f.prev_line(1).line(), f.delim())?;
                 break;
             }
             if comp.equal_cols(f.prev_line(1), f.curr_line()) {
                 matches += 1;
             } else {
-                count.write(&mut w, matches, &f.prev_line(1).line, f.delim())?;
+                count.write(&mut w, matches, f.prev_line(1).line(), f.delim())?;
                 matches = 1;
             }
         }
@@ -285,14 +280,14 @@ pub fn main(argv: &[String]) -> Result<()> {
         let mut tmp = f.curr_line().clone();
         loop {
             if f.getline()? {
-                count.write(&mut w, matches, &tmp.line, f.delim())?;
+                count.write(&mut w, matches, tmp.line(), f.delim())?;
                 break;
             }
             if comp.equal_cols(f.prev_line(1), f.curr_line()) {
                 count.assign(&mut tmp, f.curr_line());
                 matches += 1;
             } else {
-                count.write(&mut w, matches, &tmp.line, f.delim())?;
+                count.write(&mut w, matches, tmp.line(), f.delim())?;
                 tmp.assign(f.curr_line());
                 matches = 1;
             }

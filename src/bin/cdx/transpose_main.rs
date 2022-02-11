@@ -1,7 +1,5 @@
-use crate::args::ArgSpec;
-use crate::{arg, args};
-use cdx::text::Text;
-use cdx::util::Result;
+use crate::prelude::*;
+use cdx::prelude::*;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Transpose a file.", args::FileCount::One);

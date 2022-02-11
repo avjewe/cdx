@@ -1,8 +1,5 @@
-use crate::args::ArgSpec;
-use crate::{arg, arg_enum, args};
-use cdx::column::{ColumnHeader, DupColHandling, ScopedValues};
-use cdx::util::{err, get_writer, Error, Reader, Result};
-use std::io::Write;
+use crate::prelude::*;
+use cdx::prelude::*;
 
 /*
 What if different delims

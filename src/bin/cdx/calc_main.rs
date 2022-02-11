@@ -1,11 +1,9 @@
 #![allow(dead_code)]
 
-use crate::args::ArgSpec;
-//use crate::{arg, arg_enum, arg_pos, args};
-use crate::args;
+use crate::prelude::*;
+use cdx::prelude::*;
 use cdx::expr::calc;
 use cdx::num;
-use cdx::util::{prerr, Reader, Result};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Evaluate Expressions.", args::FileCount::Many);

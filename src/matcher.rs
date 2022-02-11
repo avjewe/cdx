@@ -419,7 +419,7 @@ fn load_hashset(data: &mut HashSet<Vec<u8>>, fname: &str) -> Result<()> {
         return Ok(());
     }
     loop {
-        let line = &f.curr().line;
+        let line = &f.curr().line();
         if line.len() > 1 {
             data.insert(line[0..line.len() - 1].to_vec());
         }
@@ -466,7 +466,7 @@ fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Re
         return Ok(());
     }
     loop {
-        let mut line: &[u8] = &f.curr().line;
+        let mut line: &[u8] = f.curr().line();
         if line.len() > 1 {
             if line.last().unwrap() == &b'\n' {
                 line = &line[..line.len() - 1];

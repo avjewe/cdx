@@ -1,12 +1,9 @@
-use crate::args::ArgSpec;
-use crate::{arg, arg_enum, args};
+use crate::prelude::*;
+use cdx::prelude::*;
 use cdx::sampler::Smooth;
 use cdx::tabs::Rect;
-use cdx::text::Text;
-use cdx::util::{err, get_writer, Error, HeaderChecker, HeaderMode, Reader, Result, HEADER_MODE};
-use std::io::Write;
+use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 use std::ops::RangeInclusive;
-use std::str::FromStr;
 
 #[derive(Default)]
 struct Ranges {
@@ -153,7 +150,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         if saw_sample {
             let mut s = Smooth::new(sample);
             loop {
-                s.add(&f.curr().line);
+                s.add(f.curr().line());
                 if f.getline()? {
                     break;
                 }
@@ -163,7 +160,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             let mut next = floop.from;
             while f.line_number() <= floop.to {
                 if f.line_number() == next {
-                    w.write_all(&f.curr_line().line)?;
+                    w.write_all(f.curr_line().line())?;
                     next += floop.by;
                 }
                 if f.getline()? {
@@ -174,7 +171,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             let max = ranges.max();
             while f.line_number() <= max {
                 if ranges.contains(f.line_number()) {
-                    w.write_all(&f.curr_line().line)?;
+                    w.write_all(f.curr_line().line())?;
                 }
                 if f.getline()? {
                     break;
