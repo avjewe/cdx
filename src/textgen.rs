@@ -1,12 +1,8 @@
 //! Generate random text
 
-use crate::num::{self, NumFormat};
-use crate::text::Text;
-use crate::util::{err, Error, Result};
+use crate::prelude::*;
 use lazy_static::lazy_static;
 use rand_distr::{Distribution, Normal};
-use std::fmt;
-use std::io::Write;
 use std::sync::Mutex;
 
 /// location context for Gen
@@ -56,7 +52,7 @@ impl NormalDistGen {
 impl Gen for NormalDistGen {
     fn write(&mut self, w: &mut dyn Write, _loc: &Where) -> Result<()> {
         let v = self.norm.sample(&mut rand::thread_rng());
-        num::format_hnum(v, self.fmt, w)
+        self.fmt.print(v, w)
     }
 }
 
@@ -208,7 +204,7 @@ impl GenMaker {
         Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
             Ok(Box::new(NormalDistGen::new(p)?))
         })?;
-        Self::do_push("grid", "Produce empty column value", |_p| {
+        Self::do_push("grid", "Produce row_col", |_p| {
             Ok(Box::new(GridGen {}))
         })?;
         Self::do_push("count", "Count up from starting place", |p| {

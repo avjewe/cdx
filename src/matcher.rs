@@ -18,8 +18,8 @@
 //! assert!(matcher.smatch("abcdef"));
 //! assert!(!matcher.smatch("bcdef"));
 //!
-//! let mut list = LineMatcherList::new(Combiner::And);
-//! list.push_spec("two,glob,b*")?;
+//! let mut list = LineMatcherList::new_with(Combiner::And);
+//! list.push("two,glob,b*")?;
 //! let input = "<< CDX\tone\ttwo\naaa\tbbb\nccc\tddd\n";
 //! let mut reader = Reader::new();
 //! reader.open(input);
@@ -29,15 +29,14 @@
 //! assert!(!list.ok(reader.curr_line()));
 //! # Ok::<(), cdx::util::Error>(())
 //!```
-use crate::column::NamedCol;
+use crate::prelude::*;
+use crate::util::{self,CheckBuff};
 use crate::expr::Expr;
-use crate::text::{Case, Text};
-use crate::util::{err, CheckBuff, Error, Reader, Result, TextLine};
+use crate::num;
 use lazy_static::lazy_static;
 use memchr::memmem::find;
 use regex::Regex;
 use std::collections::HashSet;
-use std::fmt;
 use std::sync::Mutex;
 
 /// Match against [TextLine]
@@ -123,6 +122,188 @@ impl fmt::Display for dyn LineMatch + '_ {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.show())
     }
+}
+
+/// a threshhold
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Thresh {
+    /// number of items
+    Count(usize),
+    /// must be 0.0..=1.0
+    /// 0/0 == 0
+    Frac(f64),
+}
+impl Default for Thresh {
+    fn default() -> Self {
+        Self::Count(0)
+    }
+}
+impl Thresh {
+    /// If decimal point then frac, else count
+    pub fn new(spec : &str) -> Result<Self> {
+	if spec.contains('.') {
+	    Self::new_frac(spec.to_f64_whole(spec.as_bytes(), "Threshhold for Determiner")?)
+	}
+	else {
+	    Ok(Self::new_count(spec.to_usize_whole(spec.as_bytes(), "Threshhold for Determiner")?))
+	}
+    }
+    /// new Count
+    pub const fn new_count(c : usize) -> Self {
+	Self::Count(c)
+    }
+    /// new Frac
+    pub fn new_frac(c : f64) -> Result<Self> {
+	if !(0.0..=1.0).contains(&c) {
+	    err!("Value {c} must be between 0 and 1 inclusive")
+	}
+	else {
+	    Ok(Self::Frac(c))
+	}
+    }
+    /// we've seen this many, with more to come. Are we done yet?
+    pub const fn at_most_mid(&self, n : usize) -> Tri {
+	match self {
+	    Self::Count(c) => Tri::no_if(n > *c),
+	    _ => Tri::Maybe
+	}
+    }
+    /// we've seen this many, with more to come. Are we done yet?
+    pub const fn at_least_mid(&self, n : usize) -> Tri {
+	match self {
+	    Self::Count(c) => Tri::yes_if(n >= *c),
+	    _ => Tri::Maybe
+	}
+    }
+    /// we've seen this many, is that a match?
+    pub fn at_most_final(&self, n : usize, tot : usize) -> bool {
+	match self {
+	    Self::Count(c) => n <= *c,
+	    Self::Frac(f) => num::f64_less(*f, n, tot),
+	}
+    }
+    /// we've seen this many, is that a match?
+    pub fn at_least_final(&self, n : usize, tot : usize) -> bool {
+	match self {
+	    Self::Count(c) => n >= *c,
+	    Self::Frac(f) => num::f64_greater(*f, n, tot),
+	}
+    }
+    /// we've seen this many, is that a match?
+    pub fn exactly(&self, n : usize, tot : usize) -> bool {
+	match self {
+	    Self::Count(c) => n == *c,
+	    Self::Frac(f) => num::f64_equal(*f, n, tot),
+	}
+    }
+}
+
+/// Given some YES's and some NO's, do we match?
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Determiner {
+    /// no occurrences of NO
+    All,
+    /// at least 1 YES
+    Some,
+    /// no occurrences of YES
+    None,
+    /// at least 1 NO
+    NotAll,
+    /// at least 1 NO and at least 1 YES
+    Mixed,
+    /// either All or None
+    Uniform,
+    /// At most this many YES's,
+    AtMost(Thresh),
+    /// At least this many YES's,
+    AtLeast(Thresh),
+    /// Exactly this many YES's,
+    Exactly(Thresh),
+    /// At most this many NO's,
+    AtMostNo(Thresh),
+    /// At least this many NO's,
+    AtLeastNo(Thresh),
+    /// Exactly this many NO's,
+    ExactlyNo(Thresh),
+}
+impl Default for Determiner {
+    fn default() -> Self {
+        Self::Some
+    }
+}
+
+impl Determiner {
+    /// new from spec  "all" or "atleast,42"
+    pub fn new(spec : &str) -> Result<Self> {
+	Ok(
+	    if spec.eq_ignore_ascii_case("all") {
+		Self::All
+	    } else if spec.eq_ignore_ascii_case("some") {
+		Self::Some
+	    } else if spec.eq_ignore_ascii_case("none") {
+		Self::None
+	    } else if spec.eq_ignore_ascii_case("notall") {
+		Self::NotAll
+	    } else if spec.eq_ignore_ascii_case("mixed") {
+		Self::Mixed
+	    } else if spec.eq_ignore_ascii_case("uniform") {
+		Self::Uniform
+	    } else if let Some(thresh) = spec.strip_prefix("atmost,") {
+		Self::AtMost(Thresh::new(thresh)?)
+	    } else if let Some(thresh) = spec.strip_prefix("atleast,") {
+		Self::AtLeast(Thresh::new(thresh)?)
+	    } else if let Some(thresh) = spec.strip_prefix("exactly,") {
+		Self::Exactly(Thresh::new(thresh)?)
+	    } else if let Some(thresh) = spec.strip_prefix("atmostno,") {
+		Self::AtMostNo(Thresh::new(thresh)?)
+	    } else if let Some(thresh) = spec.strip_prefix("atleastno,") {
+		Self::AtLeastNo(Thresh::new(thresh)?)
+	    } else if let Some(thresh) = spec.strip_prefix("exactlyno,") {
+		Self::ExactlyNo(Thresh::new(thresh)?)
+	    } else {
+		return err!("Unknown Determiner {spec}");
+	    }
+	)
+    }
+    /// we've seen this many yes's and this many no's, with more to come. Are we done yet?
+    pub const fn match_mid(&self, yes: usize, no : usize) -> Tri {
+	use Determiner::*;
+	match self {
+	    All => Tri::no_if(no > 0),
+	    Some => Tri::yes_if(yes > 0),
+	    None => Tri::no_if(yes > 0),
+	    NotAll => Tri::yes_if(no > 0),
+	    Mixed => Tri::yes_if(yes > 0 && no > 0),
+	    Uniform => Tri::no_if(yes > 0 && no > 0),
+	    AtMost(t) => t.at_most_mid(yes),
+	    AtLeast(t) => t.at_least_mid(yes),
+	    Exactly(t) => t.at_most_mid(yes),
+	    AtMostNo(t) => t.at_most_mid(no),
+	    AtLeastNo(t) => t.at_least_mid(no),
+	    ExactlyNo(t) => t.at_most_mid(no),
+	}
+    }
+
+    /// we've seen this many yes's and this many no's, with more to come. Is that a match?
+    pub fn match_final(&self, yes: usize, no : usize) -> bool {
+	use Determiner::*;
+	let tot = yes + no;
+	match self {
+	    All => no == 0,
+	    Some => yes > 0,
+	    None => yes == 0,
+	    NotAll => no > 0,
+	    Mixed => yes > 0 && no > 0,
+	    Uniform => yes == 0 || no == 0,
+	    AtMost(t) => t.at_most_final(yes, tot),
+	    AtLeast(t) => t.at_least_final(yes, tot),
+	    Exactly(t) => t.exactly(yes, tot),
+	    AtMostNo(t) => t.at_most_final(no, tot),
+	    AtLeastNo(t) => t.at_least_final(no, tot),
+	    ExactlyNo(t) => t.exactly(no, tot),
+	}
+    }
+
 }
 
 impl Match for CheckBuff {
@@ -690,6 +871,132 @@ impl Default for Combiner {
     }
 }
 
+/// Does the whole line match a pattern. Implements LineMatch
+#[derive(Debug)]
+struct WholeMatcher {
+    matcher: Matcher,
+}
+
+impl WholeMatcher {
+    fn new(method: &str, pattern: &str) -> Result<Self> {
+        Ok(Self {
+            matcher: MatchMaker::make2(method, pattern)?
+        })
+    }
+}
+
+// LineMatch::matcher could return Result<bool> and then we can put strict back
+impl LineMatch for WholeMatcher {
+    fn ok(&mut self, line: &TextLine) -> bool {
+        self.matcher.negate
+            ^ if self.matcher.string {
+                self.matcher
+                    .smatch(&String::from_utf8_lossy(line.line_nl()))
+            } else {
+                self.matcher.umatch(line.line_nl())
+            }
+    }
+
+    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+	Ok(())
+    }
+    fn show(&self) -> String {
+        format!("match whole line against {}", self.matcher)
+    }
+}
+
+/// Does the line have a certain number of columns
+#[derive(Debug)]
+struct CountMatcher {
+    count: usize
+}
+
+impl CountMatcher {
+    fn new(pattern: &str) -> Result<Self> {
+	
+        Ok(Self {
+	    count : pattern.to_usize_whole(pattern.as_bytes(), "count matcher")?
+        })
+    }
+}
+
+// LineMatch::matcher could return Result<bool> and then we can put strict back
+impl LineMatch for CountMatcher {
+    fn ok(&mut self, line: &TextLine) -> bool {
+        line.len() == self.count
+    }
+
+    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+	Ok(())
+    }
+    fn show(&self) -> String {
+        format!("Does line have {} columns", self.count)
+    }
+    fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
+        let ret = self.ok(line);
+        if !ret {
+            eprintln!("Line {} of {} had {} columns where {} were expected.", line_num, fname, line.len(), self.count);
+        }
+        ret
+    }
+}
+
+/// Does a particular column of a line match a pattern. Implements LineMatch
+#[derive(Debug)]
+struct ColSetMatcher {
+    matcher: Matcher,
+    col: ColumnSet,
+    det : Determiner,
+}
+
+impl ColSetMatcher {
+    /// new from parts
+    fn new(cols: &str, method: &str, pattern: &str) -> Result<Self> {
+	if let Some((a, b)) = cols.split_once(',') {
+            Ok(Self {
+		matcher: MatchMaker::make2(method, pattern)?,
+		col: ColumnSet::from_spec(b)?,
+		det : Determiner::new(a)?,
+            })
+	}
+	else {
+	    err!("ColumnGroup format is Determiner,ColumnSet")
+	}
+    }
+}
+
+impl LineMatch for ColSetMatcher {
+    fn ok(&mut self, line: &TextLine) -> bool {
+	let mut yes = 0;
+	let mut no = 0;
+	for x in self.col.get_cols() {
+	    let did_match = if self.matcher.string {
+		self.matcher.smatch(&String::from_utf8_lossy(line.get(x.num)))
+            } else {
+		self.matcher.umatch(line.get(x.num))
+            };
+	    if did_match {
+		yes += 1;
+	    }
+	    else {
+		no += 1;
+	    }
+	    let res = self.det.match_mid(yes, no);
+	    if res != Tri::Maybe {
+		return self.matcher.negate ^ (res == Tri::Yes);
+	    }
+	}
+	self.matcher.negate ^ self.det.match_final(yes, no)
+    }
+
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.col.lookup(fieldnames)
+    }
+    fn show(&self) -> String {
+        format!("match {:?} against {}", self.col, self.matcher)
+    }
+}
+
 /// Does a particular column of a line match a pattern. Implements LineMatch
 #[derive(Debug)]
 struct ColMatcher {
@@ -746,18 +1053,21 @@ impl fmt::Debug for LineMatcherList {
 
 impl LineMatcherList {
     /// new
-    pub fn new(multi: Combiner) -> Self {
+    pub fn new() -> Self {
+        Self {
+            multi : Combiner::Or,
+            matchers: Vec::new(),
+        }
+    }
+    /// new with combiner
+    pub fn new_with(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
         }
     }
     /// add Matcher to list
-    pub fn push(&mut self, item: Box<dyn LineMatch>) {
-        self.matchers.push(item)
-    }
-    /// add Matcher to list
-    pub fn push_spec(&mut self, item: &str) -> Result<()> {
+    pub fn push(&mut self, item: &str) -> Result<()> {
         self.matchers.push(MatchMaker::make_line(item)?);
         Ok(())
     }
@@ -825,22 +1135,22 @@ impl LineMatcherList {
         eprintln!("Line {} of {} failed to match OR matcher", line_num, fname);
         false
     }
-}
-
-impl LineMatch for LineMatcherList {
-    fn ok(&mut self, line: &TextLine) -> bool {
+    /// Is this line ok?
+    pub fn ok(&mut self, line: &TextLine) -> bool {
         self.ok_tagged(line, self.multi)
     }
-    fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
+    /// Is this line ok? If not, write explanation to stderr
+    pub fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         self.ok_verbose_tagged(line, self.multi, line_num, fname)
     }
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         for x in self.matchers.iter_mut() {
             x.lookup(fieldnames)?;
         }
         Ok(())
     }
+    /// Human readable desription
     fn show(&self) -> String {
         if self.is_empty() {
             format!("Empty {} LineMatcherList", self.multi)
@@ -853,6 +1163,21 @@ impl LineMatch for LineMatcherList {
             }
             ret
         }
+    }
+}
+
+impl LineMatch for LineMatcherList {
+    fn ok(&mut self, line: &TextLine) -> bool {
+        self.ok(line)
+    }
+    fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
+        self.ok_verbose(line, line_num, fname)
+    }
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+	self.lookup(fieldnames)
+    }
+    fn show(&self) -> String {
+	self.show()
     }
 }
 
@@ -871,16 +1196,28 @@ impl fmt::Debug for MatcherList {
 }
 
 impl MatcherList {
+    /// new MatcherList with Or
+    pub const fn new() -> Self {
+        Self {
+            multi : Combiner::Or,
+            matchers: Vec::new(),
+        }
+    }
     /// new MatcherList with given mode
-    pub const fn new(multi: Combiner) -> Self {
+    pub const fn new_with(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
         }
     }
     /// add Matcher to list
-    pub fn push(&mut self, item: Matcher) {
-        self.matchers.push(item)
+    pub fn push(&mut self, item: &str) -> Result<()> {
+        self.matchers.push(MatchMaker::make(item)?);
+	Ok(())
+    }
+    /// add Matcher to list
+    fn push_obj(&mut self, item: Matcher) {
+        self.matchers.push(item);
     }
     /// Are there any matchers in the list?
     pub fn is_empty(&self) -> bool {
@@ -930,16 +1267,8 @@ impl MatcherList {
         }
         false
     }
-}
-
-impl Match for MatcherList {
-    fn smatch(&self, buff: &str) -> bool {
-        self.smatch_tagged(buff, self.multi)
-    }
-    fn umatch(&self, buff: &[u8]) -> bool {
-        self.umatch_tagged(buff, self.multi)
-    }
-    fn show(&self) -> String {
+    /// Human readable desription
+    pub fn show(&self) -> String {
         if self.is_empty() {
             format!("Empty {} MatcherList", self.multi)
         } else if self.matchers.len() == 1 {
@@ -952,8 +1281,16 @@ impl Match for MatcherList {
             ret
         }
     }
+    /// Are these characters ok?
+    pub fn smatch(&self, buff: &str) -> bool {
+        self.smatch_tagged(buff, self.multi)
+    }
+    /// Are these bytes ok?
+    pub fn umatch(&self, buff: &[u8]) -> bool {
+        self.umatch_tagged(buff, self.multi)
+    }
     /// smatch, but print to stderr if fail
-    fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
+    pub fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
         let res = self.smatch(buff);
         if res != negate {
             eprintln!(
@@ -964,6 +1301,21 @@ impl Match for MatcherList {
             );
         }
         res
+    }
+}
+
+impl Match for MatcherList {
+    fn smatch(&self, buff: &str) -> bool {
+        self.smatch(buff)
+    }
+    fn umatch(&self, buff: &[u8]) -> bool {
+        self.umatch(buff)
+    }
+    fn show(&self) -> String {
+	self.show()
+    }
+    fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
+	self.verbose_smatch(buff, negate)
     }
 }
 
@@ -1361,7 +1713,7 @@ impl MatchMaker {
             m.ctype = Self::resolve_alias(m.ctype);
         }
         if let Some(mm) = m.multi_mode {
-            let mut outer = Box::new(MatcherList::new(mm));
+            let mut outer = Box::new(MatcherList::new_with(mm));
             let mut pattern = pattern;
             let delim = pattern.first();
             pattern = pattern.skip_first();
@@ -1369,7 +1721,7 @@ impl MatchMaker {
                 let mut m2 = m.clone();
                 m2.multi_mode = None; // not really necessary
                 Self::remake(&mut m2, x)?;
-                outer.push(m2);
+                outer.push_obj(m2);
             }
             m.matcher = outer;
         } else {
@@ -1389,17 +1741,37 @@ impl MatchMaker {
     pub fn make_line3(cols: &str, method: &str, pattern: &str) -> Result<Box<dyn LineMatch>> {
         if method == "expr" {
             if !cols.is_empty() {
-                err!("'expr' matcher spec does not take any columns")
+                err!("'expr' matcher spec only works on whole lines")
             } else {
                 Ok(Box::new(ExprMatcher::new(pattern)?))
             }
-        } else {
-            Ok(Box::new(ColMatcher::new(cols, method, pattern)?))
+        } else if method == "count" {
+            if !cols.is_empty() {
+                err!("'count' matcher spec only works on whole lines")
+            } else {
+                Ok(Box::new(CountMatcher::new(pattern)?))
+            }
+        } else if cols.is_empty() {
+            Ok(Box::new(WholeMatcher::new(method, pattern)?))
+	} else if !cols.is_empty() && cols.first() == '[' {
+		Ok(Box::new(ColSetMatcher::new(&cols[1..cols.len()-1], method, pattern)?))
+	} else {
+	    Ok(Box::new(ColMatcher::new(cols, method, pattern)?))
         }
     }
     /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
     pub fn make_line(spec: &str) -> Result<Box<dyn LineMatch>> {
-        if let Some((a, b)) = spec.split_once(',') {
+	if !spec.is_empty() && spec.first() == '[' {
+	    let len = util::find_close(spec)?;
+	    let cols = &spec[1..len];
+	    let rest = &spec[(len+1)..];
+            if let Some((c, d)) = rest.split_once(',') {
+                Self::make_line3(cols, c, d)
+            } else {
+                Self::make_line3(cols, rest, "")
+            }
+	}
+        else if let Some((a, b)) = spec.split_once(',') {
             if let Some((c, d)) = b.split_once(',') {
                 Self::make_line3(a, c, d)
             } else {

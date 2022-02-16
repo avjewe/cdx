@@ -65,6 +65,8 @@ pub enum Error {
     NeedLookup,
     /// be an error, but don't report anything
     Silent,
+    /// Exit with status code zero
+    NoError,
 }
 
 /// Common CDX result type
@@ -76,6 +78,7 @@ impl Error {
     pub fn suppress(&self) -> bool {
         match self {
             Error::IoError(err) => err.kind() == io::ErrorKind::BrokenPipe,
+	    Error::NoError => true,
             _ => false,
         }
     }
@@ -116,6 +119,7 @@ impl fmt::Display for Error {
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
             )?,
             Error::Silent => write!(f, "Silent")?,
+            Error::NoError => write!(f, "Not an error.")?,
         }
         Ok(())
     }
@@ -151,6 +155,22 @@ impl Tri {
         } else {
             err!("Tri value must be yes, no or maybe '{}'", x)
         }
+    }
+    /// return Yes is x is true, else Maybe
+    pub const fn yes_if(x : bool) -> Self {
+	if x {
+	    Self::Yes
+	} else {
+	    Self::Maybe
+	}
+    }
+    /// return No is x is true, else Maybe
+    pub const fn no_if(x : bool) -> Self {
+	if x {
+	    Self::No
+	} else {
+	    Self::Maybe
+	}
     }
 }
 
@@ -290,6 +310,10 @@ impl TextLine {
     /// whole line, with newline
     pub fn line(&self) -> &[u8] {
 	&self.line
+    }
+    /// whole line, without newline
+    pub fn line_nl(&self) -> &[u8] {
+	&self.line[..self.line.len()-1]
     }
     /// whole line, with newline, as Vec
     pub fn raw(&mut self) -> &mut Vec<u8> {

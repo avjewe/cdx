@@ -10,7 +10,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"tmp", "t", "Dir", "Use this as a persistant tmp dir, rather than creating an ephemeral one."},
         arg! {"file-format", "", "", "Describe format for '.test' files."},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
     let mut config = Config::new()?;
     let mut verbose = false;
     for x in args {

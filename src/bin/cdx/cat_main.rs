@@ -1,7 +1,6 @@
 use crate::prelude::*;
 use cdx::prelude::*;
 use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole};
-use cdx::matcher::{Combiner, MatchMaker};
 use cdx::util::{get_reader, HeaderChecker, HeaderMode, HEADER_MODE};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -89,13 +88,13 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"begin", "b", "",  "Shortcut for --number number,1,begin"},
         arg! {"end", "e", "",  "Shortcut for --number number,1,end"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut checker = HeaderChecker::new();
     let mut pad = PadMode::All;
     let mut num = LineNumber::new();
-    let mut skips = MatcherList::new(Combiner::Or);
-    let mut removes = MatcherList::new(Combiner::Or);
+    let mut skips = MatcherList::new();
+    let mut removes = MatcherList::new();
 
     for x in args {
         if x.name == "header" {
@@ -117,9 +116,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "end" {
             num.set("number,1,end")?;
         } else if x.name == "skip" {
-            skips.push(MatchMaker::make(&x.value)?);
+            skips.push(&x.value)?;
         } else if x.name == "remove" {
-            removes.push(MatchMaker::make(&x.value)?);
+            removes.push(&x.value)?;
         } else {
             unreachable!();
         }

@@ -1,4 +1,5 @@
-use cdx::text::Text;
+use cdx::prelude::*;
+use crate::globals;
 
 #[macro_export]
 macro_rules! arg {
@@ -104,8 +105,48 @@ impl ArgValue {
         }
     }
 }
+pub fn add_arg<'t>(a : clap::App<'t>, x : &ArgSpec, hide_help : bool) -> clap::App<'t> {
+    let mut b = clap::Arg::new(x.name);
+    if x.positional {
+        b = b.takes_value(true).help(x.help).required(true)
+    } else {
+        if !x.short.is_empty() {
+            b = b.short(x.short.first());
+        }
+        b = b.long(x.name).help(x.help).multiple_occurrences(true);
+        if !x.value.is_empty() {
+            b = b.value_name(x.value).number_of_values(1).takes_value(true)
+        }
+        if !x.values.is_empty() {
+            b = b.possible_values(x.values).ignore_case(true);
+        }
+    }
+    b = b.hide_long_help(hide_help);
+    a.arg(b)
+}
+pub fn get_arg(m : &clap::ArgMatches, x : &ArgSpec, v: &mut Vec<ArgValue>) {
+    if x.value.is_empty() {
+        if m.occurrences_of(x.name) > 0 {
+            let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
+            for i in ind {
+		v.push(ArgValue::new(x.name, "", i));
+            }
+        }
+    } else if let Some(arg) = m.values_of(x.name) {
+        let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
+        assert_eq!(ind.len(), arg.len());
+        for (i, val) in arg.enumerate() {
+            v.push(ArgValue::new(x.name, val, ind[i]));
+        }
+    }
+}
 
-pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValue>, Vec<String>) {
+pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> Result<(Vec<ArgValue>, Vec<String>)> {
+    let mut s = globals::Settings::new();
+    parse2(prog, spec, argv, &mut s)
+}
+
+pub fn parse2(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String], glob : &mut globals::Settings) -> Result<(Vec<ArgValue>, Vec<String>)> {
     let mut a = clap::App::new("cdx")
         .version(&*prog.version)
         .author(&*prog.author)
@@ -113,22 +154,11 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
         .global_setting(clap::AppSettings::DeriveDisplayOrder);
 
     for x in spec {
-        let mut b = clap::Arg::new(x.name);
-        if x.positional {
-            b = b.takes_value(true).help(x.help).required(true)
-        } else {
-            if !x.short.is_empty() {
-                b = b.short(x.short.first());
-            }
-            b = b.long(x.name).help(x.help).multiple_occurrences(true);
-            if !x.value.is_empty() {
-                b = b.value_name(x.value).number_of_values(1).takes_value(true)
-            }
-            if !x.values.is_empty() {
-                b = b.possible_values(x.values).ignore_case(true);
-            }
-        }
-        a = a.arg(b);
+	a = add_arg(a, x, false);
+    }
+    a = glob.add_std_help(a);
+    for x in globals::global_args() {
+	a = add_arg(a, x, true);
     }
     match prog.files {
         FileCount::Zero => {}
@@ -144,22 +174,15 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
         }
     }
     let m = a.get_matches_from(argv);
+    glob.handle_std_help(&m)?;
     let mut v: Vec<ArgValue> = Vec::new();
+    for x in globals::global_args() {
+	get_arg(&m, x, &mut v);
+    }
+    glob.consume(&v)?;
+    v.clear();
     for x in spec {
-        if x.value.is_empty() {
-            if m.occurrences_of(x.name) > 0 {
-                let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
-                for i in ind {
-                    v.push(ArgValue::new(x.name, "", i));
-                }
-            }
-        } else if let Some(arg) = m.values_of(x.name) {
-            let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
-            assert_eq!(ind.len(), arg.len());
-            for (i, val) in arg.enumerate() {
-                v.push(ArgValue::new(x.name, val, ind[i]));
-            }
-        }
+	get_arg(&m, x, &mut v);
     }
     // values_of_os
     let mut files: Vec<String> = Vec::new();
@@ -174,5 +197,5 @@ pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> (Vec<ArgValu
         files.push("-".to_string());
     }
     v.sort_by(|a, b| a.index.cmp(&b.index));
-    (v, files)
+    Ok((v, files))
 }

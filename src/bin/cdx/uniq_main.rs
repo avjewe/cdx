@@ -1,6 +1,5 @@
 use crate::prelude::*;
 use cdx::prelude::*;
-use cdx::agg::{AggMaker};
 use cdx::comp::{CompMaker, LineComp};
 
 // --min
@@ -164,7 +163,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"which", "w", "(First,Last,Min,Max)[,LineCompare]", "Which of the matching lines should be printed."},
         arg! {"agg-help", "", "", "Print help for aggregators"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut agg = LineAggList::new();
     let mut comp = LineCompList::new();
@@ -183,9 +182,6 @@ pub fn main(argv: &[String]) -> Result<()> {
             agg.push_append(&x.value)?;
         } else if x.name == "agg-pre" {
             agg.push_prefix(&x.value)?;
-        } else if x.name == "agg-help" {
-            AggMaker::help();
-            return Ok(());
         } else {
             unreachable!();
         }

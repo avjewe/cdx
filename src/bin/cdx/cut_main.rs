@@ -13,7 +13,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
         arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail", "Allow", "Numeric"]},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
     let mut checker = HeaderChecker::new();
     let mut header = ColumnHeader::new();
     let mut v = Writer::new(b'\t');

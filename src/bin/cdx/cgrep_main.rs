@@ -6,9 +6,8 @@ use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    const A: [ArgSpec; 8] = [
+    const A: [ArgSpec; 7] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
-        arg! {"show-matchers", "s", "", "Print available matchers"},
         arg! {"show-const", "", "", "Print available constants"},
         arg! {"show-func", "", "", "Print available functions"},
         arg! {"or", "o", "", "A line matches if any of the matchers matches."},
@@ -16,20 +15,17 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"location", "l", "name:what", "prefix extra columns of location context."},
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut checker = HeaderChecker::new();
-    let mut list = LineMatcherList::new(Combiner::And);
+    let mut list = LineMatcherList::new_with(Combiner::And);
     let mut reverse = false;
     let mut loc = FileLocList::new();
     for x in args {
         if x.name == "header" {
             checker.mode = HeaderMode::from_str(&x.value)?;
         } else if x.name == "pattern" {
-            list.push_spec(&x.value)?;
-        } else if x.name == "show-matchers" {
-            MatchMaker::help();
-            return Ok(());
+            list.push(&x.value)?;
         } else if x.name == "or" {
             list.multi = Combiner::Or;
         } else if x.name == "invert" {

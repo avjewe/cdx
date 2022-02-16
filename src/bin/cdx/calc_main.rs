@@ -3,7 +3,6 @@
 use crate::prelude::*;
 use cdx::prelude::*;
 use cdx::expr::calc;
-use cdx::num;
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Evaluate Expressions.", args::FileCount::Many);
@@ -11,7 +10,7 @@ pub fn main(argv: &[String]) -> Result<()> {
 //        arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
 //        arg! {"key", "k", "Spec", "How to compare value to lines"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     for x in args {
         if x.name == "header" {
@@ -31,16 +30,16 @@ pub fn main(argv: &[String]) -> Result<()> {
                 Ok(v) => {
                     let mut vec: Vec<u8> = Vec::new();
                     vec.clear();
-                    num::format_hnum(v, num::NumFormat::Plain(4), &mut vec)?;
+                    NumFormat::Plain(4).print(v, &mut vec)?;
                     prerr(&[&vec]);
                     vec.clear();
-                    num::format_hnum(v, num::NumFormat::Float(4), &mut vec)?;
+                    NumFormat::Float(4).print(v, &mut vec)?;
                     prerr(&[&vec]);
                     vec.clear();
-                    num::format_hnum(v, num::NumFormat::Power2, &mut vec)?;
+                    NumFormat::Power2.print(v, &mut vec)?;
                     prerr(&[&vec]);
                     vec.clear();
-                    num::format_hnum(v, num::NumFormat::Power10, &mut vec)?;
+                    NumFormat::Power10.print(v, &mut vec)?;
                     prerr(&[&vec]);
                     //		    println!("{}", num::format_hnum(v as i64, num::NumFormat::Power2, ),
                 }

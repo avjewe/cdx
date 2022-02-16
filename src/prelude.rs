@@ -3,13 +3,15 @@
 #[doc(inline)]
 pub use crate::agg::{AggList, LineAggList};
 #[doc(inline)]
-pub use crate::column::{ColumnHeader, Writer, ColumnSet, DupColHandling, ScopedValues};
+pub use crate::column::{ColumnHeader, Writer, ColumnSet, DupColHandling, ScopedValues, NamedCol};
 #[doc(inline)]
 pub use crate::comp::{LineCompList};
 #[doc(inline)]
-pub use crate::matcher::{Match, MatcherList};
+pub use crate::matcher::{MatcherList, LineMatcherList};
 #[doc(inline)]
-pub use crate::text::Text;
+pub use crate::num::NumFormat;
+#[doc(inline)]
+pub use crate::text::{Case,Text};
 #[doc(inline)]
 pub use crate::textgen::GenList;
 #[doc(inline)]
@@ -21,3 +23,5 @@ pub use std::cmp::Ordering;
 pub use std::io::{BufRead, Read, Write};
 #[doc(inline)]
 pub use std::str::FromStr;
+#[doc(inline)]
+pub use std::fmt;

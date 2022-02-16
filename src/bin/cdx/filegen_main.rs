@@ -9,7 +9,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"multi", "m", "N,Spec", "Generate N columns of this type"},
         arg! {"header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
     ];
-    let (args, _files) = args::parse(&prog, &A, argv);
+    let (args, _files) = args::parse(&prog, &A, argv)?;
 
     let mut num_lines = 10;
     let mut list = GenList::new();

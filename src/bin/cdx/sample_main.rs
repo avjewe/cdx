@@ -91,7 +91,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"sample", "s", "Number", "Select this number of lines, more or less evenly spaced."},
         arg! {"range", "r", "Ranges", "e.g. 1-5,42,95-106."},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut checker = HeaderChecker::new();
     let mut floop = For::default();

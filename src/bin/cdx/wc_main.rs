@@ -1,8 +1,5 @@
 use crate::prelude::*;
 use cdx::prelude::*;
-use cdx::agg::{AggMaker};
-use cdx::column::{ColumnHeader, Writer};
-use cdx::num;
 
 /*
 
@@ -24,7 +21,7 @@ impl NamedAgg {
 
 pub fn main(argv: &[String]) -> Result<()> {
     let prog = args::ProgSpec::new("Aggregate info on whole lines.", args::FileCount::Many);
-    const A: [ArgSpec; 11] = [
+    const A: [ArgSpec; 10] = [
         arg! {"agg", "a", "NewCol,Spec", "Merge values into new column."},
         arg! {"lines", "l", "", "Shortcut for '--agg lines,count'"},
         arg! {"bytes", "b", "", "Shortcut for '--agg bytes,asum,chars'"},
@@ -35,9 +32,8 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"total", "t", "yes,no,maybe,only", "Should we write the totals line?"},
         arg! {"format", "F", "plain,float,power2,power10", "Format for output numbers."},
         arg! {"columns", "C", "", "Count each column separately."},
-        arg! {"agg-help", "", "", "Print help for aggregators"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut agg = AggList::new();
     let mut file_name_col = "file".to_string();
@@ -46,7 +42,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     let mut show_totals = Tri::Maybe;
     let mut total_only = false;
     let mut do_columns = false;
-    let mut fmt = num::NumFormat::default();
+    let mut fmt = NumFormat::default();
     for x in args {
         if x.name == "agg" {
             agg.push(&x.value)?;
@@ -59,7 +55,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         } else if x.name == "words" {
             agg.push("words,asum,swords")?;
         } else if x.name == "format" {
-            fmt = num::NumFormat::new(&x.value)?;
+            fmt = NumFormat::new(&x.value)?;
         } else if x.name == "columns" {
             do_columns = true;
         } else if x.name == "total" {
@@ -77,9 +73,6 @@ pub fn main(argv: &[String]) -> Result<()> {
             } else {
                 show_file_name = Tri::new(&x.value)?;
             }
-        } else if x.name == "agg-help" {
-            AggMaker::help();
-            return Ok(());
         } else {
             unreachable!();
         }
@@ -246,7 +239,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             if i != 0 {
                 w.write_all(b"\t")?;
             }
-            num::format_hnum(*t, fmt, &mut w)?;
+            fmt.print(*t, &mut w)?;
         }
         w.write_all(b"\n")?;
     }

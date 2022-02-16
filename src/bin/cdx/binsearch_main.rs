@@ -98,7 +98,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"sub-delim", "s", "Char",  "Delimiter between keys for multi-column searches"},
         arg_pos! {"pattern", "search string",  "Search for this string in each file"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut checker = HeaderChecker::new();
     let mut filename: Option<FileNameColumn> = None;

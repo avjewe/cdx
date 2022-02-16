@@ -5,6 +5,31 @@ use crate::util::{err, Error, Result};
 use std::cmp::Ordering;
 use std::io::Write;
 
+/// is target closer to num/denom than to (num-1)/denom or (num+1)/denom
+pub fn f64_equal(target : f64, num : usize, denom : usize) -> bool {
+    let fnum = num as f64;
+    let fdenom = denom as f64;
+    let lower = 2.0f64.mul_add(fnum, -1.0)/(2.0*fdenom);
+    let upper = 2.0f64.mul_add(fnum, 1.0)/(2.0*fdenom);
+    (lower..upper).contains(&target)
+}
+
+/// is target closer to num/denom than to (num-1)/denom
+pub fn f64_greater(target : f64, num : usize, denom : usize) -> bool {
+    let fnum = num as f64;
+    let fdenom = denom as f64;
+    let lower = 2.0f64.mul_add(fnum, -1.0)/(2.0*fdenom);
+    target > lower
+}
+
+/// is target closer to num/denom than to (num+1)/denom
+pub fn f64_less(target : f64, num : usize, denom : usize) -> bool {
+    let fnum = num as f64;
+    let fdenom = denom as f64;
+    let upper = 2.0f64.mul_add(fnum, 1.0)/(2.0*fdenom);
+    target < upper
+}
+
 /// amount of junk allowed in a number, before falling back to the 'error' value
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum JunkType {
@@ -137,6 +162,76 @@ impl NumFormat {
             err!("Number format must be plain[.N], float[.N], power2 or power10")
         }
     }
+
+    /// format a number
+    pub fn print(self, mut num: f64, mut w: impl Write) -> Result<()> {
+	if let NumFormat::Plain(n) = self {
+            if n == 0 {
+		write!(w, "{num}")?;
+            } else {
+		write!(w, "{num:.0$}", n)?;
+            }
+            return Ok(());
+	}
+	if let NumFormat::Float(n) = self {
+            if n == 0 {
+		write!(w, "{num:e}")?;
+            } else {
+		write!(w, "{num:.0$e}", n)?;
+            }
+            return Ok(());
+	}
+	num = num.round();
+	if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
+            write!(w, "{num}")?;
+            return Ok(());
+	}
+	let sign = if num < 0.0 {
+            num = -num;
+            "-"
+	} else {
+            ""
+	};
+	let (exp, letters) = if self == Self::Power2 {
+            (1024.0, P2_LETTERS)
+	} else {
+            (1000.0, P10_LETTERS)
+	};
+	
+	let mut curr_exp: f64 = 1.0;
+	let mut exp_num: usize = 0;
+	
+	loop {
+            if num < (999.0 * curr_exp) {
+		if num >= (10.0 * curr_exp) {
+                    write!(
+			w,
+			"{}{:.0}{}",
+			sign,
+			num / curr_exp,
+			letters[exp_num] as char
+                    )?;
+		} else if num >= (1.1 * curr_exp) {
+                    write!(
+			w,
+			"{}{:.1}{}",
+			sign,
+			num / curr_exp,
+			letters[exp_num] as char
+                    )?;
+		} else {
+                    write!(w, "{}1{}", sign, letters[exp_num] as char)?;
+		}
+		return Ok(());
+            }
+            exp_num += 1;
+            curr_exp *= exp;
+            if exp_num >= 8 {
+		write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[8] as char)?;
+		return Ok(());
+            }
+	}
+    }
 }
 
 const P2_LETTERS: &[u8] = b"0KMGTPEZY";
@@ -163,76 +258,6 @@ const P2_VALUES_F: [f64; 9] = [
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
 ];
-
-/// format a number
-pub fn format_hnum(mut num: f64, fmt: NumFormat, mut w: impl Write) -> Result<()> {
-    if let NumFormat::Plain(n) = fmt {
-        if n == 0 {
-            write!(w, "{num}")?;
-        } else {
-            write!(w, "{num:.0$}", n)?;
-        }
-        return Ok(());
-    }
-    if let NumFormat::Float(n) = fmt {
-        if n == 0 {
-            write!(w, "{num:e}")?;
-        } else {
-            write!(w, "{num:.0$e}", n)?;
-        }
-        return Ok(());
-    }
-    num = num.round();
-    if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
-        write!(w, "{num}")?;
-        return Ok(());
-    }
-    let sign = if num < 0.0 {
-        num = -num;
-        "-"
-    } else {
-        ""
-    };
-    let (exp, letters) = if fmt == NumFormat::Power2 {
-        (1024.0, P2_LETTERS)
-    } else {
-        (1000.0, P10_LETTERS)
-    };
-
-    let mut curr_exp: f64 = 1.0;
-    let mut exp_num: usize = 0;
-
-    loop {
-        if num < (999.0 * curr_exp) {
-            if num >= (10.0 * curr_exp) {
-                write!(
-                    w,
-                    "{}{:.0}{}",
-                    sign,
-                    num / curr_exp,
-                    letters[exp_num] as char
-                )?;
-            } else if num >= (1.1 * curr_exp) {
-                write!(
-                    w,
-                    "{}{:.1}{}",
-                    sign,
-                    num / curr_exp,
-                    letters[exp_num] as char
-                )?;
-            } else {
-                write!(w, "{}1{}", sign, letters[exp_num] as char)?;
-            }
-            return Ok(());
-        }
-        exp_num += 1;
-        curr_exp *= exp;
-        if exp_num >= 8 {
-            write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[8] as char)?;
-            return Ok(());
-        }
-    }
-}
 
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
 pub fn suffix_valf(ch: u8) -> Option<f64> {

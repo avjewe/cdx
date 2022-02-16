@@ -10,7 +10,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"key", "k", "Spec", "How to compare lines"},
         arg! {"output", "o", "Spec", "Output columns : file.ColumnSet,file.ColumnSet"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut config = JoinConfig::new();
     config.infiles = files;

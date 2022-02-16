@@ -35,7 +35,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"rename-sloppy", "R", "", "Not an error is some renames not used."},
         arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail", "Allow", "Numeric"]},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
     let mut end_mode = EndMode::Exact;
     let mut dflt = ScopedValues::new();

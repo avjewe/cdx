@@ -1,16 +1,12 @@
 //! Aggregate Values
 #![allow(dead_code)]
-use crate::column::{ColumnFun, ColumnHeader, ColumnSingle, NamedCol, Writer};
+use crate::prelude::*;
+use crate::column::{ColumnFun, ColumnSingle};
 use crate::comp::{Comp, CompMaker};
 use crate::expr::Expr;
-use crate::num::{self, NumFormat};
-use crate::text::Text;
-use crate::util::{err, Error, Result, StringLine, TextLine};
 use lazy_static::lazy_static;
 use std::cell::RefCell;
-use std::cmp::{self, Ordering};
-use std::fmt;
-use std::io::Write;
+use std::cmp;
 use std::rc::Rc;
 use std::sync::Mutex;
 
@@ -194,7 +190,7 @@ impl LineAgg for ExprAgg {
         self.expr.set_var(self.which, self.val);
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.value(), fmt, w)
+        fmt.print(self.value(), w)
     }
     fn reset(&mut self) {
         self.val = self.start;
@@ -814,7 +810,7 @@ impl Agg for Merge {
             });
         }
         if self.do_count {
-            num::format_hnum(self.data.parts().len() as f64, fmt, w)?;
+            fmt.print(self.data.parts().len() as f64, w)?;
         } else {
             let mut num_written = 0;
             for x in &self.data.parts {
@@ -900,7 +896,7 @@ impl Agg for Mean {
     }
 
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.value(), fmt, w)
+        fmt.print(self.value(), w)
     }
     fn value(&self) -> f64 {
         if self.cnt > 0.0 {
@@ -934,7 +930,7 @@ impl Agg for Sum {
         self.val += data.to_f64_lossy();
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.value(), fmt, w)
+        fmt.print(self.value(), w)
     }
     fn value(&self) -> f64 {
         self.val
@@ -966,7 +962,7 @@ impl Agg for ASum {
         self.val += self.cnt.counter(data);
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.val as f64, fmt, w)
+        fmt.print(self.val as f64, w)
     }
     fn reset(&mut self) {
         self.val = 0;
@@ -995,7 +991,7 @@ impl Agg for AMin {
         self.val = cmp::min(self.val, self.cnt.counter(data));
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.val as f64, fmt, w)
+        fmt.print(self.val as f64, w)
     }
     fn reset(&mut self) {
         self.val = usize::MAX;
@@ -1024,7 +1020,7 @@ impl Agg for AMax {
         self.val = cmp::max(self.val, self.cnt.counter(data));
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.val as f64, fmt, w)
+        fmt.print(self.val as f64, w)
     }
     fn reset(&mut self) {
         self.val = 0;
@@ -1060,7 +1056,7 @@ impl Agg for AMean {
         self.num += 1;
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.val as f64, fmt, w)
+        fmt.print(self.val as f64, w)
     }
     fn reset(&mut self) {
         self.val = 0;
@@ -1232,7 +1228,7 @@ impl Agg for Count {
         self.val += 1;
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        num::format_hnum(self.value(), fmt, w)
+        fmt.print(self.value(), w)
     }
     fn reset(&mut self) {
         self.val = self.init;

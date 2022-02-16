@@ -2,17 +2,18 @@ use crate::prelude::*;
 use cdx::prelude::*;
 use cdx::comp::{comp_check};
 use cdx::expr;
-use cdx::matcher::*;
+use cdx::matcher::{Combiner};
 use cdx::util::{CheckLine};
 
-// check for contant number of columns
+// output of verify should somehow input to other tools
 // MORE MATCHERS
-// number of columns
-// --full-name - exact column names in order
-// lines and bytes as expr
-// lines and bytes relative to another file
-// a bunch of columns not equaling each other
-// two columns compared to each other
+// explicit number of columns
+// --part-names -- these named columns must exist, maybe with subset of matchers?
+// --full-name - exact column names in order, maybe with subset of matchers? 
+// total lines and bytes as expr
+// total lines and bytes of another file as expr
+// Matcher :: a bunch of columns not equaling each other
+// Matcher :: two columns compared to each other
 // only check first N, or maybe also last N? or maybe that's just a script with head and tail?
 // still return OK if N lines or N% of the lines are bad
 
@@ -30,9 +31,9 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"show-const", "", "", "Print available constants"},
         arg! {"show-func", "", "", "Print available functions"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv);
+    let (args, files) = args::parse(&prog, &A, argv)?;
 
-    let mut list = LineMatcherList::new(Combiner::And);
+    let mut list = LineMatcherList::new_with(Combiner::And);
     let mut comp = LineCompList::new();
     let mut do_sort = false;
     let mut do_unique = false;
@@ -42,10 +43,7 @@ pub fn main(argv: &[String]) -> Result<()> {
 
     for x in args {
         if x.name == "pattern" {
-            list.push_spec(&x.value)?;
-        } else if x.name == "show-matchers" {
-            MatchMaker::help();
-            return Ok(());
+            list.push(&x.value)?;
         } else if x.name == "key" {
             comp.add(&x.value)?;
         } else if x.name == "or" {
@@ -96,8 +94,13 @@ pub fn main(argv: &[String]) -> Result<()> {
         {
             fails += 1;
         }
+	let num_cols = f.names().len();
         loop {
             let mut did_fail = false;
+	    if f.curr().len() != num_cols {
+		eprintln!("Expected {num_cols} columns, but line {} of {} had {}", f.line_number()+1, x, f.curr().len());
+                did_fail = true;
+	    }
             if !list.ok_verbose(f.curr_line(), f.line_number(), x) {
                 did_fail = true;
             }
