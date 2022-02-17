@@ -1,32 +1,29 @@
 //! Numeric Helpers
 
-use crate::text::Text;
-use crate::util::{err, Error, Result};
-use std::cmp::Ordering;
-use std::io::Write;
+use crate::prelude::*;
 
 /// is target closer to num/denom than to (num-1)/denom or (num+1)/denom
-pub fn f64_equal(target : f64, num : usize, denom : usize) -> bool {
+pub fn f64_equal(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
-    let lower = 2.0f64.mul_add(fnum, -1.0)/(2.0*fdenom);
-    let upper = 2.0f64.mul_add(fnum, 1.0)/(2.0*fdenom);
+    let lower = 2.0f64.mul_add(fnum, -1.0) / (2.0 * fdenom);
+    let upper = 2.0f64.mul_add(fnum, 1.0) / (2.0 * fdenom);
     (lower..upper).contains(&target)
 }
 
 /// is target closer to num/denom than to (num-1)/denom
-pub fn f64_greater(target : f64, num : usize, denom : usize) -> bool {
+pub fn f64_greater(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
-    let lower = 2.0f64.mul_add(fnum, -1.0)/(2.0*fdenom);
+    let lower = 2.0f64.mul_add(fnum, -1.0) / (2.0 * fdenom);
     target > lower
 }
 
 /// is target closer to num/denom than to (num+1)/denom
-pub fn f64_less(target : f64, num : usize, denom : usize) -> bool {
+pub fn f64_less(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
-    let upper = 2.0f64.mul_add(fnum, 1.0)/(2.0*fdenom);
+    let upper = 2.0f64.mul_add(fnum, 1.0) / (2.0 * fdenom);
     target < upper
 }
 
@@ -165,72 +162,72 @@ impl NumFormat {
 
     /// format a number
     pub fn print(self, mut num: f64, mut w: impl Write) -> Result<()> {
-	if let NumFormat::Plain(n) = self {
+        if let NumFormat::Plain(n) = self {
             if n == 0 {
-		write!(w, "{num}")?;
+                write!(w, "{num}")?;
             } else {
-		write!(w, "{num:.0$}", n)?;
+                write!(w, "{num:.0$}", n)?;
             }
             return Ok(());
-	}
-	if let NumFormat::Float(n) = self {
+        }
+        if let NumFormat::Float(n) = self {
             if n == 0 {
-		write!(w, "{num:e}")?;
+                write!(w, "{num:e}")?;
             } else {
-		write!(w, "{num:.0$e}", n)?;
+                write!(w, "{num:.0$e}", n)?;
             }
             return Ok(());
-	}
-	num = num.round();
-	if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
+        }
+        num = num.round();
+        if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
             write!(w, "{num}")?;
             return Ok(());
-	}
-	let sign = if num < 0.0 {
+        }
+        let sign = if num < 0.0 {
             num = -num;
             "-"
-	} else {
+        } else {
             ""
-	};
-	let (exp, letters) = if self == Self::Power2 {
+        };
+        let (exp, letters) = if self == Self::Power2 {
             (1024.0, P2_LETTERS)
-	} else {
+        } else {
             (1000.0, P10_LETTERS)
-	};
-	
-	let mut curr_exp: f64 = 1.0;
-	let mut exp_num: usize = 0;
-	
-	loop {
+        };
+
+        let mut curr_exp: f64 = 1.0;
+        let mut exp_num: usize = 0;
+
+        loop {
             if num < (999.0 * curr_exp) {
-		if num >= (10.0 * curr_exp) {
+                if num >= (10.0 * curr_exp) {
                     write!(
-			w,
-			"{}{:.0}{}",
-			sign,
-			num / curr_exp,
-			letters[exp_num] as char
+                        w,
+                        "{}{:.0}{}",
+                        sign,
+                        num / curr_exp,
+                        letters[exp_num] as char
                     )?;
-		} else if num >= (1.1 * curr_exp) {
+                } else if num >= (1.1 * curr_exp) {
                     write!(
-			w,
-			"{}{:.1}{}",
-			sign,
-			num / curr_exp,
-			letters[exp_num] as char
+                        w,
+                        "{}{:.1}{}",
+                        sign,
+                        num / curr_exp,
+                        letters[exp_num] as char
                     )?;
-		} else {
+                } else {
                     write!(w, "{}1{}", sign, letters[exp_num] as char)?;
-		}
-		return Ok(());
+                }
+                return Ok(());
             }
             exp_num += 1;
             curr_exp *= exp;
             if exp_num >= 8 {
-		write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[8] as char)?;
-		return Ok(());
+                write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[8] as char)?;
+                return Ok(());
             }
-	}
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use cdx::prelude::*;
 use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole};
+use cdx::prelude::*;
 use cdx::util::{get_reader, HeaderChecker, HeaderMode, HEADER_MODE};
 
 #[derive(Debug, Copy, Clone, PartialEq)]

@@ -1,11 +1,9 @@
 #![allow(dead_code)]
 
 use crate::prelude::*;
-use cdx::prelude::*;
 use cdx::binsearch::{equal_range_n, find_end, find_prev, MemMap};
-use cdx::util::{
-    write_all_nl, HeaderChecker, HeaderMode, HEADER_MODE,
-};
+use cdx::prelude::*;
+use cdx::util::{write_all_nl, HeaderChecker, HeaderMode, HEADER_MODE};
 
 #[derive(Debug, Default, PartialEq)]
 struct FileNameColumn {

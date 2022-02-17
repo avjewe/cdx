@@ -1,0 +1,13 @@
+#command cdx filegen -c grid -c null -c expr,float,line^col -c null -h -m 3,expr,line*col
+#stdout
+ CDX	c1	c2	c3	c4	c5	c6	c7
+1_1		1e0		5	6	7
+2_1		8e0		10	12	14
+3_1		2.7e1		15	18	21
+4_1		6.4e1		20	24	28
+5_1		1.25e2		25	30	35
+6_1		2.16e2		30	36	42
+7_1		3.43e2		35	42	49
+8_1		5.12e2		40	48	56
+9_1		7.29e2		45	54	63
+10_1		1e3		50	60	70

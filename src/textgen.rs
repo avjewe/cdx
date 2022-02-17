@@ -1,5 +1,6 @@
 //! Generate random text
 
+use crate::expr;
 use crate::prelude::*;
 use lazy_static::lazy_static;
 use rand_distr::{Distribution, Normal};
@@ -18,6 +19,35 @@ pub struct Where {
 pub trait Gen {
     /// write one column value
     fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()>;
+}
+
+struct ExprGen {
+    expr: Expr,
+    fmt: NumFormat,
+    col_pos: usize,
+    line_pos: usize,
+}
+
+impl ExprGen {
+    fn new(spec: &str) -> Result<Self> {
+        let (fmt, expr_spec) = expr::parse_fmt_expr(NumFormat::default(), spec);
+        let mut expr = Expr::new(expr_spec)?;
+        let col_pos = expr.find_var("col");
+        let line_pos = expr.find_var("line");
+        Ok(Self {
+            expr,
+            fmt,
+            col_pos,
+            line_pos,
+        })
+    }
+}
+impl Gen for ExprGen {
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
+        self.expr.set_var(self.col_pos, loc.col as f64);
+        self.expr.set_var(self.line_pos, loc.line as f64);
+        self.fmt.print(self.expr.eval_plain()?, w)
+    }
 }
 
 struct NormalDistGen {
@@ -201,12 +231,15 @@ impl GenMaker {
         Self::do_push("null", "Produce empty column value", |_p| {
             Ok(Box::new(NullGen {}))
         })?;
+        Self::do_push(
+            "expr",
+            "'fmt,expr' e.g. plain,line*col OR just 'expr'",
+            |p| Ok(Box::new(ExprGen::new(p)?)),
+        )?;
         Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
             Ok(Box::new(NormalDistGen::new(p)?))
         })?;
-        Self::do_push("grid", "Produce row_col", |_p| {
-            Ok(Box::new(GridGen {}))
-        })?;
+        Self::do_push("grid", "Produce line_col", |_p| Ok(Box::new(GridGen {})))?;
         Self::do_push("count", "Count up from starting place", |p| {
             Ok(Box::new(CountGen::new(p)?))
         })?;

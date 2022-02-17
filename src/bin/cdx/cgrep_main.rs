@@ -1,7 +1,7 @@
 use crate::prelude::*;
-use cdx::prelude::*;
 use cdx::expr;
 use cdx::matcher::*;
+use cdx::prelude::*;
 use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
 pub fn main(argv: &[String]) -> Result<()> {

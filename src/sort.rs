@@ -7,13 +7,9 @@ add HEADER_MODE and total_size as parameters
 fancier sort
  */
 
-use crate::comp::{Item, LineCompList};
-use crate::util::{
-    copy, err, get_reader, get_writer, is_cdx, make_header, Error, HeaderChecker, Reader, Result,
-    TextLine,
-};
-use std::cmp::Ordering;
-use std::io::{BufRead, Read, Write};
+use crate::comp::Item;
+use crate::prelude::*;
+use crate::util::{copy, get_reader, is_cdx, make_header, HeaderChecker};
 use std::mem;
 use tempdir::TempDir;
 

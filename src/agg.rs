@@ -1,9 +1,9 @@
 //! Aggregate Values
 #![allow(dead_code)]
-use crate::prelude::*;
+
 use crate::column::{ColumnFun, ColumnSingle};
 use crate::comp::{Comp, CompMaker};
-use crate::expr::Expr;
+use crate::prelude::*;
 use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::cmp;

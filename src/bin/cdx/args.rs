@@ -1,5 +1,5 @@
-use cdx::prelude::*;
 use crate::globals;
+use cdx::prelude::*;
 
 #[macro_export]
 macro_rules! arg {
@@ -105,7 +105,7 @@ impl ArgValue {
         }
     }
 }
-pub fn add_arg<'t>(a : clap::App<'t>, x : &ArgSpec, hide_help : bool) -> clap::App<'t> {
+pub fn add_arg<'t>(a: clap::Command<'t>, x: &ArgSpec, hide_help: bool) -> clap::Command<'t> {
     let mut b = clap::Arg::new(x.name);
     if x.positional {
         b = b.takes_value(true).help(x.help).required(true)
@@ -124,12 +124,12 @@ pub fn add_arg<'t>(a : clap::App<'t>, x : &ArgSpec, hide_help : bool) -> clap::A
     b = b.hide_long_help(hide_help);
     a.arg(b)
 }
-pub fn get_arg(m : &clap::ArgMatches, x : &ArgSpec, v: &mut Vec<ArgValue>) {
+pub fn get_arg(m: &clap::ArgMatches, x: &ArgSpec, v: &mut Vec<ArgValue>) {
     if x.value.is_empty() {
         if m.occurrences_of(x.name) > 0 {
             let ind = m.indices_of(x.name).unwrap().collect::<Vec<_>>();
             for i in ind {
-		v.push(ArgValue::new(x.name, "", i));
+                v.push(ArgValue::new(x.name, "", i));
             }
         }
     } else if let Some(arg) = m.values_of(x.name) {
@@ -141,24 +141,33 @@ pub fn get_arg(m : &clap::ArgMatches, x : &ArgSpec, v: &mut Vec<ArgValue>) {
     }
 }
 
-pub fn parse(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String]) -> Result<(Vec<ArgValue>, Vec<String>)> {
+pub fn parse(
+    prog: &ProgSpec,
+    spec: &[ArgSpec],
+    argv: &[String],
+) -> Result<(Vec<ArgValue>, Vec<String>)> {
     let mut s = globals::Settings::new();
     parse2(prog, spec, argv, &mut s)
 }
 
-pub fn parse2(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String], glob : &mut globals::Settings) -> Result<(Vec<ArgValue>, Vec<String>)> {
-    let mut a = clap::App::new("cdx")
+pub fn parse2(
+    prog: &ProgSpec,
+    spec: &[ArgSpec],
+    argv: &[String],
+    glob: &mut globals::Settings,
+) -> Result<(Vec<ArgValue>, Vec<String>)> {
+    let mut a = clap::Command::new("cdx")
         .version(&*prog.version)
         .author(&*prog.author)
         .about(&*prog.help)
         .global_setting(clap::AppSettings::DeriveDisplayOrder);
 
     for x in spec {
-	a = add_arg(a, x, false);
+        a = add_arg(a, x, false);
     }
     a = glob.add_std_help(a);
     for x in globals::global_args() {
-	a = add_arg(a, x, true);
+        a = add_arg(a, x, true);
     }
     match prog.files {
         FileCount::Zero => {}
@@ -177,12 +186,12 @@ pub fn parse2(prog: &ProgSpec, spec: &[ArgSpec], argv: &[String], glob : &mut gl
     glob.handle_std_help(&m)?;
     let mut v: Vec<ArgValue> = Vec::new();
     for x in globals::global_args() {
-	get_arg(&m, x, &mut v);
+        get_arg(&m, x, &mut v);
     }
     glob.consume(&v)?;
     v.clear();
     for x in spec {
-	get_arg(&m, x, &mut v);
+        get_arg(&m, x, &mut v);
     }
     // values_of_os
     let mut files: Vec<String> = Vec::new();

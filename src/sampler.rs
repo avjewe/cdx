@@ -1,7 +1,7 @@
 //! Samplers are given a series of data, and write some of them
-use crate::util::{prerr_n, Result};
 
-use std::io::Write;
+use crate::prelude::*;
+use crate::util::prerr_n;
 
 // data[0..size] holds the data, which is
 // if jump == 1, contents are just the lines seen so far.

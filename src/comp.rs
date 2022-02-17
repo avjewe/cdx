@@ -24,13 +24,10 @@
 //! ```
 #![allow(clippy::float_cmp)]
 use crate::column::{get_col, NamedCol};
-use crate::expr::Expr;
 use crate::num::{fcmp, ulp_to_ulong, Junk, JunkType, JunkVal};
-use crate::text::Text;
-use crate::util::{err, prerr_n, Error, Reader, Result, TextLine};
+use crate::prelude::*;
+use crate::util::prerr_n;
 use lazy_static::lazy_static;
-use std::cmp::Ordering;
-use std::fmt;
 use std::sync::Mutex;
 
 /// method of comparing two slices

@@ -2,8 +2,7 @@
 //! for all those things that are needed for both types
 
 use crate::num::{suffix_valf, suffix_valu, Junk, JunkType};
-use crate::util::{err, Error, Result};
-use std::cmp::Ordering;
+use crate::prelude::*;
 use std::ops::Range;
 
 /// Case Sensitive or not

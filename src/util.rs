@@ -1,20 +1,19 @@
 //! Misc utility stuff
 
 use crate::column::ColumnHeader;
-use crate::comp::{CompMaker, Compare, LineCompList};
-use crate::text::Text;
+use crate::comp::{CompMaker, Compare};
+use crate::prelude::*;
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::cmp::{self, Ordering};
+use std::cmp;
 use std::error;
 use std::ffi::OsStr;
-use std::io::{self, BufRead, Read, Write};
+use std::io;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
-use std::str::FromStr;
-use std::{fmt, str};
+use std::str;
 use tokio_stream::StreamExt;
 
 /// Shorthand for returning an error Result
@@ -78,7 +77,7 @@ impl Error {
     pub fn suppress(&self) -> bool {
         match self {
             Error::IoError(err) => err.kind() == io::ErrorKind::BrokenPipe,
-	    Error::NoError => true,
+            Error::NoError => true,
             _ => false,
         }
     }
@@ -157,20 +156,20 @@ impl Tri {
         }
     }
     /// return Yes is x is true, else Maybe
-    pub const fn yes_if(x : bool) -> Self {
-	if x {
-	    Self::Yes
-	} else {
-	    Self::Maybe
-	}
+    pub const fn yes_if(x: bool) -> Self {
+        if x {
+            Self::Yes
+        } else {
+            Self::Maybe
+        }
     }
     /// return No is x is true, else Maybe
-    pub const fn no_if(x : bool) -> Self {
-	if x {
-	    Self::No
-	} else {
-	    Self::Maybe
-	}
+    pub const fn no_if(x: bool) -> Self {
+        if x {
+            Self::No
+        } else {
+            Self::Maybe
+        }
     }
 }
 
@@ -242,7 +241,7 @@ impl FakeSlice {
 /// assert_eq!(line.get(1), b"two");
 ///```
 #[derive(Debug, Clone, Default)]
-// pub(crate) because the borrow checker can be a nuisance. 
+// pub(crate) because the borrow checker can be a nuisance.
 pub struct TextLine {
     // The whole input line, with newline
     pub(crate) line: Vec<u8>,
@@ -305,19 +304,19 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
 impl TextLine {
     /// whole line, with newline
     pub fn parts(&mut self) -> &mut Vec<FakeSlice> {
-	&mut self.parts
+        &mut self.parts
     }
     /// whole line, with newline
     pub fn line(&self) -> &[u8] {
-	&self.line
+        &self.line
     }
     /// whole line, without newline
     pub fn line_nl(&self) -> &[u8] {
-	&self.line[..self.line.len()-1]
+        &self.line[..self.line.len() - 1]
     }
     /// whole line, with newline, as Vec
     pub fn raw(&mut self) -> &mut Vec<u8> {
-	&mut self.line
+        &mut self.line
     }
     /// assign TextLine into existing TextLine, avoiding allocation if possible
     pub fn assign(&mut self, x: &Self) {

@@ -1,9 +1,8 @@
 //! Transforms that turn values into other values
 
-use crate::text::Text;
-use crate::util::{err, Error, FakeSlice, Result, TextLine};
+use crate::prelude::*;
+use crate::util::FakeSlice;
 use lazy_static::lazy_static;
-use std::fmt;
 use std::sync::Mutex;
 
 //use crate::column::{NamedCol};

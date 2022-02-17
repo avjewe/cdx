@@ -1,11 +1,11 @@
 //! parse and run tooltest files
+
 use crate::matcher::{MatchMaker, Matcher};
-use crate::text::Text;
-use crate::util::{err, get_reader, get_writer, prerr, Error, Infile, Result};
+use crate::prelude::*;
+use crate::util::{get_reader, Infile};
 
 use fs_err as fs;
 use std::ffi::OsStr;
-use std::io::{BufRead, Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::process::Command;

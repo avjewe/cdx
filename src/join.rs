@@ -1,10 +1,9 @@
 //! Join files together by matching column values
 
-use crate::column::{ColumnSet, DupColHandling, OutCol, ScopedValue};
-use crate::comp::{CompMaker, LineCompList};
-use crate::util::{err, get_writer, Error, Outfile, Reader, Result};
-use std::cmp::Ordering;
-use std::io::Write;
+use crate::column::{OutCol, ScopedValue};
+use crate::comp::CompMaker;
+use crate::prelude::*;
+use crate::util::Outfile;
 
 /// How to search and combine input files
 #[derive(Debug, Copy, Clone, PartialEq)]

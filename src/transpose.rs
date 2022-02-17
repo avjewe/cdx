@@ -1,7 +1,6 @@
 //! Transpose a file
 
-use crate::util::{get_writer, Reader, Result};
-use std::io::Write;
+use crate::prelude::*;
 
 /// transpose
 pub fn transpose(file: &str, head: bool, max_lines: usize) -> Result<()> {

@@ -1,7 +1,6 @@
 //! Format plain text to a fixed width terminal
 
-use crate::util::{get_writer, Reader, Result, StringLine};
-use std::io::Write;
+use crate::prelude::*;
 use unicode_truncate::UnicodeTruncateStr;
 use unicode_width::UnicodeWidthStr;
 

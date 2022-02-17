@@ -1,14 +1,11 @@
 //! Handles conversion between named column sets and lists of column numbers
 //! Also helps with selecting those columns from a line of text
 
-use crate::expr::Expr;
 use crate::matcher::MatchMaker;
-use crate::text::Text;
-use crate::trans::TransList;
-use crate::util::{err, find_close, Error, Result, StringLine, TextLine};
+use crate::prelude::*;
+use crate::util::find_close;
 use std::collections::HashSet;
-use std::io::Write;
-use std::{fmt, str};
+use std::str;
 
 /// What to do if there would be duplicate column names
 #[derive(Debug, Copy, Clone)]

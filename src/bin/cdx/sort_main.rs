@@ -1,6 +1,6 @@
 use crate::prelude::*;
+use cdx::comp::comp_check;
 use cdx::prelude::*;
-use cdx::comp::{comp_check};
 use cdx::sort;
 
 pub fn main(argv: &[String]) -> Result<()> {

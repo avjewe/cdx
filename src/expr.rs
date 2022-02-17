@@ -1,12 +1,11 @@
 //! Floating Point expressions
 #![allow(clippy::float_cmp)]
 
-use crate::column::{get_col, ColumnSet};
+use crate::column::get_col;
+use crate::prelude::*;
 use crate::shunting_yard::*;
-use crate::text::Text;
-//use crate::tokenizer::*;
 use crate::tok2::*;
-use crate::util::{err, find_close, Error, Result, TextLine};
+use crate::util::find_close;
 use lazy_static::lazy_static;
 use libm;
 use regex::Regex;
@@ -16,6 +15,21 @@ use std::f64::consts;
 pub fn calc(expr: &str) -> Result<f64> {
     let mut c = Expr::new(expr)?;
     c.eval_plain()
+}
+
+/// If input is 'Format,Expression' return that format and expression
+/// else return supplied default format, and whole input slice
+pub fn parse_fmt_expr(dflt: NumFormat, spec: &str) -> (NumFormat, &str) {
+    if let Some((a, b)) = spec.split_once(',') {
+        let x = NumFormat::new(a);
+        if let Ok(f) = x {
+            (f, b)
+        } else {
+            (dflt, spec)
+        }
+    } else {
+        (dflt, spec)
+    }
 }
 
 fn find_const(x: &str) -> Option<f64> {

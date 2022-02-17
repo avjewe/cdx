@@ -1,7 +1,6 @@
 //! Turn an expression into a Vec<Token>
 
-use crate::text::Text;
-use crate::util::{err, Error, Result};
+use crate::prelude::*;
 
 /// Mathematical operations.
 #[derive(Debug, PartialEq, Clone, Copy)]

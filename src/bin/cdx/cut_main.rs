@@ -1,6 +1,6 @@
 use crate::prelude::*;
-use cdx::prelude::*;
 use cdx::column::*;
+use cdx::prelude::*;
 use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
 pub fn main(argv: &[String]) -> Result<()> {

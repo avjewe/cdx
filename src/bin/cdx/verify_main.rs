@@ -1,15 +1,15 @@
 use crate::prelude::*;
-use cdx::prelude::*;
-use cdx::comp::{comp_check};
+use cdx::comp::comp_check;
 use cdx::expr;
-use cdx::matcher::{Combiner};
-use cdx::util::{CheckLine};
+use cdx::matcher::Combiner;
+use cdx::prelude::*;
+use cdx::util::CheckLine;
 
 // output of verify should somehow input to other tools
 // MORE MATCHERS
 // explicit number of columns
 // --part-names -- these named columns must exist, maybe with subset of matchers?
-// --full-name - exact column names in order, maybe with subset of matchers? 
+// --full-name - exact column names in order, maybe with subset of matchers?
 // total lines and bytes as expr
 // total lines and bytes of another file as expr
 // Matcher :: a bunch of columns not equaling each other
@@ -94,13 +94,18 @@ pub fn main(argv: &[String]) -> Result<()> {
         {
             fails += 1;
         }
-	let num_cols = f.names().len();
+        let num_cols = f.names().len();
         loop {
             let mut did_fail = false;
-	    if f.curr().len() != num_cols {
-		eprintln!("Expected {num_cols} columns, but line {} of {} had {}", f.line_number()+1, x, f.curr().len());
+            if f.curr().len() != num_cols {
+                eprintln!(
+                    "Expected {num_cols} columns, but line {} of {} had {}",
+                    f.line_number() + 1,
+                    x,
+                    f.curr().len()
+                );
                 did_fail = true;
-	    }
+            }
             if !list.ok_verbose(f.curr_line(), f.line_number(), x) {
                 did_fail = true;
             }
