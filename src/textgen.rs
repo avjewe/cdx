@@ -58,7 +58,7 @@ impl NormalDistGen {
     fn new(spec: &str) -> Result<Self> {
         let mut mean = 0.0;
         let mut dev = 1.0;
-        let mut fmt = NumFormat::Plain(0);
+        let mut fmt = NumFormat::default();
         if !spec.is_empty() {
             for (i, x) in spec.split(',').enumerate() {
                 match i {

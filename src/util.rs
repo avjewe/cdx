@@ -1510,7 +1510,7 @@ pub fn copy(mut r: impl Read, mut w: impl Write) -> Result<()> {
 /// comparison
 #[derive(Debug, Copy, Clone)]
 pub enum CompareOp {
-    /// les than
+    /// less than
     LT,
     /// greater than
     GT,

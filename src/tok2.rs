@@ -76,9 +76,9 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
     let orig = orig.as_ref();
     let mut input = orig;
     let mut res: Vec<Token> = vec![];
-    let mut pos = 0;
+
     while !input.is_empty() {
-        pos += 1;
+        let prev = input.len();
         let ch = input.take_first();
         let next = if input.is_empty() {
             0 as char
@@ -157,12 +157,11 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                     }
                     res.push(Token::Var(var));
                 } else if ch.is_ascii_alphanumeric() {
-                    let (x, y) = input.to_f64();
+                    let (x, y) = orig[orig.len() - prev..].to_f64();
                     input = y;
                     res.push(Token::Number(x));
                 } else {
-                    return err!("Unrecognized character {ch} at poition {} of {orig}", pos);
-                    // rustc thinks pos is unused
+                    return err!("Unrecognized character {ch} in {orig}");
                 }
             }
         }

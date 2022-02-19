@@ -30,9 +30,10 @@
 //! # Ok::<(), cdx::util::Error>(())
 //!```
 
+use crate::comp::{Comp, CompMaker};
 use crate::num;
 use crate::prelude::*;
-use crate::util::{self, CheckBuff};
+use crate::util::{self, CheckBuff, CompareOp};
 use lazy_static::lazy_static;
 use memchr::memmem::find;
 use regex::Regex;
@@ -866,6 +867,134 @@ impl fmt::Display for Combiner {
 impl Default for Combiner {
     fn default() -> Self {
         Self::And
+    }
+}
+
+// single column (title,foo), whole line (,foo) or column set with determiner
+// [this-that],foo or [all,this-that],foo
+#[derive(Debug, Default)]
+struct ColGroup {
+    col: ColumnSet,
+    det: Determiner,
+    #[allow(dead_code)]
+    has_col: bool,
+}
+impl ColGroup {
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.col.lookup(fieldnames)
+    }
+    fn new_with(spec: &str) -> Result<(Self, &str)> {
+        if spec.is_empty() {
+            Ok((Self::default(), spec))
+        } else if spec.first() == ',' {
+            Ok((Self::default(), &spec[1..]))
+        } else if spec.first() == '[' {
+            let len = util::find_close(spec)?;
+            let cols = &spec[1..len];
+            let rest = &spec[(len + 1)..];
+            Ok((
+                Self {
+                    col: ColumnSet::from_spec(cols)?,
+                    det: Determiner::default(),
+                    has_col: true,
+                },
+                rest,
+            ))
+        } else if let Some((a, b)) = spec.split_once(',') {
+            Ok((
+                Self {
+                    col: ColumnSet::from_spec(a)?,
+                    det: Determiner::default(),
+                    has_col: true,
+                },
+                b,
+            ))
+        } else {
+            Ok((
+                Self {
+                    col: ColumnSet::from_spec(spec)?,
+                    det: Determiner::default(),
+                    has_col: true,
+                },
+                "",
+            ))
+        }
+    }
+}
+
+//COLUMN,comp,OPCOLGROUP,PATTERN
+// title,comp,<author
+// title,comp,<[all,author-date]
+// title,comp,LT.author,plain
+#[derive(Debug)]
+struct CompMatcher {
+    target: NamedCol,
+    op: CompareOp,
+    col: ColGroup,
+    comp: Comp,
+}
+impl CompMatcher {
+    fn new(incol: &str, mut pattern: &str) -> Result<Self> {
+        let target = NamedCol::new_from(incol)?;
+        if pattern.len() < 3 {
+            return err!("CompMatcher format is OpColumns,Comparator, '{}'", pattern);
+        }
+        // FIXME - factor out this CompareOp parsing
+        let op1 = pattern[0..2].parse::<CompareOp>();
+        let op;
+        if let Ok(o) = op1 {
+            pattern = &pattern[2..];
+            op = o;
+        } else {
+            let op1 = pattern[0..1].parse::<CompareOp>();
+            if let Ok(o) = op1 {
+                pattern = &pattern[1..];
+                op = o;
+            } else if let Some((a, b)) = pattern.split_once('.') {
+                op = a.parse::<CompareOp>()?;
+                pattern = b;
+            } else {
+                return err!("CompMatcher format is OpColumns,Comparator, '{}'", pattern);
+            }
+        }
+        let (col, rest) = ColGroup::new_with(pattern)?;
+        let comp = CompMaker::make_comp(rest)?;
+        Ok(Self {
+            target,
+            op,
+            col,
+            comp,
+        })
+    }
+}
+impl LineMatch for CompMatcher {
+    fn ok(&mut self, line: &TextLine) -> bool {
+        let mut yes: usize = 0;
+        let mut no: usize = 0;
+        for x in self.col.col.get_cols() {
+            let o = self.comp.comp(line.get(self.target.num), line.get(x.num));
+            if self.op.ord_ok(o) {
+                yes += 1;
+            } else {
+                no += 1;
+            }
+            let t = self.col.det.match_mid(yes, no);
+            if t != Tri::Maybe {
+                return t == Tri::Yes;
+            }
+        }
+        self.col.det.match_final(yes, no)
+    }
+    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+        self.target.lookup(fieldnames)?;
+        self.col.lookup(fieldnames)
+    }
+
+    fn show(&self) -> String {
+        format!(
+            "CompMatcher {:?} {:?} {:?} {:?}",
+            self.target, self.op, self.col, self.comp
+        )
     }
 }
 
@@ -1747,6 +1876,8 @@ impl MatchMaker {
             } else {
                 Ok(Box::new(ExprMatcher::new(pattern)?))
             }
+        } else if method == "comp" {
+            Ok(Box::new(CompMatcher::new(cols, pattern)?))
         } else if method == "count" {
             if !cols.is_empty() {
                 err!("'count' matcher spec only works on whole lines")

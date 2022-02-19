@@ -1,24 +1,23 @@
 #![allow(dead_code)]
 
 use crate::prelude::*;
-use cdx::expr::calc;
+use cdx::expr::{calc, parse_fmt_expr};
 use cdx::prelude::*;
+use cdx::util::get_writer;
 
 pub fn main(argv: &[String]) -> Result<()> {
-    let prog = args::ProgSpec::new("Evaluate Expressions.", args::FileCount::Many);
-    const A: [ArgSpec; 0] = [
-//        arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
-//        arg! {"key", "k", "Spec", "How to compare value to lines"},
-    ];
+    let prog = args::ProgSpec::new("Evaluate Formatted Expressions.", args::FileCount::Many);
+    const A: [ArgSpec; 1] = [arg! {"fmt", "f", "Format", "How to format values."}];
     let (args, files) = args::parse(&prog, &A, argv)?;
-
+    let mut fmt = NumFormat::default();
     for x in args {
-        if x.name == "header" {
+        if x.name == "fmt" {
+            fmt = NumFormat::new(&x.value)?;
         } else {
             unreachable!();
         }
     }
-
+    let mut w = get_writer("-")?;
     for x in &files {
         let mut f = Reader::new();
         f.open(x)?;
@@ -26,22 +25,14 @@ pub fn main(argv: &[String]) -> Result<()> {
             continue;
         }
         loop {
-            match calc(&String::from_utf8_lossy(f.curr_nl())) {
+            let exp = &String::from_utf8_lossy(f.curr_nl());
+            let (f2, exp) = parse_fmt_expr(fmt, exp);
+            fmt = f2;
+            match calc(exp) {
                 Ok(v) => {
-                    let mut vec: Vec<u8> = Vec::new();
-                    vec.clear();
-                    NumFormat::Plain(4).print(v, &mut vec)?;
-                    prerr(&[&vec]);
-                    vec.clear();
-                    NumFormat::Float(4).print(v, &mut vec)?;
-                    prerr(&[&vec]);
-                    vec.clear();
-                    NumFormat::Power2.print(v, &mut vec)?;
-                    prerr(&[&vec]);
-                    vec.clear();
-                    NumFormat::Power10.print(v, &mut vec)?;
-                    prerr(&[&vec]);
-                    //		    println!("{}", num::format_hnum(v as i64, num::NumFormat::Power2, ),
+                    fmt.print(v, &mut w)?;
+                    w.write_all(b"\n")?;
+                    w.flush()?;
                 }
                 Err(e) => eprintln!("{}", e),
             }
