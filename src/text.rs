@@ -850,6 +850,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn uwild() {
         assert!(b"".glob(b"", Case::Sens));
         assert!(!b"".glob(b"foo", Case::Sens));
@@ -916,7 +917,9 @@ mod tests {
 
         assert!("anb".glob("a?b", Case::Sens));
         assert!("añb".glob("a?b", Case::Sens));
-
+    }
+    #[test]
+    fn swild2() {
         assert!(!"aÑb".glob("añb", Case::Sens));
         assert!(!"añb".glob("aÑb", Case::Sens));
         assert!("aÑb".glob("añb", Case::Insens));

@@ -227,7 +227,12 @@ mod tests {
             lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4", &mut comp),
             b"bbb\t1\n"
         );
-
+    }
+    #[test]
+    fn test_lower2() {
+        let mut comp = crate::comp::LineCompList::new();
+        comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
+        comp.set(b"bbb", b',').unwrap();
         assert_eq!(
             equal_range(b"aaa\nbbb\nbbb\nbbb\nccc\n", &mut comp),
             b"bbb\nbbb\nbbb\n"

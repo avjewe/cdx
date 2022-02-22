@@ -1954,6 +1954,7 @@ mod tests {
         test_less(b"1.2.3X", b"1.2.3.Y");
     }
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn num_cmp() {
         assert_eq!(num_cmp_signed(b"1", b"1"), Ordering::Equal);
         assert_eq!(num_cmp_signed(b"  1", b"1"), Ordering::Equal);

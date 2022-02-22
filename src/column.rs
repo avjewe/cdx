@@ -1641,7 +1641,7 @@ mod tests {
         assert_eq!(ColumnSet::range(&f, "2-")?, res[1..]);
         assert_eq!(ColumnSet::range(&f, "-2")?, res[..2]);
         assert_err!(ColumnSet::range(&f, "1-2-3"), Err(Error::Error(_)));
-        return Ok(());
+        Ok(())
     }
 
     #[test]
@@ -1656,7 +1656,7 @@ mod tests {
         ];
         assert_eq!(ColumnSet::range(&f, "stuff:1")?, res[0..1]);
         assert_eq!(ColumnSet::ranges(&f, "stuff:1,junk:2")?, res[0..2]);
-        return Ok(());
+        Ok(())
     }
 
     #[test]

@@ -1982,27 +1982,27 @@ mod tests {
     #[test]
     fn range() -> Result<()> {
         let c = MatchMaker::make("range,plain,<=dog>cat")?;
-        assert_eq!(c.smatch("ccc"), true);
-        assert_eq!(c.smatch("cat"), false);
-        assert_eq!(c.smatch("dog"), true);
-        assert_eq!(c.smatch("doh"), false);
-        assert_eq!(c.smatch("dof"), true);
+        assert!(c.smatch("ccc"));
+        assert!(!c.smatch("cat"));
+        assert!(c.smatch("dog"));
+        assert!(!c.smatch("doh"));
+        assert!(c.smatch("dof"));
         let c = MatchMaker::make("range,<dog>=cat")?;
-        assert_eq!(c.smatch("cat"), true);
+        assert!(c.smatch("cat"));
         let c = MatchMaker::make("range,!=cat")?;
-        assert_eq!(c.smatch("cat"), false);
-        assert_eq!(c.smatch("dog"), true);
+        assert!(!c.smatch("cat"));
+        assert!(c.smatch("dog"));
         let c = MatchMaker::make("range,GT,cat,LE,dog")?;
-        assert_eq!(c.smatch("cat"), false);
-        assert_eq!(c.smatch("dog"), true);
+        assert!(!c.smatch("cat"));
+        assert!(c.smatch("dog"));
         let c = MatchMaker::make("range,LE,dog")?;
-        assert_eq!(c.smatch("cat"), true);
-        assert_eq!(c.smatch("dog"), true);
-        assert_eq!(c.smatch("doh"), false);
+        assert!(c.smatch("cat"));
+        assert!(c.smatch("dog"));
+        assert!(!c.smatch("doh"));
         let c = MatchMaker::make("range,lower,LE,dog")?;
-        assert_eq!(c.smatch("Cat"), true);
-        assert_eq!(c.smatch("Dog"), true);
-        assert_eq!(c.smatch("Doh"), false);
+        assert!(c.smatch("Cat"));
+        assert!(c.smatch("Dog"));
+        assert!(!c.smatch("Doh"));
         Ok(())
     }
 }
