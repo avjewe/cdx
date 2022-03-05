@@ -187,7 +187,7 @@ impl Joiner {
             let num = x.file_num - 1;
             if self.no_match[num].is_none() {
                 let mut w = get_writer(&x.file_name)?;
-                self.r[num].write_header(&mut w)?;
+                self.r[num].write_header(&mut *w)?;
                 self.no_match[num] = Some(w);
             } else {
                 return err!("Multiple uses of --also for file {}", x.file_num);
@@ -238,9 +238,9 @@ impl Joiner {
             self.yes_match.write_all(b" CDX")?;
             for x in &self.out_cols {
                 self.yes_match.write_all(&[config.out_delim])?;
-                x.write_head(&mut self.yes_match, &self.r)?;
+                x.write_head(&mut *self.yes_match, &self.r)?;
             }
-            self.yes_match.write_all(&[b'\n'])?;
+            self.yes_match.0.write_all(&[b'\n'])?;
         }
         if config.jtype == JoinType::Quick {
             self.join_quick(config)
@@ -256,10 +256,10 @@ impl Joiner {
             'outer: loop {
                 match cmp {
                     Ordering::Equal => loop {
-                        self.out_cols[0].write(&mut self.yes_match, &self.r)?;
+                        self.out_cols[0].write(&mut *self.yes_match, &self.r)?;
                         for x in &self.out_cols[1..] {
                             self.yes_match.write_all(&[config.out_delim])?;
-                            x.write(&mut self.yes_match, &self.r)?;
+                            x.write(&mut *self.yes_match, &self.r)?;
                         }
                         self.yes_match.write_all(&[b'\n'])?;
                         if self.r[0].getline()? {
@@ -281,7 +281,7 @@ impl Joiner {
                     },
                     Ordering::Less => {
                         if let Some(x) = &mut self.no_match[0] {
-                            self.r[0].write(x)?;
+                            self.r[0].write(&mut x.0)?;
                         }
                         if self.r[0].getline()? {
                             break;
@@ -292,7 +292,7 @@ impl Joiner {
                     }
                     Ordering::Greater => {
                         if let Some(x) = &mut self.no_match[1] {
-                            self.r[1].write(x)?;
+                            self.r[1].write(&mut x.0)?;
                         }
                         if self.r[1].getline()? {
                             break;
@@ -306,13 +306,13 @@ impl Joiner {
         }
         while !self.r[0].is_done() {
             if let Some(x) = &mut self.no_match[0] {
-                self.r[0].write(x)?;
+                self.r[0].write(&mut x.0)?;
             }
             self.r[0].getline()?;
         }
         while !self.r[1].is_done() {
             if let Some(x) = &mut self.no_match[1] {
-                self.r[1].write(x)?;
+                self.r[1].write(&mut x.0)?;
             }
             self.r[1].getline()?;
         }

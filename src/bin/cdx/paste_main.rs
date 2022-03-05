@@ -25,7 +25,7 @@ impl EndMode {
     }
 }
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Join files on a matching column.", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
         arg_enum! {"end", "e", "Mode", "When to stop. Default Exact", &["Exact", "Early", "Late"]},
@@ -35,7 +35,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"rename-sloppy", "R", "", "Not an error is some renames not used."},
         arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail", "Allow", "Numeric"]},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut end_mode = EndMode::Exact;
     let mut dflt = ScopedValues::new();

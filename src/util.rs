@@ -9,10 +9,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp;
 use std::error;
-use std::ffi::OsStr;
 use std::io;
 use std::ops::{Deref, DerefMut};
-use std::path::Path;
 use std::str;
 use tokio_stream::StreamExt;
 
@@ -25,6 +23,7 @@ macro_rules! err {
 }
 pub use err;
 // Shorthand for implementing a pass-through error
+/*
 macro_rules! err_type {
     ($x:path, $i:path) => {
         impl From<$x> for Error {
@@ -34,7 +33,7 @@ macro_rules! err_type {
         }
     };
 }
-
+*/
 /// Common CDX error type
 #[derive(Debug)]
 #[non_exhaustive]
@@ -42,83 +41,77 @@ macro_rules! err_type {
 pub enum Error {
     /// Custom cdx error
     Error(String),
-    /// pass through ParseIntError
-    ParseIntError(std::num::ParseIntError),
-    /// pass through ParseIntError
-    ParseFloatError(std::num::ParseFloatError),
-    /// pass through io::Error
-    IoError(std::io::Error),
-    /// pass through regex::Error
-    RegexError(regex::Error),
-    /// pass through FromUtf8Error
-    FromUtf8Error(std::string::FromUtf8Error),
-    /// pass through Utf8Error
-    Utf8Error(std::str::Utf8Error),
-    /// pass through DecodeError
-    Base64(base64::DecodeError),
-    /// pass through SdkError
-    MyGetObjectError(aws_sdk_s3::SdkError<aws_sdk_s3::error::GetObjectError>),
-    /// bytestream
-    ByteStreamError(aws_smithy_http::byte_stream::Error),
     /// common error with long default string
     NeedLookup,
     /// be an error, but don't report anything
     Silent,
     /// Exit with status code zero
     NoError,
+    /// all other errors
+    Other(Box<dyn error::Error>),
 }
 
 /// Common CDX result type
 pub type Result<T> = core::result::Result<T, Error>;
-impl error::Error for Error {}
+//impl error::Error for Error {}
 
 impl Error {
     /// return true if this error should be treated as not an error
     pub fn suppress(&self) -> bool {
         match self {
-            Error::IoError(err) => err.kind() == io::ErrorKind::BrokenPipe,
             Error::NoError => true,
+            Error::Other(err) => {
+                if let Some(ioerr) = err.downcast_ref::<io::Error>() {
+                    ioerr.kind() == io::ErrorKind::BrokenPipe
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
-    /// return true if this error should be treated as an error, bu silently
+    /// return true if this error should be treated as an error, but silently
     pub const fn silent(&self) -> bool {
         matches!(self, Error::Silent)
     }
 }
 
-err_type!(base64::DecodeError, Error::Base64);
-err_type!(std::str::Utf8Error, Error::Utf8Error);
-err_type!(regex::Error, Error::RegexError);
-err_type!(std::string::FromUtf8Error, Error::FromUtf8Error);
-err_type!(std::io::Error, Error::IoError);
-err_type!(std::num::ParseIntError, Error::ParseIntError);
-err_type!(std::num::ParseFloatError, Error::ParseFloatError);
-err_type!(aws_smithy_http::byte_stream::Error, Error::ByteStreamError);
-err_type!(
-    aws_sdk_s3::SdkError<aws_sdk_s3::error::GetObjectError>,
-    Error::MyGetObjectError
-);
+/*
+impl From<anyhow::Error> for Error {
+    fn from(kind: anyhow::Error) -> Self {
+        Self::Other(kind)
+    }
+}
+ */
+
+trait IsMyErrorTrait {
+    const IS_SPECIAL_CASE: bool = true;
+}
+
+impl IsMyErrorTrait for Error {
+    const IS_SPECIAL_CASE: bool = false;
+}
+
+impl<E: 'static> From<E> for Error
+where
+    E: error::Error + Send + Sync,
+{
+    fn from(error: E) -> Self {
+        Self::Other(Box::new(error))
+    }
+}
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Error(s) => write!(f, "{}", s)?,
-            Error::ParseIntError(s) => write!(f, "ParseIntError : {}", s)?,
-            Error::ParseFloatError(s) => write!(f, "ParseFloatError : {}", s)?,
-            Error::IoError(s) => write!(f, "IoError : {}", s)?,
-            Error::RegexError(s) => write!(f, "RegexError : {}", s)?,
-            Error::FromUtf8Error(s) => write!(f, "FromUtf8Error : {}", s)?,
-            Error::Utf8Error(s) => write!(f, "Utf8Error : {}", s)?,
-            Error::MyGetObjectError(s) => write!(f, "GetObjectError : {}", s)?,
-            Error::ByteStreamError(s) => write!(f, "ByteStreamError : {}", s)?,
-            Error::Base64(s) => write!(f, "Base64 : {}", s)?,
             Error::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
             )?,
             Error::Silent => write!(f, "Silent")?,
             Error::NoError => write!(f, "Not an error.")?,
+            Error::Other(e) => write!(f, "{e}")?,
         }
         Ok(())
     }
@@ -635,24 +628,25 @@ impl Read for S3Reader {
 pub struct Infile(
     /// The file being read
     pub io::BufReader<Box<dyn Read>>,
+    pub String,
 );
 
 impl Infile {
     /// create a new input file
-    pub fn new(f: io::BufReader<Box<dyn Read>>) -> Self {
-        Self(f)
+    pub fn new(f: io::BufReader<Box<dyn Read>>, n: &str) -> Self {
+        Self(f, n.to_string())
     }
 }
 
 impl Default for Infile {
     fn default() -> Self {
-        Self::new(io::BufReader::new(Box::new(io::empty())))
+        Self::new(io::BufReader::new(Box::new(io::empty())), "")
     }
 }
 
 impl fmt::Debug for Infile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Infile")
+        write!(f, "Infile : {}", self.1)
     }
 }
 
@@ -683,21 +677,51 @@ impl AsMut<io::BufReader<Box<dyn Read>>> for Infile {
 }
 
 /// output file type
-pub type Outfile = io::BufWriter<Box<dyn Write>>;
+pub struct Outfile(pub io::BufWriter<Box<dyn Write>>, pub String);
 
-/// Make an Outfile from a file name
-pub fn get_writer2<P: AsRef<Path>>(name: P) -> Result<Outfile> {
-    let name = name.as_ref().as_os_str();
-    let inner: Box<dyn Write> = {
-        if name == OsStr::new("-") {
-            Box::new(io::stdout())
-        } else if name == OsStr::new("--") {
-            Box::new(io::stderr())
-        } else {
-            Box::new(fs::OpenOptions::new().write(true).create(true).open(name)?)
-        }
-    };
-    Ok(io::BufWriter::new(inner))
+impl Outfile {
+    /// create a new input file
+    pub fn new(f: io::BufWriter<Box<dyn Write>>, n: &str) -> Self {
+        Self(f, n.to_string())
+    }
+}
+
+impl Default for Outfile {
+    fn default() -> Self {
+        Self::new(io::BufWriter::new(Box::new(io::sink())), "")
+    }
+}
+
+impl fmt::Debug for Outfile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Outfile : {}", self.1)
+    }
+}
+
+impl Deref for Outfile {
+    type Target = io::BufWriter<Box<dyn Write>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Outfile {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl AsRef<io::BufWriter<Box<dyn Write>>> for Outfile {
+    fn as_ref(&self) -> &io::BufWriter<Box<dyn Write>> {
+        &self.0
+    }
+}
+
+impl AsMut<io::BufWriter<Box<dyn Write>>> for Outfile {
+    fn as_mut(&mut self) -> &mut io::BufWriter<Box<dyn Write>> {
+        &mut self.0
+    }
 }
 
 /// Make an Outfile from a file name
@@ -711,7 +735,7 @@ pub fn get_writer(name: &str) -> Result<Outfile> {
             Box::new(fs::OpenOptions::new().write(true).create(true).open(name)?)
         }
     };
-    Ok(io::BufWriter::new(inner))
+    Ok(Outfile::new(io::BufWriter::new(inner), name))
 }
 
 // should return Cow<>
@@ -758,7 +782,7 @@ pub fn get_reader(name: &str) -> Result<Infile> {
     if start.starts_with(&[0x1fu8, 0x8bu8, 0x08u8]) {
         outer = io::BufReader::new(Box::new(MultiGzDecoder::new(outer)));
     }
-    Ok(Infile::new(outer))
+    Ok(Infile::new(outer, name))
 }
 
 #[derive(Debug, Default)]

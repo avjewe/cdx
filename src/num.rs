@@ -121,6 +121,8 @@ pub fn ulp_to_ulong(d: f64) -> u64 {
 /// how to format a number
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum NumFormat {
+    /// Plain or Float, whichever is shorter
+    Short(Option<usize>),
     /// as integer
     Plain(Option<usize>),
     /// 1.2e34
@@ -132,7 +134,7 @@ pub enum NumFormat {
 }
 impl Default for NumFormat {
     fn default() -> Self {
-        Self::Plain(None)
+        Self::Short(None)
     }
 }
 impl NumFormat {
@@ -140,6 +142,8 @@ impl NumFormat {
     pub fn new(spec: &str) -> Result<Self> {
         if spec.eq_ignore_ascii_case("plain") {
             Ok(Self::Plain(None))
+        } else if spec.eq_ignore_ascii_case("short") {
+            Ok(Self::Short(None))
         } else if spec.eq_ignore_ascii_case("float") {
             Ok(Self::Float(None))
         } else if spec.eq_ignore_ascii_case("power2") || spec.eq_ignore_ascii_case("p2") {
@@ -150,19 +154,36 @@ impl NumFormat {
             let p = b.to_usize_whole(spec.as_bytes(), "Num Format")?;
             if a.eq_ignore_ascii_case("plain") {
                 Ok(Self::Plain(Some(p)))
+            } else if a.eq_ignore_ascii_case("short") {
+                Ok(Self::Short(Some(p)))
             } else if a.eq_ignore_ascii_case("float") {
                 Ok(Self::Float(Some(p)))
             } else {
-                err!("Number format must be plain[.N], float[.N], power2 or power10")
+                err!("Number format must be short[.N], plain[.N], float[.N], power2 or power10")
             }
         } else {
-            err!("Number format must be plain[.N], float[.N], power2 or power10")
+            err!("Number format must be short[.N], plain[.N], float[.N], power2 or power10")
+        }
+    }
+
+    fn new_format(self, num: f64) -> Self {
+        match self {
+            NumFormat::Short(x) => {
+                let num = num.abs();
+                if (0.0001..1000.0).contains(&num) {
+                    Self::Plain(x)
+                } else {
+                    Self::Float(x)
+                }
+            }
+            _ => self,
         }
     }
 
     /// format a number
     pub fn print(self, mut num: f64, mut w: impl Write) -> Result<()> {
-        if let NumFormat::Plain(n) = self {
+        let nfmt = self.new_format(num);
+        if let NumFormat::Plain(n) = nfmt {
             if let Some(prec) = n {
                 write!(w, "{num:.0$}", prec)?;
             } else {
@@ -170,7 +191,7 @@ impl NumFormat {
             }
             return Ok(());
         }
-        if let NumFormat::Float(n) = self {
+        if let NumFormat::Float(n) = nfmt {
             if let Some(prec) = n {
                 write!(w, "{num:.0$e}", prec)?;
             } else {
@@ -189,7 +210,7 @@ impl NumFormat {
         } else {
             ""
         };
-        let (exp, letters) = if self == Self::Power2 {
+        let (exp, letters) = if nfmt == Self::Power2 {
             (1024.0, P2_LETTERS)
         } else {
             (1000.0, P10_LETTERS)
@@ -255,12 +276,39 @@ const P2_VALUES_F: [f64; 9] = [
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
 ];
+const P10_VALUES_U: [usize; 9] = [
+    1,
+    1000,
+    1000 ^ 2,
+    1000 ^ 3,
+    1000 ^ 4,
+    1000 ^ 5,
+    1000 ^ 6,
+    usize::MAX,
+    usize::MAX,
+];
+const P10_VALUES_F: [f64; 9] = [
+    1.0,
+    1000.0,
+    1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
+];
 
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
 pub fn suffix_valf(ch: u8) -> Option<f64> {
     for (i, x) in P2_LETTERS.iter().enumerate() {
         if *x == ch {
             return Some(P2_VALUES_F[i]);
+        }
+    }
+    for (i, x) in P10_LETTERS.iter().enumerate() {
+        if *x == ch {
+            return Some(P10_VALUES_F[i]);
         }
     }
     None
@@ -270,6 +318,11 @@ pub fn suffix_valu(ch: u8) -> Option<usize> {
     for (i, x) in P2_LETTERS.iter().enumerate() {
         if *x == ch {
             return Some(P2_VALUES_U[i]);
+        }
+    }
+    for (i, x) in P10_LETTERS.iter().enumerate() {
+        if *x == ch {
+            return Some(P10_VALUES_U[i]);
         }
     }
     None

@@ -4,7 +4,7 @@ use cdx::matcher::*;
 use cdx::prelude::*;
 use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
     const A: [ArgSpec; 7] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
@@ -15,7 +15,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"location", "l", "name:what", "prefix extra columns of location context."},
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut checker = HeaderChecker::new();
     let mut list = LineMatcherList::new_with(Combiner::And);
@@ -66,8 +66,8 @@ pub fn main(argv: &[String]) -> Result<()> {
         loop {
             if list.ok(f.curr_line()) ^ reverse {
                 // write previous lines of context if necessary
-                loc.write_data(&mut w, b'\t', f.loc())?;
-                f.write_curr(&mut w)?;
+                loc.write_data(&mut w.0, b'\t', f.loc())?;
+                f.write_curr(&mut w.0)?;
             } else {
                 // write more lines of context if necessary
             }

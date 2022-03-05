@@ -19,7 +19,7 @@ impl NamedAgg {
     }
 }
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Aggregate info on whole lines.", args::FileCount::Many);
     const A: [ArgSpec; 10] = [
         arg! {"agg", "a", "NewCol,Spec", "Merge values into new column."},
@@ -33,7 +33,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"format", "F", "plain,float,power2,power10", "Format for output numbers."},
         arg! {"columns", "C", "", "Count each column separately."},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut agg = AggList::new();
     let mut file_name_col = "file".to_string();
@@ -153,7 +153,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                     if i != 0 {
                         w.write_all(b"\t")?;
                     }
-                    x.agg.get(i).agg.borrow_mut().result(&mut w, fmt)?;
+                    x.agg.get(i).agg.borrow_mut().result(&mut w.0, fmt)?;
                 }
                 w.write_all(b"\n")?;
             }
@@ -222,7 +222,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                     w.write_all(x.as_bytes())?;
                     w.write_all(b"\t")?;
                 }
-                c_write.write(&mut w, &nada)?;
+                c_write.write(&mut w.0, &nada)?;
             }
             #[allow(clippy::needless_range_loop)]
             for i in 0..agg.len() {
@@ -239,7 +239,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             if i != 0 {
                 w.write_all(b"\t")?;
             }
-            fmt.print(*t, &mut w)?;
+            fmt.print(*t, &mut w.0)?;
         }
         w.write_all(b"\n")?;
     }

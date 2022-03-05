@@ -21,9 +21,11 @@ mod transpose_main;
 mod uniq_main;
 mod verify_main;
 mod wc_main;
+use crate::globals::Settings;
 
 fn main() {
-    match inner_main(env::args().collect()) {
+    let mut settings = Settings::new();
+    match inner_main(env::args().collect(), &mut settings) {
         Err(e) => {
             if e.suppress() {
                 std::process::exit(0);
@@ -45,7 +47,7 @@ fn main() {
     }
 }
 
-fn inner_main(mut args: Vec<String>) -> Result<()> {
+pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> {
     if args.len() < 2 {
         eprintln!("USAGE : cdx <command> [options...]");
         eprintln!("Type 'cdx help' for more details");
@@ -68,7 +70,7 @@ fn inner_main(mut args: Vec<String>) -> Result<()> {
             let arg1 = args.remove(1);
             args[0] += " ";
             args[0] += &arg1;
-            return (x.proc)(&args);
+            return (x.proc)(&args, settings);
         }
     }
     eprintln!("Valid subcommands are :");

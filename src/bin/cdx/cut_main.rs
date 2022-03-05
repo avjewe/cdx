@@ -3,7 +3,7 @@ use cdx::column::*;
 use cdx::prelude::*;
 use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
         arg! {"fields", "f", "Columns", "the columns to select."},
@@ -13,7 +13,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
         arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail", "Allow", "Numeric"]},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
     let mut checker = HeaderChecker::new();
     let mut header = ColumnHeader::new();
     let mut v = Writer::new(b'\t');
@@ -65,7 +65,7 @@ pub fn main(argv: &[String]) -> Result<()> {
             continue;
         }
         loop {
-            v.write(&mut w, f.curr())?;
+            v.write(&mut w.0, f.curr())?;
             if f.getline()? {
                 break;
             }

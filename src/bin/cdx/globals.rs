@@ -26,7 +26,9 @@ pub fn global_args() -> &'static [ArgSpec] {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct Settings {}
+pub struct Settings {
+    // closures to open files, e.g. for redis module
+}
 
 impl Settings {
     pub fn new() -> Self {

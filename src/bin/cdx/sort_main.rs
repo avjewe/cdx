@@ -3,7 +3,7 @@ use cdx::comp::comp_check;
 use cdx::prelude::*;
 use cdx::sort;
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
     const A: [ArgSpec; 5] = [
         arg! {"key", "k", "Spec", "How to compare adjacent lines"},
@@ -12,7 +12,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"check", "c", "", "Check to see if each input file is sorted."},
         arg! {"Check", "C", "Number", "Check to see if each input file is sorted. Report this many failures before exiting."},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut unique = false;
     let mut merge = false;
@@ -69,9 +69,9 @@ pub fn main(argv: &[String]) -> Result<()> {
     } else {
         let mut w = get_writer("-")?;
         if merge {
-            sort::merge(&files, &mut comp, &mut w, unique)?;
+            sort::merge(&files, &mut comp, &mut w.0, unique)?;
         } else {
-            sort::sort(&files, comp, &mut w, unique)?;
+            sort::sort(&files, comp, &mut w.0, unique)?;
         }
     }
     Ok(())

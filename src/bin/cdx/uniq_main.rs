@@ -152,7 +152,7 @@ impl Count {
     }
 }
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);
     const A: [ArgSpec; 7] = [
         arg! {"agg", "a", "Col,Spec", "Merge value from this column, in place."},
@@ -163,7 +163,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"which", "w", "(First,Last,Min,Max)[,LineCompare]", "Which of the matching lines should be printed."},
         arg! {"agg-help", "", "", "Print help for aggregators"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut agg = LineAggList::new();
     let mut comp = LineCompList::new();
@@ -236,14 +236,14 @@ pub fn main(argv: &[String]) -> Result<()> {
         let mut tmp = f.curr_line().clone();
         loop {
             if f.getline()? {
-                c_write.write(&mut w, &tmp)?;
+                c_write.write(&mut w.0, &tmp)?;
                 break;
             }
             if comp.equal_cols(f.prev_line(1), f.curr_line()) {
                 count.assign(&mut tmp, f.curr_line());
                 agg.add(f.curr_line());
             } else {
-                c_write.write(&mut w, &tmp)?;
+                c_write.write(&mut w.0, &tmp)?;
                 tmp.assign(f.curr_line());
                 agg.reset();
                 agg.add(f.curr_line());
@@ -252,38 +252,38 @@ pub fn main(argv: &[String]) -> Result<()> {
     } else if count.which == Which::Last {
         loop {
             if f.getline()? {
-                count.write(&mut w, matches, f.prev_line(1).line(), f.delim())?;
+                count.write(&mut w.0, matches, f.prev_line(1).line(), f.delim())?;
                 break;
             }
             if comp.equal_cols(f.prev_line(1), f.curr_line()) {
                 matches += 1;
             } else {
-                count.write(&mut w, matches, f.prev_line(1).line(), f.delim())?;
+                count.write(&mut w.0, matches, f.prev_line(1).line(), f.delim())?;
                 matches = 1;
             }
         }
     } else if count.which == Which::First && count.is_plain() {
-        f.write_curr(&mut w)?;
+        f.write_curr(&mut w.0)?;
         loop {
             if f.getline()? {
                 break;
             }
             if !comp.equal_cols(f.prev_line(1), f.curr_line()) {
-                f.write_curr(&mut w)?;
+                f.write_curr(&mut w.0)?;
             }
         }
     } else {
         let mut tmp = f.curr_line().clone();
         loop {
             if f.getline()? {
-                count.write(&mut w, matches, tmp.line(), f.delim())?;
+                count.write(&mut w.0, matches, tmp.line(), f.delim())?;
                 break;
             }
             if comp.equal_cols(f.prev_line(1), f.curr_line()) {
                 count.assign(&mut tmp, f.curr_line());
                 matches += 1;
             } else {
-                count.write(&mut w, matches, tmp.line(), f.delim())?;
+                count.write(&mut w.0, matches, tmp.line(), f.delim())?;
                 tmp.assign(f.curr_line());
                 matches = 1;
             }

@@ -296,18 +296,15 @@ impl Test {
         let res = tmp_cmd
             .stdin(std::fs::File::open(&tmp_stdin).unwrap())
             .output();
-        let output;
-        match res {
+        let output = match res {
             Err(x) => {
                 prerr(&[b"Error trying to execute : ", &basecmd]);
-                return Err(Error::IoError(x));
+                return Err(Error::Other(Box::new(x)));
             }
-            Ok(x) => {
-                output = x;
-            }
-        }
+            Ok(x) => x,
+        };
         let mut files = read_dir(Path::new(&tmp))?;
-        nuke(&mut files, &"stdin".to_string(), &tmp, keep_files)?;
+        nuke(&mut files, "stdin", &tmp, keep_files)?;
         for x in &self.in_files {
             nuke(&mut files, &x.name, &tmp, keep_files)?;
         }

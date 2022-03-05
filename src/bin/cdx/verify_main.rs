@@ -17,7 +17,7 @@ use cdx::util::CheckLine;
 // only check first N, or maybe also last N? or maybe that's just a script with head and tail?
 // still return OK if N lines or N% of the lines are bad
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Verify file contents.", args::FileCount::Many);
     const A: [ArgSpec; 10] = [
         arg! {"report", "r", "Number", "How many failures to report before exit."},
@@ -31,7 +31,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"show-const", "", "", "Print available constants"},
         arg! {"show-func", "", "", "Print available functions"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut list = LineMatcherList::new_with(Combiner::And);
     let mut comp = LineCompList::new();

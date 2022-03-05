@@ -145,15 +145,6 @@ pub fn parse(
     prog: &ProgSpec,
     spec: &[ArgSpec],
     argv: &[String],
-) -> Result<(Vec<ArgValue>, Vec<String>)> {
-    let mut s = globals::Settings::new();
-    parse2(prog, spec, argv, &mut s)
-}
-
-pub fn parse2(
-    prog: &ProgSpec,
-    spec: &[ArgSpec],
-    argv: &[String],
     glob: &mut globals::Settings,
 ) -> Result<(Vec<ArgValue>, Vec<String>)> {
     let mut a = clap::Command::new("cdx")

@@ -30,13 +30,14 @@ rand = "0.8"
 rand_distr = "0.4"
 fastrand = "1.7"
 
-aws-config = "0.6"
-aws-sdk-s3 = "0.6"
+aws-config = "0.8"
+aws-sdk-s3 = "0.8"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1.8"
-aws-smithy-http = "0.36"
+aws-smithy-http = "0.38"
 bytes = "1.1"
 base64 = "0.13"
+binary-heap-plus = "0.4"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]

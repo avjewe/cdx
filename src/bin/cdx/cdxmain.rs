@@ -5,7 +5,7 @@ use std::fmt;
 pub struct OneMain {
     pub name: &'static str,
     pub help: &'static str,
-    pub proc: fn(&[String]) -> Result<()>,
+    pub proc: fn(&[String], &mut Settings) -> Result<()>,
 }
 
 impl fmt::Debug for OneMain {

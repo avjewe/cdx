@@ -86,7 +86,7 @@ impl Context {
     }
 }
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Search sorted files.", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
@@ -96,7 +96,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"sub-delim", "s", "Char",  "Delimiter between keys for multi-column searches"},
         arg_pos! {"pattern", "search string",  "Search for this string in each file"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut checker = HeaderChecker::new();
     let mut filename: Option<FileNameColumn> = None;
@@ -172,14 +172,14 @@ pub fn main(argv: &[String]) -> Result<()> {
             stop = find_end(m.get(), stop);
         }
         if filename.is_none() {
-            write_all_nl(&mut w, &m.get()[start..stop])?;
+            write_all_nl(&mut w.0, &m.get()[start..stop])?;
         } else {
             let file: &FileNameColumn = filename.as_ref().unwrap();
             while start < stop {
                 let end = find_end(m.get(), start);
                 w.write_all(f.tail_path_u8(file.tail, b'/').as_bytes())?;
                 w.write_all(&[b'\t'])?;
-                write_all_nl(&mut w, &m.get()[start..end])?;
+                write_all_nl(&mut w.0, &m.get()[start..end])?;
                 start = end;
             }
         }

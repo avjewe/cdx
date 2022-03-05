@@ -83,7 +83,7 @@ impl For {
     }
 }
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sample lines from files.", args::FileCount::Many);
     const A: [ArgSpec; 4] = [
         arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
@@ -91,7 +91,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"sample", "s", "Number", "Select this number of lines, more or less evenly spaced."},
         arg! {"range", "r", "Ranges", "e.g. 1-5,42,95-106."},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut checker = HeaderChecker::new();
     let mut floop = For::default();
@@ -155,7 +155,7 @@ pub fn main(argv: &[String]) -> Result<()> {
                     break;
                 }
             }
-            s.finalize(&mut w)?;
+            s.finalize(&mut w.0)?;
         } else if saw_for {
             let mut next = floop.from;
             while f.line_number() <= floop.to {

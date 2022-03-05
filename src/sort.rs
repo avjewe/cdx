@@ -42,57 +42,81 @@ pub fn merge_t(
         w.write_all(open_files[0].header().line.as_bytes())?;
     }
 
-    let nums: Vec<usize> = (0..open_files.len()).collect();
-    let mut mm = MergeTreeItem::new_tree(&open_files, &nums);
-    if unique {
-        let x = mm.next(cmp, &mut open_files)?;
-        if x.is_none() {
-            return Ok(());
-        }
-        let x = x.unwrap();
-        w.write_all(open_files[x].curr_line().line())?;
-        let mut prev = open_files[x].curr_line().clone();
-        loop {
-            let x = mm.next(cmp, &mut open_files)?;
-            if x.is_none() {
-                break;
+    let do_heap = false;
+    if do_heap {
+        /*
+            use binary_heap_plus::*;
+            let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| cmp.comp_cols(open_files[*a].curr_line(), open_files[*b].curr_line()));
+            for (i, f) in open_files.iter().enumerate() {
+                    if !f.is_done() {
+                heap.push(i)
+                }
             }
-            let x = x.unwrap();
-            if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
-                w.write_all(open_files[x].curr_line().line())?;
+            if unique {
+
+                    let x = mm.next(cmp, &mut open_files)?;
+                    if x.is_none() {
+                return Ok(());
+                    }
+                    let x = x.unwrap();
+                    w.write_all(open_files[x].curr_line().line())?;
+                    let mut prev = open_files[x].curr_line().clone();
+                    loop {
+                let x = mm.next(cmp, &mut open_files)?;
+                if x.is_none() {
+                            break;
+                }
+                let x = x.unwrap();
+                if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
+                            w.write_all(open_files[x].curr_line().line())?;
+                }
+                prev.assign(open_files[x].curr_line());
+                    }
+            } else {
+                while !heap.is_empty() {
+                if let Some(x) = heap.pop() {
+                    w.write_all(open_files[x].curr_line().line())?;
+                    if !open_files[x].getline()? {
+                    heap.push(x);
+                    }
+                }
+                    }
             }
-            prev.assign(open_files[x].curr_line());
-        }
+        */
     } else {
-        loop {
+        let nums: Vec<usize> = (0..open_files.len()).collect();
+        let mut mm = MergeTreeItem::new_tree(&open_files, &nums);
+        if unique {
             let x = mm.next(cmp, &mut open_files)?;
             if x.is_none() {
-                break;
+                return Ok(());
             }
             let x = x.unwrap();
             w.write_all(open_files[x].curr_line().line())?;
+            let mut prev = open_files[x].curr_line().clone();
+            loop {
+                let x = mm.next(cmp, &mut open_files)?;
+                if x.is_none() {
+                    break;
+                }
+                let x = x.unwrap();
+                if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
+                    w.write_all(open_files[x].curr_line().line())?;
+                }
+                prev.assign(open_files[x].curr_line());
+            }
+        } else {
+            loop {
+                let x = mm.next(cmp, &mut open_files)?;
+                if x.is_none() {
+                    break;
+                }
+                let x = x.unwrap();
+                w.write_all(open_files[x].curr_line().line())?;
+            }
         }
     }
     Ok(())
-    /*
-        let mut files = in_files.to_owned();
-        let mut n = 0;
-        loop {
-            if files.len() == 2 {
-                return merge_2(&files[0], &files[1], cmp, w, unique);
-            }
-            let mut tmp_file = tmp.path().to_owned();
-            tmp_file.push(format!("merge_{}.txt", n));
-            n += 1;
-            let tmp_name = tmp_file.to_str().unwrap();
-            let new_w = get_writer(tmp_name)?;
-            merge_2(&files[0], &files[1], cmp, new_w, unique)?;
-            files.remove(0);
-            files.remove(0);
-            files.push(tmp_name.to_string());
-        }
-
-    */
 }
 
 /// merge all the files into w

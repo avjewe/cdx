@@ -68,7 +68,7 @@ impl LineNumber {
     }
 }
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     /*
         let mut ws = libc::winsize{ws_row:0, ws_col:0, ws_xpixel:0, ws_ypixel:0};
         if unsafe{libc::ioctl(1, libc::TIOCGWINSZ, &mut ws)} >= 0 {
@@ -88,7 +88,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"begin", "b", "",  "Shortcut for --number number,1,begin"},
         arg! {"end", "e", "",  "Shortcut for --number number,1,end"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut checker = HeaderChecker::new();
     let mut pad = PadMode::All;
@@ -170,9 +170,9 @@ pub fn main(argv: &[String]) -> Result<()> {
             loop {
                 if !removes.umatch(f.curr_nl()) {
                     if skips.umatch(f.curr_nl()) {
-                        not_v.write(&mut w, f.curr())?;
+                        not_v.write(&mut w.0, f.curr())?;
                     } else {
-                        v.write(&mut w, f.curr())?;
+                        v.write(&mut w.0, f.curr())?;
                     }
                 }
                 if f.getline()? {

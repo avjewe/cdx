@@ -2,7 +2,7 @@ use crate::prelude::*;
 use cdx::join::{JoinConfig, NoMatch, OutColSpec};
 use cdx::prelude::*;
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Join files on a matching column.", args::FileCount::Many);
     const A: [ArgSpec; 4] = [
         arg! {"also", "a", "FileNum,FileName", "Write non-matching lines from this file to this file."},
@@ -10,7 +10,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"key", "k", "Spec", "How to compare lines"},
         arg! {"output", "o", "Spec", "Output columns : file.ColumnSet,file.ColumnSet"},
     ];
-    let (args, files) = args::parse(&prog, &A, argv)?;
+    let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut config = JoinConfig::new();
     config.infiles = files;

@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use cdx::prelude::*;
 
-pub fn main(argv: &[String]) -> Result<()> {
+pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Generate a text file.", args::FileCount::Zero);
     const A: [ArgSpec; 4] = [
         arg! {"lines", "n", "Number", "Generate this many lines of data. Default 10."},
@@ -9,7 +9,7 @@ pub fn main(argv: &[String]) -> Result<()> {
         arg! {"multi", "m", "N,Spec", "Generate N columns of this type"},
         arg! {"header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
     ];
-    let (args, _files) = args::parse(&prog, &A, argv)?;
+    let (args, _files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut num_lines = 10;
     let mut list = GenList::new();
@@ -51,7 +51,7 @@ pub fn main(argv: &[String]) -> Result<()> {
     }
 
     for _i in 0..num_lines {
-        list.write(&mut w, b'\t')?;
+        list.write(&mut w.0, b'\t')?;
     }
     Ok(())
 }

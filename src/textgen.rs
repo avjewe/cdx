@@ -21,6 +21,75 @@ pub trait Gen {
     fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()>;
 }
 
+#[derive(Debug)]
+struct DecimalGen {
+    sign: bool,
+    pre: usize,
+    post: usize,
+    post_size: usize,
+}
+impl DecimalGen {
+    // [-]NNN[.NNNN]
+    fn new(spec: &str) -> Result<Self> {
+        let mut sign = false;
+        let mut pre = 10000;
+        let mut post = 0;
+        let mut post_size = 0;
+        let mut spec = spec;
+        if !spec.is_empty() {
+            if spec.first() == '-' {
+                sign = true;
+                spec = &spec[1..];
+            }
+            if !spec.is_empty() {
+                if let Some((a, b)) = spec.split_once('.') {
+                    pre = 10_usize.pow(a.len() as u32);
+                    post_size = b.len();
+                    post = 10_usize.pow(post_size as u32);
+                } else {
+                    pre = 10_usize.pow(spec.len() as u32);
+                }
+            }
+        }
+        eprintln!(
+            "{:?}",
+            Self {
+                sign,
+                pre,
+                post,
+                post_size
+            }
+        );
+        Ok(Self {
+            sign,
+            pre,
+            post,
+            post_size,
+        })
+    }
+}
+impl Gen for DecimalGen {
+    fn write(&mut self, w: &mut dyn Write, _loc: &Where) -> Result<()> {
+        let sign = if self.sign && fastrand::bool() {
+            "-"
+        } else {
+            ""
+        };
+        let post = self.post_size;
+        if post == 0 {
+            write!(w, "{sign}{}", fastrand::usize(..self.pre))?;
+        } else {
+            write!(
+                w,
+                "{sign}{}.{:0post$}",
+                fastrand::usize(..self.pre),
+                fastrand::usize(..self.post)
+            )?;
+        }
+        Ok(())
+    }
+}
+
 struct ExprGen {
     expr: Expr,
     fmt: NumFormat,
@@ -238,6 +307,9 @@ impl GenMaker {
         )?;
         Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
             Ok(Box::new(NormalDistGen::new(p)?))
+        })?;
+        Self::do_push("decimal", "Decimal number. Pattern is [-]NNN[.NNN]", |p| {
+            Ok(Box::new(DecimalGen::new(p)?))
         })?;
         Self::do_push("grid", "Produce line_col", |_p| Ok(Box::new(GridGen {})))?;
         Self::do_push("count", "Count up from starting place", |p| {
