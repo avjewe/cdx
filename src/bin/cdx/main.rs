@@ -1,4 +1,5 @@
-use cdx::util::{Error, Result};
+use cdx::prelude::*;
+use cdx::util::{silent, suppress};
 use std::env;
 
 pub mod args;
@@ -27,10 +28,10 @@ fn main() {
     let mut settings = Settings::new();
     match inner_main(env::args().collect(), &mut settings) {
         Err(e) => {
-            if e.suppress() {
+            if suppress(&e) {
                 std::process::exit(0);
             }
-            if e.silent() {
+            if silent(&e) {
                 std::process::exit(1);
             }
             eprintln!("Error\t{}", e);
@@ -51,7 +52,7 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
     if args.len() < 2 {
         eprintln!("USAGE : cdx <command> [options...]");
         eprintln!("Type 'cdx help' for more details");
-        return Err(Error::Silent);
+        return cdx_err(CdxError::Silent);
     }
     if args[1] == "help" || args[1] == "--help" {
         println!("USAGE : cdx <command> [options...]");
@@ -77,5 +78,5 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
     for x in cdxmain::MAINLIST {
         eprintln!("{:8} : {}", x.name, x.help);
     }
-    Err(Error::Silent)
+    cdx_err(CdxError::Silent)
 }

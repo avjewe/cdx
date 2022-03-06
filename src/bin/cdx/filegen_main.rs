@@ -7,7 +7,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         arg! {"lines", "n", "Number", "Generate this many lines of data. Default 10."},
         arg! {"column", "c", "Spec", "Generate one column of this type"},
         arg! {"multi", "m", "N,Spec", "Generate N columns of this type"},
-        arg! {"header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
+        arg! {"with-header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
     ];
     let (args, _files) = args::parse(&prog, &A, argv, settings)?;
 
@@ -20,7 +20,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             num_lines = x
                 .value
                 .to_usize_whole(x.value.as_bytes(), "number of lines")?;
-        } else if x.name == "header" {
+        } else if x.name == "with-header" {
             header = true;
         } else if x.name == "column" {
             list.push(&x.value)?;

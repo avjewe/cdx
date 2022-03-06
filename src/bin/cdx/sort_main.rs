@@ -64,7 +64,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
         }
         if reported > 0 {
-            return Err(Error::Silent);
+            return cdx_err(CdxError::Silent);
         }
     } else {
         let mut w = get_writer("-")?;

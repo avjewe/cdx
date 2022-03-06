@@ -10,8 +10,10 @@ use cdx::matcher::MatchMaker;
 use cdx::prelude::*;
 use cdx::textgen::GenMaker;
 use cdx::trans::TransMaker;
+use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
-const A: [ArgSpec; 7] = [
+const A: [ArgSpec; 8] = [
+    arg_enum! {"header", "", "Mode", "header requirements", &HEADER_MODE},
     arg! {"std-agg", "", "", "Show aggregators"},
     arg! {"std-comp", "", "", "Show comparators"},
     arg! {"std-const", "", "", "Show constants"},
@@ -27,6 +29,8 @@ pub fn global_args() -> &'static [ArgSpec] {
 
 #[derive(Clone, Debug, Default)]
 pub struct Settings {
+    /// --header controls how to mix and match input files with different CDX headers
+    pub checker: HeaderChecker,
     // closures to open files, e.g. for redis module
 }
 
@@ -44,7 +48,7 @@ impl Settings {
     pub fn handle_std_help(&self, m: &clap::ArgMatches) -> Result<()> {
         if m.occurrences_of("std-help") > 0 {
             self.help();
-            Err(Error::NoError)
+            cdx_err(CdxError::NoError)
         } else {
             Ok(())
         }
@@ -56,27 +60,29 @@ impl Settings {
     }
     pub fn consume(&mut self, args: &[ArgValue]) -> Result<()> {
         for x in args {
-            if x.name == "std-agg" {
+            if x.name == "header" {
+                self.checker.mode = HeaderMode::from_str(&x.value)?;
+            } else if x.name == "std-agg" {
                 AggMaker::help();
-                return Err(Error::NoError);
+                return cdx_err(CdxError::NoError);
             } else if x.name == "std-comp" {
                 CompMaker::help();
-                return Err(Error::NoError);
+                return cdx_err(CdxError::NoError);
             } else if x.name == "std-const" {
                 expr::show_const();
-                return Err(Error::NoError);
+                return cdx_err(CdxError::NoError);
             } else if x.name == "std-func" {
                 expr::show_func();
-                return Err(Error::NoError);
+                return cdx_err(CdxError::NoError);
             } else if x.name == "std-gen" {
                 GenMaker::help();
-                return Err(Error::NoError);
+                return cdx_err(CdxError::NoError);
             } else if x.name == "std-match" {
                 MatchMaker::help();
-                return Err(Error::NoError);
+                return cdx_err(CdxError::NoError);
             } else if x.name == "std-trans" {
                 TransMaker::help();
-                return Err(Error::NoError);
+                return cdx_err(CdxError::NoError);
             } else if x.name == "foo" {
                 eprintln!("Something with side effect");
             } else {

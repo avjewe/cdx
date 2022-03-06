@@ -28,7 +28,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         arg! {"chars", "c", "", "Shortcut for '--agg chars,asum,utf8.chars'"},
         arg! {"words", "w", "", "Shortcut for '--agg words,asum,swords'"},
         arg! {"file", "f", "Tri,ColName", "Should we add the filename as the first column?"},
-        arg! {"header", "h", "Tri", "Should we write a cdx header?"},
+        arg! {"with-header", "h", "Tri", "Should we write a cdx header?"},
         arg! {"total", "t", "yes,no,maybe,only", "Should we write the totals line?"},
         arg! {"format", "F", "plain,float,power2,power10", "Format for output numbers."},
         arg! {"columns", "C", "", "Count each column separately."},
@@ -64,7 +64,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             } else {
                 show_totals = Tri::new(&x.value)?;
             }
-        } else if x.name == "header" {
+        } else if x.name == "with-header" {
             show_header = Tri::new(&x.value)?;
         } else if x.name == "file" {
             if let Some((a, b)) = x.value.split_once(',') {

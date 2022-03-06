@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole};
 use cdx::prelude::*;
-use cdx::util::{get_reader, HeaderChecker, HeaderMode, HEADER_MODE};
+use cdx::util::get_reader;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum PadMode {
@@ -79,8 +79,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         }
     */
     let prog = args::ProgSpec::new("Concatenate files.", args::FileCount::Many);
-    const A: [ArgSpec; 7] = [
-        arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
+    const A: [ArgSpec; 6] = [
         arg_enum! {"pad", "p", "Mode", "Add trailing newline if absent.", &["Yes","No","End"]},
         arg! {"remove", "r", "Matcher", "Remove these lines."},
         arg! {"skip", "s", "Matcher", "Do not number these lines."},
@@ -90,16 +89,13 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
-    let mut checker = HeaderChecker::new();
     let mut pad = PadMode::All;
     let mut num = LineNumber::new();
     let mut skips = MatcherList::new();
     let mut removes = MatcherList::new();
 
     for x in args {
-        if x.name == "header" {
-            checker.mode = HeaderMode::from_str(&x.value)?;
-        } else if x.name == "pad" {
+        if x.name == "pad" {
             if x.value.to_ascii_lowercase() == "yes" {
                 pad = PadMode::All;
             } else if x.value.to_ascii_lowercase() == "no" {
@@ -160,7 +156,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if f.has_header() {
                 not_header = header.get_head(b'\t');
             }
-            if checker.check(not_header.as_bytes(), x)? {
+            if settings.checker.check(not_header.as_bytes(), x)? {
                 w.write_all(not_header.as_bytes())?;
             }
             if f.is_done() {
@@ -192,7 +188,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if n == 0 {
                 continue;
             }
-            if checker.check(&first_line, &x)? {
+            if settings.checker.check(&first_line, &x)? {
                 w.write_all(&first_line)?;
                 last_was_cr = first_line.last().unwrap() == &b'\n';
             }

@@ -20,9 +20,12 @@ pub use crate::textgen::GenList;
 pub use crate::trans::TransList;
 #[doc(inline)]
 pub use crate::util::{
-    err, get_writer, prerr, Error, FileLocList, Reader, Result, StringLine, TextLine, Tri,
+    cdx_err, err, get_writer, prerr, CdxError, Error, FileLocList, Reader, Result, StringLine,
+    TextLine, Tri,
 };
 
+#[doc(inline)]
+pub use anyhow::anyhow;
 #[doc(inline)]
 pub use std::cmp::Ordering;
 #[doc(inline)]

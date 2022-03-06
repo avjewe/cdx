@@ -983,7 +983,7 @@ impl ColumnSet {
     /// ```
     pub fn select<T: AsRef<str> + Clone>(&self, cols: &[T], result: &mut Vec<T>) -> Result<()> {
         if !self.did_lookup {
-            return Err(Error::NeedLookup);
+            return cdx_err(CdxError::NeedLookup);
         }
         result.clear();
         for x in &self.columns {
@@ -1004,7 +1004,7 @@ impl ColumnSet {
     /// trying to write a non-existant column is an error
     pub fn write(&self, w: &mut dyn Write, cols: &[&str], delim: &str) -> Result<()> {
         if !self.did_lookup {
-            return Err(Error::NeedLookup);
+            return cdx_err(CdxError::NeedLookup);
         }
         let mut iter = self.columns.iter();
         match iter.next() {
@@ -1033,7 +1033,7 @@ impl ColumnSet {
     /// write the appropriate selection from the given columns
     pub fn write2(&self, w: &mut dyn Write, cols: &TextLine, delim: u8) -> Result<()> {
         if !self.did_lookup {
-            return Err(Error::NeedLookup);
+            return cdx_err(CdxError::NeedLookup);
         }
         let mut iter = self.columns.iter();
         match iter.next() {
@@ -1062,7 +1062,7 @@ impl ColumnSet {
     /// write the appropriate selection from the given columns, but no trailing newline
     pub fn write3(&mut self, w: &mut dyn Write, cols: &TextLine, delim: u8) -> Result<()> {
         if !self.did_lookup {
-            return Err(Error::NeedLookup);
+            return cdx_err(CdxError::NeedLookup);
         }
         if self.columns.is_empty() {
             return Ok(());
@@ -1078,7 +1078,7 @@ impl ColumnSet {
     /// write the appropriate selection from the given columns, but no trailing newline
     pub fn write3s(&self, w: &mut dyn Write, cols: &StringLine, delim: u8) -> Result<()> {
         if !self.did_lookup {
-            return Err(Error::NeedLookup);
+            return cdx_err(CdxError::NeedLookup);
         }
         let mut iter = self.columns.iter();
         match iter.next() {
@@ -1098,7 +1098,7 @@ impl ColumnSet {
     /// trying to write a non-existant column writes the provided default value
     pub fn write_sloppy(&self, cols: &[&str], rest: &str, w: &mut dyn Write) -> Result<()> {
         if !self.did_lookup {
-            return Err(Error::NeedLookup);
+            return cdx_err(CdxError::NeedLookup);
         }
         for x in &self.columns {
             if x.num < cols.len() {
@@ -1131,7 +1131,7 @@ impl ColumnSet {
         result: &mut Vec<T>,
     ) -> Result<()> {
         if !self.did_lookup {
-            return Err(Error::NeedLookup);
+            return cdx_err(CdxError::NeedLookup);
         }
         result.clear();
         for x in &self.columns {
@@ -1640,7 +1640,7 @@ mod tests {
         assert_eq!(ColumnSet::range(&f, "-")?, res);
         assert_eq!(ColumnSet::range(&f, "2-")?, res[1..]);
         assert_eq!(ColumnSet::range(&f, "-2")?, res[..2]);
-        assert_err!(ColumnSet::range(&f, "1-2-3"), Err(Error::Error(_)));
+        assert_err!(ColumnSet::range(&f, "1-2-3"), Err(_));
         Ok(())
     }
 

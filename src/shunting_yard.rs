@@ -7,11 +7,11 @@
 //! [RPN]: https://en.wikipedia.org/wiki/Reverse_Polish_notation
 //! [shunting]: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
 use self::Associativity::*;
+use crate::prelude::*;
 use crate::tok2::BinaryOp::*;
 use crate::tok2::Token;
 use crate::tok2::Token::*;
 use crate::tok2::UnaryOp;
-use crate::util::{err, Error, Result};
 
 #[derive(Debug, Clone, Copy)]
 enum Associativity {

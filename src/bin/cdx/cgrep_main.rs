@@ -2,29 +2,24 @@ use crate::prelude::*;
 use cdx::expr;
 use cdx::matcher::*;
 use cdx::prelude::*;
-use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
-    const A: [ArgSpec; 7] = [
+    const A: [ArgSpec; 6] = [
         arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
         arg! {"show-const", "", "", "Print available constants"},
         arg! {"show-func", "", "", "Print available functions"},
         arg! {"or", "o", "", "A line matches if any of the matchers matches."},
         arg! {"invert", "v", "", "Print lines that don't match."},
         arg! {"location", "l", "name:what", "prefix extra columns of location context."},
-        arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
-    let mut checker = HeaderChecker::new();
     let mut list = LineMatcherList::new_with(Combiner::And);
     let mut reverse = false;
     let mut loc = FileLocList::new();
     for x in args {
-        if x.name == "header" {
-            checker.mode = HeaderMode::from_str(&x.value)?;
-        } else if x.name == "pattern" {
+        if x.name == "pattern" {
             list.push(&x.value)?;
         } else if x.name == "or" {
             list.multi = Combiner::Or;
@@ -57,7 +52,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if f.has_header() {
             not_header = header.get_head(b'\t');
         }
-        if checker.check(not_header.as_bytes(), x)? {
+        if settings.checker.check(not_header.as_bytes(), x)? {
             w.write_all(not_header.as_bytes())?;
         }
         if f.is_done() {

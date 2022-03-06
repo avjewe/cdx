@@ -1762,7 +1762,9 @@ impl MatchMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = MatchMakerAlias { old_name, new_name };
         let mut mm = MATCH_ALIAS.lock().unwrap();
@@ -1781,7 +1783,7 @@ impl MatchMaker {
     {
         if MODIFIERS.contains(&tag) {
             return err!(
-                "You can't add a matcher named {} because that is reserved for a modifier"
+                "You can't add a matcher named {tag} because that is reserved for a modifier"
             );
         }
         let m = MatchMakerItem {

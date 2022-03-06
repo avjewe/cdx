@@ -366,7 +366,9 @@ impl TransMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = TransMakerAlias { old_name, new_name };
         let mut mm = TRANS_ALIAS.lock().unwrap();
@@ -384,7 +386,9 @@ impl TransMaker {
         F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send,
     {
         if MODIFIERS.contains(&tag) {
-            return err!("You can't add a trans named {} because that is reserved for a modifier");
+            return err!(
+                "You can't add a trans named {tag} because that is reserved for a modifier"
+            );
         }
         let m = TransMakerItem {
             tag,

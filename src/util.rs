@@ -3,6 +3,7 @@
 use crate::column::ColumnHeader;
 use crate::comp::{CompMaker, Compare};
 use crate::prelude::*;
+use anyhow;
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
 use lazy_static::lazy_static;
@@ -17,9 +18,7 @@ use tokio_stream::StreamExt;
 /// Shorthand for returning an error Result
 #[macro_export]
 macro_rules! err {
-    ($e:literal) => {Err(Error::Error($e.to_string()))};
-    ($e:expr) => {Err(Error::Error($e))};
-    ($($e:expr),+) => {Err(Error::Error(format!($($e),+)))}
+    ($($x:tt)*) => {Err(anyhow!($($x)*))}
 }
 pub use err;
 // Shorthand for implementing a pass-through error
@@ -37,8 +36,7 @@ macro_rules! err_type {
 /// Common CDX error type
 #[derive(Debug)]
 #[non_exhaustive]
-#[allow(clippy::large_enum_variant)]
-pub enum Error {
+pub enum CdxError {
     /// Custom cdx error
     Error(String),
     /// common error with long default string
@@ -47,71 +45,43 @@ pub enum Error {
     Silent,
     /// Exit with status code zero
     NoError,
-    /// all other errors
-    Other(Box<dyn error::Error>),
 }
 
+/// Common CDX error type
+pub type Error = anyhow::Error;
 /// Common CDX result type
 pub type Result<T> = core::result::Result<T, Error>;
-//impl error::Error for Error {}
+impl error::Error for CdxError {}
 
-impl Error {
-    /// return true if this error should be treated as not an error
-    pub fn suppress(&self) -> bool {
-        match self {
-            Error::NoError => true,
-            Error::Other(err) => {
-                if let Some(ioerr) = err.downcast_ref::<io::Error>() {
-                    ioerr.kind() == io::ErrorKind::BrokenPipe
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
-    }
-    /// return true if this error should be treated as an error, but silently
-    pub const fn silent(&self) -> bool {
-        matches!(self, Error::Silent)
+/// convert CdxError to Result
+pub fn cdx_err<T>(err: CdxError) -> Result<T> {
+    Err(anyhow::Error::new(err))
+}
+
+/// if suppress(e) is true, treat as success
+pub fn suppress(err: &Error) -> bool {
+    if let Some(ioerr) = err.downcast_ref::<io::Error>() {
+        ioerr.kind() == io::ErrorKind::BrokenPipe
+    } else {
+        matches!(err.downcast_ref::<CdxError>(), Some(CdxError::NoError))
     }
 }
 
-/*
-impl From<anyhow::Error> for Error {
-    fn from(kind: anyhow::Error) -> Self {
-        Self::Other(kind)
-    }
-}
- */
-
-trait IsMyErrorTrait {
-    const IS_SPECIAL_CASE: bool = true;
+/// if silent(e) is true, treat as failure, but print no message
+pub fn silent(err: &Error) -> bool {
+    matches!(err.downcast_ref::<CdxError>(), Some(CdxError::Silent))
 }
 
-impl IsMyErrorTrait for Error {
-    const IS_SPECIAL_CASE: bool = false;
-}
-
-impl<E: 'static> From<E> for Error
-where
-    E: error::Error + Send + Sync,
-{
-    fn from(error: E) -> Self {
-        Self::Other(Box::new(error))
-    }
-}
-
-impl fmt::Display for Error {
+impl fmt::Display for CdxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Error(s) => write!(f, "{}", s)?,
-            Error::NeedLookup => write!(
+            CdxError::Error(s) => write!(f, "{}", s)?,
+            CdxError::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
             )?,
-            Error::Silent => write!(f, "Silent")?,
-            Error::NoError => write!(f, "Not an error.")?,
-            Error::Other(e) => write!(f, "{e}")?,
+            CdxError::Silent => write!(f, "Silent")?,
+            CdxError::NoError => write!(f, "Not an error.")?,
         }
         Ok(())
     }
@@ -1371,7 +1341,7 @@ impl Default for HeaderMode {
 }
 
 /// Object to enforce HeaderMode
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct HeaderChecker {
     /// the mode to enforce
     pub mode: HeaderMode,

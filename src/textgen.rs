@@ -342,7 +342,9 @@ impl GenMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = GenMakerAlias { old_name, new_name };
         let mut mm = GEN_ALIAS.lock().unwrap();
@@ -360,7 +362,7 @@ impl GenMaker {
         F: Fn(&str) -> Result<Box<dyn Gen>> + Send,
     {
         if MODIFIERS.contains(&tag) {
-            return err!("You can't add a agg named {} because that is reserved for a modifier");
+            return err!("You can't add a agg named {tag} because that is reserved for a modifier");
         }
         let m = GenMakerItem {
             tag,

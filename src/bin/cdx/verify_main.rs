@@ -132,7 +132,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
         }
         if fails > 0 {
-            return Err(Error::Silent);
+            return cdx_err(CdxError::Silent);
         }
     }
     Ok(())

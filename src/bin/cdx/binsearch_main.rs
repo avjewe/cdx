@@ -3,7 +3,7 @@
 use crate::prelude::*;
 use cdx::binsearch::{equal_range_n, find_end, find_prev, MemMap};
 use cdx::prelude::*;
-use cdx::util::{write_all_nl, HeaderChecker, HeaderMode, HEADER_MODE};
+use cdx::util::write_all_nl;
 
 #[derive(Debug, Default, PartialEq)]
 struct FileNameColumn {
@@ -88,8 +88,7 @@ impl Context {
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Search sorted files.", args::FileCount::Many);
-    const A: [ArgSpec; 6] = [
-        arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
+    const A: [ArgSpec; 5] = [
         arg! {"key", "k", "Spec", "How to compare value to lines"},
         arg! {"filename", "H", "ColName:Parts", "Prefix output lines with file name."},
         arg! {"context", "C", "before,after",  "print lines of context around matches"},
@@ -98,7 +97,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
-    let mut checker = HeaderChecker::new();
     let mut filename: Option<FileNameColumn> = None;
     let mut context = Context::new();
     let mut subdelim = b',';
@@ -106,9 +104,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut pattern: Option<String> = None;
 
     for x in args {
-        if x.name == "header" {
-            checker.mode = HeaderMode::from_str(&x.value)?;
-        } else if x.name == "key" {
+        if x.name == "key" {
             comp.add(&x.value)?;
         } else if x.name == "filename" {
             if filename.is_some() {
@@ -156,7 +152,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 not_header.extend(&m.header()[4..]);
             }
         }
-        if checker.check(&not_header, f)? {
+        if settings.checker.check(&not_header, f)? {
             w.write_all(&not_header)?;
         }
         comp.lookup(&m.names())?;

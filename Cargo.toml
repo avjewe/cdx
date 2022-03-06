@@ -38,6 +38,7 @@ aws-smithy-http = "0.38"
 bytes = "1.1"
 base64 = "0.13"
 binary-heap-plus = "0.4"
+anyhow = "1"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]

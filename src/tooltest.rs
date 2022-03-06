@@ -101,7 +101,7 @@ fn grab(
     if let Some(x) = line.strip_prefix(tag) {
         if !x.is_empty() {
             prerr(&[b"Unexpected stuff after ", tag, b" : ", line]);
-            return Err(Error::Silent);
+            return cdx_err(CdxError::Silent);
         }
         loop {
             line.clear();
@@ -299,7 +299,7 @@ impl Test {
         let output = match res {
             Err(x) => {
                 prerr(&[b"Error trying to execute : ", &basecmd]);
-                return Err(Error::Other(Box::new(x)));
+                return Err(anyhow::Error::new(x));
             }
             Ok(x) => x,
         };
@@ -440,7 +440,7 @@ impl Config {
             self.fail
         );
         if self.fail > 0 {
-            Err(Error::Silent)
+            cdx_err(CdxError::Silent)
         } else {
             Ok(())
         }
