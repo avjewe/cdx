@@ -1,16 +1,18 @@
 use crate::prelude::*;
 use cdx::comp::comp_check;
 use cdx::prelude::*;
-use cdx::sort;
+use cdx::sort::{SortConfig};
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
-    const A: [ArgSpec; 5] = [
+    const A: [ArgSpec; 7] = [
         arg! {"key", "k", "Spec", "How to compare adjacent lines"},
         arg! {"unique", "u", "", "Print only first of equal lines"},
         arg! {"merge", "m", "", "Merge already sorted files."},
         arg! {"check", "c", "", "Check to see if each input file is sorted."},
         arg! {"Check", "C", "Number", "Check to see if each input file is sorted. Report this many failures before exiting."},
+        arg! {"alt-sort", "a", "", "Use alternate sort algorithm"},
+        arg! {"alt-merge", "A", "", "Use alternate merge algorithm"},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
@@ -19,9 +21,14 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut comp = LineCompList::new();
     let mut check = false;
     let mut num_checks = 1;
+    let mut config = SortConfig::default();
     for x in args {
         if x.name == "key" {
             comp.add(&x.value)?;
+        } else if x.name == "alt-merge" {
+	    config.alt_merge = true;
+        } else if x.name == "alt-sort" {
+	    config.alt_sort = true;
         } else if x.name == "merge" {
             merge = true;
         } else if x.name == "check" {
@@ -69,9 +76,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     } else {
         let mut w = get_writer("-")?;
         if merge {
-            sort::merge(&files, &mut comp, &mut w.0, unique)?;
+            config.merge(&files, &mut comp, &mut w.0, unique)?;
         } else {
-            sort::sort(&files, comp, &mut w.0, unique)?;
+            config.sort(&files, comp, &mut w.0, unique)?;
         }
     }
     Ok(())

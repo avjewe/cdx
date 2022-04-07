@@ -93,6 +93,7 @@ pub fn read_dir(dir: &Path) -> Result<Vec<String>> {
 /// set need_read to false if line ends up with unexamined data
 fn grab(
     tag: &[u8],
+#[allow(clippy::ptr_arg)]
     buff: &mut Vec<u8>,
     line: &mut Vec<u8>,
     reader: &mut Infile,
@@ -267,7 +268,6 @@ impl Test {
             let mut w = get_writer(&fname)?;
             w.write_all(&x.content)?;
         }
-        #[allow(clippy::redundant_clone)]
         let mut tmp_stdin = tmp.clone();
         tmp_stdin.push_str("stdin");
         {

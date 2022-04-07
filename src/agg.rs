@@ -1,6 +1,5 @@
 //! Aggregate Values
 #![allow(dead_code)]
-
 use crate::column::{ColumnFun, ColumnSingle};
 use crate::comp::{Comp, CompMaker};
 use crate::prelude::*;

@@ -38,10 +38,8 @@ fn tail_u8_len(buff: &[u8], num: usize, delim: u8) -> usize {
 
 /// abstraction of str and [u8]
 pub trait Text {
-    // this warning seems to be a bug in rustc
-    #[allow(unused_qualifications)]
     /// the underlying type of the slice, e.g. char or u8
-    type Char: std::cmp::PartialEq + Copy;
+    type Char: PartialEq + Copy;
     /// A container for the underlying type, e.g. String or Vec<u8>
     type Container;
 

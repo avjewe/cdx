@@ -11,10 +11,129 @@ use crate::comp::Item;
 use crate::prelude::*;
 use crate::util::{copy, get_reader, is_cdx, make_header, HeaderChecker};
 use std::mem;
+use std::rc::Rc;
+use std::cell::RefCell;
 use tempdir::TempDir;
+use binary_heap_plus::*;
+
+struct MergeContext<'a> {
+    open : Vec<Reader>,
+    cmp: &'a mut LineCompList,
+}
+impl MergeContext<'_> {
+    fn compare(&mut self, a : usize, b : usize) -> Ordering {
+	self.cmp.comp_cols(self.open[a].curr_line(), self.open[b].curr_line()).reverse()
+    }
+    fn equal(&mut self, a : &TextLine, b : usize) -> bool {
+	self.cmp.equal_cols(a, self.open[b].curr_line())
+    }
+}
+
+/// sort configuration
+#[derive(Copy, Clone, Debug, Default)]
+pub struct SortConfig {
+    /// use a different sort algorithm
+    pub alt_sort : bool,
+    /// use a different merge algorithm
+    pub alt_merge : bool
+}
+
+impl SortConfig {
+    /// merge all the files into w, using tmp
+    pub fn merge_t(
+	&self,
+	in_files: &[String],
+	cmp: &mut LineCompList,
+	w: impl Write,
+	unique: bool,
+	tmp: &TempDir,
+    ) -> Result<()> {
+	eprintln!("Merging");
+	if self.alt_merge {
+	    self.merge_t1(in_files, cmp, w, unique, tmp)
+	} else {
+	    self.merge_t2(in_files, cmp, w, unique, tmp)
+	}
+    }
+
+    /// merge all the files into w, using tmp
+pub fn merge_t2(
+    &self,
+    in_files: &[String],
+    cmp: &mut LineCompList,
+    mut w: impl Write,
+    unique: bool,
+    _tmp: &TempDir,
+) -> Result<()> {
+    if in_files.is_empty() {
+        return Ok(());
+    }
+    if in_files.len() == 1 && !unique {
+        let r = get_reader(&in_files[0])?;
+        return copy(r.0, w);
+    }
+    let mc = Rc::new(RefCell::new(MergeContext{open : Vec::with_capacity(in_files.len()), cmp}));
+    let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| mc.borrow_mut().compare(*a, *b));
+    {
+	let mut mcm = mc.borrow_mut();
+	for x in in_files {
+            mcm.open.push(Reader::new_open(x)?);
+	}
+	if !mcm.cmp.need_split() {
+            for x in &mut mcm.open {
+		x.do_split(false);
+            }
+	}
+	// FIXME -- Check Header
+	if mcm.open[0].has_header() {
+            w.write_all(mcm.open[0].header().line.as_bytes())?;
+	}
+    }
+    for i in 0..in_files.len() {
+        if !mc.borrow().open[i].is_done() {
+	    heap.push(i)
+        }
+    }
+    if unique {
+	if heap.is_empty() {
+            return Ok(());
+	}
+	let first = heap.pop().unwrap();
+	let mut prev = mc.borrow().open[first].curr_line().clone();
+        if !mc.borrow_mut().open[first].getline()? {
+            heap.push(first);
+        }
+        w.write_all(prev.line())?;
+
+        while !heap.is_empty() {
+            if let Some(x) = heap.pop() {
+		let eq = mc.borrow_mut().equal(&prev, x);
+		if !eq {
+		    let mcm = mc.borrow();
+                    w.write_all(mcm.open[x].curr_line().line())?;
+		    prev.assign(mcm.open[x].curr_line());
+		}
+                if !mc.borrow_mut().open[x].getline()? {
+                    heap.push(x);
+                }
+	    }
+        }
+    } else {
+        while !heap.is_empty() {
+            if let Some(x) = heap.pop() {
+                w.write_all(mc.borrow_mut().open[x].curr_line().line())?;
+                if !mc.borrow_mut().open[x].getline()? {
+                    heap.push(x);
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 /// merge all the files into w, using tmp
-pub fn merge_t(
+pub fn merge_t1 (
+    &self,
     in_files: &[String],
     cmp: &mut LineCompList,
     mut w: impl Write,
@@ -42,48 +161,6 @@ pub fn merge_t(
         w.write_all(open_files[0].header().line.as_bytes())?;
     }
 
-    let do_heap = false;
-    if do_heap {
-        /*
-            use binary_heap_plus::*;
-            let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| cmp.comp_cols(open_files[*a].curr_line(), open_files[*b].curr_line()));
-            for (i, f) in open_files.iter().enumerate() {
-                    if !f.is_done() {
-                heap.push(i)
-                }
-            }
-            if unique {
-
-                    let x = mm.next(cmp, &mut open_files)?;
-                    if x.is_none() {
-                return Ok(());
-                    }
-                    let x = x.unwrap();
-                    w.write_all(open_files[x].curr_line().line())?;
-                    let mut prev = open_files[x].curr_line().clone();
-                    loop {
-                let x = mm.next(cmp, &mut open_files)?;
-                if x.is_none() {
-                            break;
-                }
-                let x = x.unwrap();
-                if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
-                            w.write_all(open_files[x].curr_line().line())?;
-                }
-                prev.assign(open_files[x].curr_line());
-                    }
-            } else {
-                while !heap.is_empty() {
-                if let Some(x) = heap.pop() {
-                    w.write_all(open_files[x].curr_line().line())?;
-                    if !open_files[x].getline()? {
-                    heap.push(x);
-                    }
-                }
-                    }
-            }
-        */
-    } else {
         let nums: Vec<usize> = (0..open_files.len()).collect();
         let mut mm = MergeTreeItem::new_tree(&open_files, &nums);
         if unique {
@@ -115,18 +192,22 @@ pub fn merge_t(
                 w.write_all(open_files[x].curr_line().line())?;
             }
         }
-    }
     Ok(())
 }
 
 /// merge all the files into w
-pub fn merge(files: &[String], cmp: &mut LineCompList, w: impl Write, unique: bool) -> Result<()> {
+pub fn merge(&self, files: &[String], cmp: &mut LineCompList, w: impl Write, unique: bool) -> Result<()> {
     let tmp = TempDir::new("merge")?;
-    merge_t(files, cmp, w, unique, &tmp)
+    if self.alt_merge {
+	self.merge_t1(files, cmp, w, unique, &tmp)
+    } else {
+	self.merge_t2(files, cmp, w, unique, &tmp)
+    }
 }
 
 /// given two file names, merge them into output
-pub fn merge_2(
+    pub fn merge_2(
+	&self,
     left: &str,
     right: &str,
     cmp: &mut LineCompList,
@@ -195,10 +276,24 @@ pub fn merge_2(
     }
     Ok(())
 }
+    /// Sort all the files together, into w
+    pub fn sort<W: Write>(&self, files: &[String], cmp: LineCompList, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
+    {
+	let mut s = Sorter::new(cmp, 500000000, unique);
+	for fname in files {
+            s.add_file(fname, w)?;
+	}
+	s.finalize(w)?;
+	//    s.no_del();
+	Ok(())
+    }
+
+}
 
 /// Large block of text and pointers to lines therein
 #[allow(missing_debug_implementations)]
 pub struct Sorter {
+    config : SortConfig,
     ptrs: Vec<Item>,
     cmp: LineCompList,
     tmp: TempDir,
@@ -234,6 +329,7 @@ impl Sorter {
         }
         let ptr_size = max_alloc / 2 / std::mem::size_of::<Item>();
         Self {
+	    config : SortConfig::default(),
             ptrs: Vec::with_capacity(ptr_size),
             data: Vec::with_capacity(data_size),
             cmp,
@@ -353,9 +449,11 @@ impl Sorter {
 
     /// sort and unique self.ptrs
     fn do_sort(&mut self) {
-        self.ptrs
-            .sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
-        //	do_sort_lines(&self.data, &mut self.ptrs, &mut self.cmp);
+	if self.config.alt_sort {
+            do_sort_lines(&self.data, &mut self.ptrs, &mut self.cmp);
+	} else {
+            self.ptrs.sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
+	}
         if self.unique {
             self.ptrs
                 .dedup_by(|a, b| self.cmp.equal_items(&self.data, a, b));
@@ -371,7 +469,7 @@ impl Sorter {
             }
         } else {
             self.write_tmp()?;
-            merge_t(&self.tmp_files, &mut self.cmp, w, self.unique, &self.tmp)?;
+            self.config.merge_t(&self.tmp_files, &mut self.cmp, w, self.unique, &self.tmp)?;
         }
         Ok(())
     }
@@ -402,18 +500,6 @@ impl Sorter {
         }
         self.add(&mut *f)
     }
-}
-
-/// Sort all the files together, into w
-pub fn sort<W: Write>(files: &[String], cmp: LineCompList, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
-{
-    let mut s = Sorter::new(cmp, 500000000, unique);
-    for fname in files {
-        s.add_file(fname, w)?;
-    }
-    s.finalize(w)?;
-    //    s.no_del();
-    Ok(())
 }
 
 type NodeType = Box<MergeTreeItem>;

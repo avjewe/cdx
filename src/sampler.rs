@@ -1,7 +1,6 @@
 //! Samplers are given a series of data, and write some of them
 
 use crate::prelude::*;
-use crate::util::prerr_n;
 
 // data[0..size] holds the data, which is
 // if jump == 1, contents are just the lines seen so far.
@@ -114,11 +113,11 @@ impl Smooth {
         }
         Ok(())
     }
-    /// write the lines to stderr
-    #[allow(dead_code)]
+/*
     fn dump(&self) {
         for i in 0..self.size {
             prerr_n(&[&self.data[i]]);
         }
     }
+*/
 }
