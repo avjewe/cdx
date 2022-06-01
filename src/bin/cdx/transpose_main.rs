@@ -22,6 +22,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             unreachable!();
         }
     }
-    cdx::transpose::transpose(&files[0], head, lines)?;
+    cdx::transpose::transpose(&files[0], head, lines, &settings.text_in)?;
     Ok(())
 }

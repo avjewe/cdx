@@ -21,7 +21,7 @@ pub use crate::trans::TransList;
 #[doc(inline)]
 pub use crate::util::{
     cdx_err, err, get_writer, prerr, CdxError, Error, FileLocList, Reader, Result, StringLine,
-    TextLine, Tri,
+    TextFileMode, TextLine, Tri,
 };
 
 #[doc(inline)]

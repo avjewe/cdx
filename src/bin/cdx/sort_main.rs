@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use cdx::comp::comp_check;
 use cdx::prelude::*;
-use cdx::sort::{SortConfig};
+use cdx::sort::SortConfig;
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
@@ -26,9 +26,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if x.name == "key" {
             comp.add(&x.value)?;
         } else if x.name == "alt-merge" {
-	    config.alt_merge = true;
+            config.alt_merge = true;
         } else if x.name == "alt-sort" {
-	    config.alt_sort = true;
+            config.alt_sort = true;
         } else if x.name == "merge" {
             merge = true;
         } else if x.name == "check" {
@@ -54,7 +54,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     if check {
         let mut reported = 0;
         for x in &files {
-            let mut f = Reader::new_open(x)?;
+            let mut f = Reader::new_open(x, &settings.text_in)?;
             if f.is_done() {
                 continue;
             }

@@ -40,7 +40,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     let mut w = get_writer("-")?;
     for x in &files {
-        let mut f = Reader::new_open(x)?;
+        let mut f = Reader::new_open(x, &settings.text_in)?;
         if f.is_empty() {
             continue;
         }
@@ -50,7 +50,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         loc.add(&mut header)?;
         header.push_all(f.header())?;
         if f.has_header() {
-            not_header = header.get_head(b'\t');
+            not_header = header.get_head(&settings.text_out());
         }
         if settings.checker.check(not_header.as_bytes(), x)? {
             w.write_all(not_header.as_bytes())?;

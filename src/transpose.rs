@@ -3,8 +3,8 @@
 use crate::prelude::*;
 
 /// transpose
-pub fn transpose(file: &str, head: bool, max_lines: usize) -> Result<()> {
-    let mut f = Reader::new();
+pub fn transpose(file: &str, head: bool, max_lines: usize, text: &TextFileMode) -> Result<()> {
+    let mut f = Reader::new(text);
     f.open(file)?;
     if f.is_empty() {
         return Ok(());

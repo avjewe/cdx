@@ -1,5 +1,5 @@
 //! Misc utility stuff
-
+#![allow(dead_code)]
 use crate::column::ColumnHeader;
 use crate::comp::{CompMaker, Compare};
 use crate::prelude::*;
@@ -21,18 +21,7 @@ macro_rules! err {
     ($($x:tt)*) => {Err(anyhow!($($x)*))}
 }
 pub use err;
-// Shorthand for implementing a pass-through error
-/*
-macro_rules! err_type {
-    ($x:path, $i:path) => {
-        impl From<$x> for Error {
-            fn from(kind: $x) -> Error {
-                $i(kind)
-            }
-        }
-    };
-}
-*/
+
 /// Common CDX error type
 #[derive(Debug)]
 #[non_exhaustive]
@@ -75,13 +64,13 @@ pub fn silent(err: &Error) -> bool {
 impl fmt::Display for CdxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CdxError::Error(s) => write!(f, "{}", s)?,
-            CdxError::NeedLookup => write!(
+            Self::Error(s) => write!(f, "{}", s)?,
+            Self::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
             )?,
-            CdxError::Silent => write!(f, "Silent")?,
-            CdxError::NoError => write!(f, "Not an error.")?,
+            Self::Silent => write!(f, "Silent")?,
+            Self::NoError => write!(f, "Not an error.")?,
         }
         Ok(())
     }
@@ -136,6 +125,264 @@ impl Tri {
     }
 }
 
+#[derive(PartialEq, Copy, Clone, Debug)]
+/// DO we have a header line?
+pub enum HeadMode {
+    /// has header
+    Yes,
+    /// does not have header
+    No,
+    /// check for cdx header
+    Maybe,
+    /// discrd cdx header, if present
+    Skip,
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
+/// how are column values escaped?
+pub enum ColumnMode {
+    /// no escaping
+    Plain,
+    /// double quotes
+    Quote,
+    /// backslash escaped
+    Backslash,
+}
+
+// whitespace delimited
+// double quotes
+// single quotes
+// square brackets
+// curly bracket
+// angle brckets
+// explicit quotes, e.g. A...B or A...A
+// parens
+// nested ?? e.g. ab"cd(ef" means what?
+// brackets only recognized at ends of values
+// --dx (whole line one column)
+
+/// convert chat to ue, but 't' means tab and such
+pub const fn auto_escape(ch: char) -> u8 {
+    if ch == 't' {
+        b'\t'
+    } else if ch == 's' {
+        b' '
+    } else if ch == 'r' {
+        b'\r'
+    } else if ch == 'n' {
+        b'\n'
+    }
+    // FIXME - more auto-escape options
+    else {
+        ch as u8
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+/// how to pase a text file into lines and columns
+pub struct TextFileMode {
+    /// does it have a cdx header
+    pub cdx: bool,
+    /// yes, no, maybe
+    pub head_mode: HeadMode,
+    /// plain, quote, backslash
+    pub col_mode: ColumnMode,
+    /// column delimiter
+    pub delim: u8,
+    /// line delimiter
+    pub line_break: u8,
+}
+impl Default for TextFileMode {
+    fn default() -> Self {
+        Self {
+            cdx: true,
+            head_mode: HeadMode::Maybe,
+            col_mode: ColumnMode::Plain,
+            delim: b'\t',
+            line_break: b'\n',
+        }
+    }
+}
+impl TextFileMode {
+    /// new from spec
+    pub fn new(spec: &str) -> Result<Self> {
+        Self::new_with(spec, &Self::default())
+    }
+    /// new from spec, with defaults
+    pub fn new_with(spec: &str, dflt: &Self) -> Result<Self> {
+        let mut spec = spec;
+        let mut cdx = dflt.cdx;
+        let mut head_mode = dflt.head_mode;
+        let mut col_mode = dflt.col_mode;
+        let mut delim = dflt.delim;
+        let mut line_break = dflt.line_break;
+        // 1st char : c - cdx, x - plain
+        if !spec.is_empty() {
+            let ch = spec.take_first();
+            if ch == 'c' {
+                cdx = true;
+            } else if ch == 'x' {
+                cdx = false;
+            } else {
+                return err!(
+                    "First char of text-fmt spec must be c (cdx)  or x (regular), not '{ch}'"
+                );
+            }
+        }
+        // 2nd char : header mode. y - yes, n - no, s - skip, m - maybe
+        // s and m only valid if cdx
+        if !spec.is_empty() {
+            let ch = spec.take_first();
+            if ch == 'y' {
+                head_mode = HeadMode::Yes;
+            } else if ch == 'n' {
+                head_mode = HeadMode::No;
+            } else if ch == 's' {
+                if !cdx {
+                    return err!("Header mode 's' for 'skip' only valid in cdx mode");
+                }
+                head_mode = HeadMode::Skip;
+            } else if ch == 'm' {
+                if !cdx {
+                    return err!("Header mode 'm' for 'maybe' only valid in cdx mode");
+                }
+                head_mode = HeadMode::Maybe;
+            } else {
+                return err!("Second char of text-fmt spec must be y (yes), n (no), m (maybe) or s (skip) not '{ch}'");
+            }
+        }
+        // 3nd char : delimiter.
+        if !spec.is_empty() {
+            let ch = spec.take_first();
+            delim = auto_escape(ch);
+        }
+        // 4th char : quoting.
+        if !spec.is_empty() {
+            let ch = spec.take_first();
+            if ch == 'p' {
+                col_mode = ColumnMode::Plain;
+            } else if ch == 'q' {
+                col_mode = ColumnMode::Quote;
+            } else if ch == 'b' {
+                col_mode = ColumnMode::Backslash;
+            } else {
+                return err!("Fourth char of text-fmt spec must be p (plain), q (quote) or b (backslash) not '{ch}'");
+            }
+        }
+        // 5th char : end of line
+        if !spec.is_empty() {
+            let ch = spec.take_first();
+            line_break = auto_escape(ch);
+        }
+        Ok(Self {
+            cdx,
+            head_mode,
+            col_mode,
+            delim,
+            line_break,
+        })
+    }
+    /// split data line into columns
+    pub fn split(&self, line: &mut TextLine) {
+        line.split(self.delim);
+    }
+    /// split data line into columns
+    pub fn split_head(&self, line: &mut StringLine) {
+        line.split(self.delim);
+        if self.cdx {
+            line.parts.remove(0);
+        }
+    }
+    /// append a newline, if line does not already end with one. Return false.
+    pub fn ensure_eof(&self, line: &mut Vec<u8>) -> Result<bool> {
+        if line[line.len() - 1] != self.line_break {
+            line.push(self.line_break);
+        }
+        Ok(false)
+    }
+    /// read a line, dealing with quotes if necessary, return as String    
+    pub fn read_string<T: BufRead>(&self, f: &mut T, line: &mut String) -> Result<bool> {
+        let mut x = Vec::new();
+        if self.read_line(f, &mut x)? {
+            return Ok(true);
+        }
+        *line = String::from_utf8(x)?;
+        Ok(false)
+    }
+    /// read a line, dealing with quotes if necessary. Return true if file empty
+    pub fn read_header<T: BufRead>(&self, f: &mut T, line: &mut String) -> Result<bool> {
+        line.clear();
+        let start = f.fill_buf()?;
+        if start.is_empty() {
+            return Ok(true);
+        }
+        match self.head_mode {
+            HeadMode::Yes => self.read_string(f, line),
+            HeadMode::No => Ok(false),
+            HeadMode::Maybe => {
+                if start.starts_with(b" CDX") {
+                    self.read_string(f, line)
+                } else {
+                    Ok(false)
+                }
+            }
+            HeadMode::Skip => {
+                let start = f.fill_buf()?;
+                if start.starts_with(b" CDX") {
+                    self.read_string(f, line)?;
+                    line.clear();
+                }
+                let start = f.fill_buf()?;
+                Ok(start.is_empty())
+            }
+        }
+    }
+    /// read a line, dealing with quotes if necessary. return true if no bytes read.
+    pub fn read_line<T: BufRead>(&self, f: &mut T, line: &mut Vec<u8>) -> Result<bool> {
+        line.clear();
+        let sz = f.read_until(self.line_break, line)?;
+        if sz == 0 {
+            return Ok(true);
+        }
+        if self.col_mode != ColumnMode::Quote {
+            return self.ensure_eof(line);
+        }
+        let mut within = false;
+        let mut skip = 0;
+        loop {
+            for ch in line.iter().skip(skip) {
+                if *ch == b'"' {
+                    within = !within;
+                }
+            }
+            skip = line.len();
+            if !within {
+                return self.ensure_eof(line);
+            }
+            let sz = f.read_until(self.line_break, line)?;
+            if sz == 0 {
+                return self.ensure_eof(line);
+            }
+        }
+    }
+}
+
+/*
+CDX mode yes/no (cx)
+if cdx mode, yes,no,maybe,skip (ynms)
+else yes or no (yn)
+delim : auto escape stnl
+quoting : omit, quote, backslash (oqb)
+line delimiter auto escape stnr, C for crlf
+
+default is cmton
+regular csv is xy,qC
+regular tsv is xytbn
+plain tsv xy
+cdx.maybe.Ct.literal.Ln
+--text-in
+ */
+
 /// pointers into a vector, simulating a slice without the ownership issues
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FakeSlice {
@@ -188,6 +435,28 @@ impl FakeSlice {
     }
 }
 
+/// split a line by a delimiter. Remove trailing newline, if any.
+pub fn split_plain(parts: &mut Vec<FakeSlice>, line: &[u8], delim: u8) {
+    parts.clear();
+    let mut begin: u32 = 0;
+    let mut end: u32 = 0;
+    #[allow(clippy::explicit_counter_loop)] // I need the counter to be u32
+    for ch in line.iter() {
+        if *ch == delim {
+            parts.push(FakeSlice { begin, end });
+            begin = end + 1;
+        }
+        end += 1;
+    }
+    if begin != end {
+        let mut f = FakeSlice { begin, end };
+        if line[(end - 1) as usize] == b'\n' {
+            f.end -= 1;
+        }
+        parts.push(f);
+    }
+}
+
 /// A line of a text file, broken into columns.
 /// A line ends with a newline character, but column values do not.
 /// An empty line contains one empty column
@@ -206,10 +475,12 @@ impl FakeSlice {
 #[derive(Debug, Clone, Default)]
 // pub(crate) because the borrow checker can be a nuisance.
 pub struct TextLine {
-    // The whole input line, with newline
+    // The whole input line, with newline, decoded as necessary
     pub(crate) line: Vec<u8>,
     // the individual columns, without newline
     pub(crate) parts: Vec<FakeSlice>,
+    // the original input line, if any decoding was necessary
+    pub(crate) orig: Vec<u8>,
 }
 
 /// as TextLine, but [String] rather than `Vec<u8>`
@@ -219,6 +490,8 @@ pub struct StringLine {
     pub line: String,
     /// the individual columns
     pub parts: Vec<FakeSlice>,
+    // the original input line, if any decoding was necessary
+    pub(crate) orig: String,
 }
 
 impl fmt::Display for TextLine {
@@ -293,6 +566,7 @@ impl TextLine {
         Self {
             line: Vec::new(),
             parts: Vec::new(),
+            orig: Vec::new(),
         }
     }
     /// Iterator over columns in the line
@@ -343,24 +617,7 @@ impl TextLine {
     /// split the line into columns
     /// hypothetically you could split on one delimiter, do some work, then split on a different delimiter.
     pub fn split(&mut self, delim: u8) {
-        self.parts.clear();
-        let mut begin: u32 = 0;
-        let mut end: u32 = 0;
-        #[allow(clippy::explicit_counter_loop)] // I need the counter to be u32
-        for ch in self.line.iter() {
-            if *ch == delim {
-                self.parts.push(FakeSlice { begin, end });
-                begin = end + 1;
-            }
-            end += 1;
-        }
-        if begin != end {
-            let mut f = FakeSlice { begin, end };
-            if self.line[(end - 1) as usize] == b'\n' {
-                f.end -= 1;
-            }
-            self.parts.push(f);
-        }
+        split_plain(&mut self.parts, &self.line, delim);
     }
     /// return all parts as a vector
     pub fn vec(&self) -> Vec<&[u8]> {
@@ -374,6 +631,7 @@ impl StringLine {
         Self {
             line: String::new(),
             parts: Vec::new(),
+            orig: String::new(),
         }
     }
     /// Iterator over columns in the line
@@ -433,23 +691,7 @@ impl StringLine {
     /// split the line into columns
     /// hypothetically you could split on one delimiter, do some work, then split on a different delimiter.
     pub fn split(&mut self, delim: u8) {
-        self.parts.clear();
-        let mut begin: u32 = 0;
-        let mut end: u32 = 0;
-        #[allow(clippy::explicit_counter_loop)] // I need the counter to be u32
-        for ch in self.line.bytes() {
-            if ch == delim {
-                self.parts.push(FakeSlice { begin, end });
-                begin = end + 1;
-            }
-            end += 1;
-        }
-        if begin != end {
-            self.parts.push(FakeSlice {
-                begin,
-                end: end - 1,
-            });
-        }
+        split_plain(&mut self.parts, self.line.as_bytes(), delim);
     }
     /// return all parts as a vector
     pub fn vec(&self) -> Vec<&str> {
@@ -757,17 +999,16 @@ pub fn get_reader(name: &str) -> Result<Infile> {
 
 #[derive(Debug, Default)]
 /// shared context for any input file type
-struct InfileContext {
+pub struct InfileContext {
     // CDX header, contructed if necessary
     header: StringLine,
-    // delimter
-    delim: u8,
     // have we read all the btes of the file
     is_done: bool,
     // is the file length zero
     is_empty: bool,
     // was there a CDX header?
     has_header: bool,
+    text: TextFileMode,
 }
 
 /// create appropriate header from first line of file
@@ -786,41 +1027,34 @@ pub fn make_header(line: &[u8]) -> StringLine {
     s
 }
 
-// FIXME -- specify delimiter
 // if CDX and specified and different, then strip header
 /// Reader header line, if any, and first line of text
 impl InfileContext {
-    const fn new() -> Self {
+    const fn new(text_in: &TextFileMode) -> Self {
         Self {
             header: StringLine::new(),
-            delim: b'\t',
             is_done: true,
             is_empty: true,
             has_header: false,
+            text: *text_in,
         }
     }
     fn read_header(&mut self, file: &mut impl BufRead, line: &mut TextLine) -> Result<()> {
-        if self.header.read(file)? {
-            self.is_done = true;
-            self.is_empty = true;
+        self.is_empty = self.text.read_header(file, &mut self.header.line)?;
+        if self.is_empty {
             return Ok(());
         }
-        self.is_done = false;
-        self.is_empty = false;
-        if self.header.line.starts_with(" CDX") {
-            self.has_header = true;
-            self.delim = self.header.line.as_bytes()[4];
-            self.header.split(self.delim);
-            self.header.parts.remove(0);
-            if line.read(file)? {
-                self.is_done = true;
-                return Ok(());
-            }
-            line.split(self.delim);
-        } else {
-            self.delim = b'\t';
-            line.line = self.header.line.as_bytes().to_vec();
-            line.split(self.delim);
+        self.has_header = !self.header.line.is_empty();
+        if self.has_header {
+            self.text.split_head(&mut self.header);
+        }
+        self.is_done = self.text.read_line(file, &mut line.line)?;
+        if self.is_done {
+            return Ok(());
+        }
+        line.split(self.text.delim);
+
+        if !self.has_header {
             let mut head_str = String::new();
             for i in 1..=line.len() {
                 head_str += "c";
@@ -831,7 +1065,7 @@ impl InfileContext {
             head_str += "\n";
             let mut fake_head = head_str.as_bytes();
             self.header.read(&mut fake_head)?;
-            self.header.split(self.delim);
+            self.header.split(self.text.delim);
         }
         Ok(())
     }
@@ -978,7 +1212,6 @@ impl FileLocList {
     }
 }
 
-#[derive(Debug, Default)]
 /// Text file reader. Lines broken into columns, with lookback
 pub struct Reader {
     file: Infile,
@@ -988,6 +1221,17 @@ pub struct Reader {
     curr: usize,
     loc: FileLocData,
 }
+impl fmt::Debug for Reader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Reader")
+    }
+}
+
+impl Default for Reader {
+    fn default() -> Self {
+        Self::new(&TextFileMode::default())
+    }
+}
 
 impl Reader {
     /// loc
@@ -995,38 +1239,42 @@ impl Reader {
         &self.loc
     }
     /// make a new Reader
-    pub fn new() -> Self {
-        Self::new_with(1)
+    pub fn new(text_in: &TextFileMode) -> Self {
+        Self::new_with(1, text_in)
     }
     /// set to false to skip breaking into columns
     pub fn do_split(&mut self, val: bool) {
         self.do_split = val;
     }
     /// make a new Reader, with explicit lookback
-    pub fn new_with(lookback: usize) -> Self {
+    pub fn new_with(lookback: usize, text_in: &TextFileMode) -> Self {
         let mut lines: Vec<TextLine> = Vec::new();
         lines.resize(lookback + 1, TextLine::new());
         Self {
             file: Infile::default(),
             lines,
-            cont: InfileContext::new(),
+            cont: InfileContext::new(text_in),
             do_split: true,
             curr: 0,
             loc: FileLocData::default(),
         }
     }
-    /// make a new Reader
-    pub fn new_open(name: &str) -> Result<Self> {
-        Self::new_open_with(name, 1)
+    /// make a new Reader, with deault text, FIXME - delete this
+    pub fn new_open2(name: &str) -> Result<Self> {
+        Self::new_open_with(name, 1, &TextFileMode::default())
     }
     /// make a new Reader
-    pub fn new_open_with(name: &str, lookback: usize) -> Result<Self> {
+    pub fn new_open(name: &str, text_in: &TextFileMode) -> Result<Self> {
+        Self::new_open_with(name, 1, text_in)
+    }
+    /// make a new Reader
+    pub fn new_open_with(name: &str, lookback: usize, text_in: &TextFileMode) -> Result<Self> {
         let mut lines: Vec<TextLine> = Vec::new();
         lines.resize(lookback + 1, TextLine::new());
         let mut tmp = Self {
             file: get_reader(name)?,
             lines,
-            cont: InfileContext::new(),
+            cont: InfileContext::new(text_in),
             do_split: true,
             curr: 0,
             loc: FileLocData::default(),
@@ -1053,7 +1301,7 @@ impl Reader {
     }
     /// get delimiter
     pub const fn delim(&self) -> u8 {
-        self.cont.delim
+        self.cont.text.delim
     }
     /// get column names
     pub fn names(&self) -> Vec<&str> {
@@ -1096,10 +1344,14 @@ impl Reader {
     pub fn getline(&mut self) -> Result<bool> {
         self.loc.bytes += self.curr().line.len();
         self.incr();
-        if self.lines[self.curr].read(&mut *self.file)? {
+        if self
+            .cont
+            .text
+            .read_line(&mut *self.file, &mut self.lines[self.curr].line)?
+        {
             self.cont.is_done = true;
         } else if self.do_split {
-            self.lines[self.curr].split(self.cont.delim);
+            self.cont.text.split(&mut self.lines[self.curr]);
         }
         Ok(self.cont.is_done)
     }
@@ -1304,7 +1556,7 @@ pub enum HeaderMode {
     None,
     /// First can be anything, others blindly accepted
     Trust,
-    /// Ignore CDX is present
+    /// Ignore CDX if present
     Ignore,
 }
 /// strings associated with HeaderMode
@@ -1887,6 +2139,28 @@ pub fn chomp(mut x: &[u8]) -> &[u8] {
 mod tests {
     use super::*;
 
+    #[test]
+    fn read_line() -> Result<()> {
+        let mut mode = TextFileMode::default();
+        let data1 = b"aaa\tbbb\n";
+        let data2 = b"aaa\tbbb";
+        let data3 = b"aaa\tbb\"\n\"b\n";
+        let data4 = b"aaa\tbb\"\n";
+        let mut line = Vec::new();
+        mode.read_line(&mut &data1[..], &mut line)?;
+        assert_eq!(data1, &line[..]);
+        mode.read_line(&mut &data2[..], &mut line)?;
+        assert_eq!(data1, &line[..]);
+        mode.read_line(&mut &data3[..], &mut line)?;
+        assert_eq!(data4, &line[..]);
+        mode.col_mode = ColumnMode::Quote;
+        mode.read_line(&mut &data3[..], &mut line)?;
+        assert_eq!(data3, &line[..]);
+        mode.col_mode = ColumnMode::Backslash;
+        mode.read_line(&mut &data3[..], &mut line)?;
+        assert_eq!(data4, &line[..]);
+        Ok(())
+    }
     #[test]
     fn markers() {
         let c = closer(b'(');

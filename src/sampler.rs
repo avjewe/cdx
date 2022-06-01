@@ -113,11 +113,11 @@ impl Smooth {
         }
         Ok(())
     }
-/*
-    fn dump(&self) {
-        for i in 0..self.size {
-            prerr_n(&[&self.data[i]]);
+    /*
+        fn dump(&self) {
+            for i in 0..self.size {
+                prerr_n(&[&self.data[i]]);
+            }
         }
-    }
-*/
+    */
 }

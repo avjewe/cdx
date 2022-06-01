@@ -66,7 +66,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut rngs: Vec<std::ops::Range<usize>> = Vec::new();
     let mut curr_cols = 0;
     for x in &files {
-        let mut f = Reader::new();
+        let mut f = Reader::new(&settings.text_in);
         f.open(x)?;
         if !f.has_header() {
             do_header = false;
@@ -91,7 +91,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut w = get_writer("-")?;
     header.check_rename()?;
     if do_header {
-        w.write_all(header.get_head(b'\t').as_bytes())?;
+        w.write_all(header.get_head(&settings.text_out()).as_bytes())?;
     }
     dflt.lookup(&header.fieldnames())?;
     while num_live > 0 {

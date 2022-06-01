@@ -189,7 +189,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     assert_eq!(files.len(), 1);
 
-    let mut f = Reader::new();
+    let mut f = Reader::new(&settings.text_in);
     f.open(&files[0])?;
     if f.is_empty() {
         return Ok(());
@@ -223,7 +223,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         } else {
             c_write.add_names(&mut ch, f.header())?;
         }
-        w.write_all(ch.get_head(f.delim()).as_bytes())?;
+        w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
     }
     if f.is_done() {
         return Ok(());

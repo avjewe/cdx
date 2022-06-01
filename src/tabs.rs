@@ -52,14 +52,14 @@ fn dec_max(sizes: &mut [usize]) {
 }
 
 /// show the file on the screen
-pub fn basic(file: &str) -> Result<()> {
+pub fn basic(file: &str, text: &TextFileMode) -> Result<()> {
     let mut x = Rect::from_screen();
     x.width -= 1;
-    show(file, &Rect::from_screen())
+    show(file, &Rect::from_screen(), text)
 }
 /// show the file in a specific rectangle
-pub fn show(file: &str, screen: &Rect) -> Result<()> {
-    let mut f = Reader::new();
+pub fn show(file: &str, screen: &Rect, text: &TextFileMode) -> Result<()> {
+    let mut f = Reader::new(text);
     f.open(file)?;
     if f.is_empty() {
         return Ok(());
@@ -130,8 +130,8 @@ pub fn show(file: &str, screen: &Rect) -> Result<()> {
 }
 
 /// show the file in a specific rectangle
-pub fn show2(file: &str, screen: &Rect, w: &mut Vec<String>) -> Result<usize> {
-    let mut f = Reader::new();
+pub fn show2(file: &str, screen: &Rect, w: &mut Vec<String>, text: &TextFileMode) -> Result<usize> {
+    let mut f = Reader::new(text);
     f.open(file)?;
     if f.is_empty() {
         return Ok(0);

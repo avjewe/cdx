@@ -10,22 +10,24 @@ fancier sort
 use crate::comp::Item;
 use crate::prelude::*;
 use crate::util::{copy, get_reader, is_cdx, make_header, HeaderChecker};
-use std::mem;
-use std::rc::Rc;
-use std::cell::RefCell;
-use tempdir::TempDir;
 use binary_heap_plus::*;
+use std::cell::RefCell;
+//use std::mem;
+use std::rc::Rc;
+use tempfile::TempDir;
 
 struct MergeContext<'a> {
-    open : Vec<Reader>,
+    open: Vec<Reader>,
     cmp: &'a mut LineCompList,
 }
 impl MergeContext<'_> {
-    fn compare(&mut self, a : usize, b : usize) -> Ordering {
-	self.cmp.comp_cols(self.open[a].curr_line(), self.open[b].curr_line()).reverse()
+    fn compare(&mut self, a: usize, b: usize) -> Ordering {
+        self.cmp
+            .comp_cols(self.open[a].curr_line(), self.open[b].curr_line())
+            .reverse()
     }
-    fn equal(&mut self, a : &TextLine, b : usize) -> bool {
-	self.cmp.equal_cols(a, self.open[b].curr_line())
+    fn equal(&mut self, a: &TextLine, b: usize) -> bool {
+        self.cmp.equal_cols(a, self.open[b].curr_line())
     }
 }
 
@@ -33,133 +35,136 @@ impl MergeContext<'_> {
 #[derive(Copy, Clone, Debug, Default)]
 pub struct SortConfig {
     /// use a different sort algorithm
-    pub alt_sort : bool,
+    pub alt_sort: bool,
     /// use a different merge algorithm
-    pub alt_merge : bool
+    pub alt_merge: bool,
 }
 
 impl SortConfig {
     /// merge all the files into w, using tmp
     pub fn merge_t(
-	&self,
-	in_files: &[String],
-	cmp: &mut LineCompList,
-	w: impl Write,
-	unique: bool,
-	tmp: &TempDir,
+        &self,
+        in_files: &[String],
+        cmp: &mut LineCompList,
+        w: impl Write,
+        unique: bool,
+        tmp: &TempDir,
     ) -> Result<()> {
-	eprintln!("Merging");
-	if self.alt_merge {
-	    self.merge_t1(in_files, cmp, w, unique, tmp)
-	} else {
-	    self.merge_t2(in_files, cmp, w, unique, tmp)
-	}
+        eprintln!("Merging");
+        if self.alt_merge {
+            self.merge_t1(in_files, cmp, w, unique, tmp)
+        } else {
+            self.merge_t2(in_files, cmp, w, unique, tmp)
+        }
     }
 
     /// merge all the files into w, using tmp
-pub fn merge_t2(
-    &self,
-    in_files: &[String],
-    cmp: &mut LineCompList,
-    mut w: impl Write,
-    unique: bool,
-    _tmp: &TempDir,
-) -> Result<()> {
-    if in_files.is_empty() {
-        return Ok(());
-    }
-    if in_files.len() == 1 && !unique {
-        let r = get_reader(&in_files[0])?;
-        return copy(r.0, w);
-    }
-    let mc = Rc::new(RefCell::new(MergeContext{open : Vec::with_capacity(in_files.len()), cmp}));
-    let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| mc.borrow_mut().compare(*a, *b));
-    {
-	let mut mcm = mc.borrow_mut();
-	for x in in_files {
-            mcm.open.push(Reader::new_open(x)?);
-	}
-	if !mcm.cmp.need_split() {
-            for x in &mut mcm.open {
-		x.do_split(false);
-            }
-	}
-	// FIXME -- Check Header
-	if mcm.open[0].has_header() {
-            w.write_all(mcm.open[0].header().line.as_bytes())?;
-	}
-    }
-    for i in 0..in_files.len() {
-        if !mc.borrow().open[i].is_done() {
-	    heap.push(i)
-        }
-    }
-    if unique {
-	if heap.is_empty() {
+    pub fn merge_t2(
+        &self,
+        in_files: &[String],
+        cmp: &mut LineCompList,
+        mut w: impl Write,
+        unique: bool,
+        _tmp: &TempDir,
+    ) -> Result<()> {
+        if in_files.is_empty() {
             return Ok(());
-	}
-	let first = heap.pop().unwrap();
-	let mut prev = mc.borrow().open[first].curr_line().clone();
-        if !mc.borrow_mut().open[first].getline()? {
-            heap.push(first);
         }
-        w.write_all(prev.line())?;
-
-        while !heap.is_empty() {
-            if let Some(x) = heap.pop() {
-		let eq = mc.borrow_mut().equal(&prev, x);
-		if !eq {
-		    let mcm = mc.borrow();
-                    w.write_all(mcm.open[x].curr_line().line())?;
-		    prev.assign(mcm.open[x].curr_line());
-		}
-                if !mc.borrow_mut().open[x].getline()? {
-                    heap.push(x);
+        if in_files.len() == 1 && !unique {
+            let r = get_reader(&in_files[0])?;
+            return copy(r.0, w);
+        }
+        let mc = Rc::new(RefCell::new(MergeContext {
+            open: Vec::with_capacity(in_files.len()),
+            cmp,
+        }));
+        let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| mc.borrow_mut().compare(*a, *b));
+        {
+            let mut mcm = mc.borrow_mut();
+            for x in in_files {
+                mcm.open.push(Reader::new_open2(x)?);
+            }
+            if !mcm.cmp.need_split() {
+                for x in &mut mcm.open {
+                    x.do_split(false);
                 }
-	    }
+            }
+            // FIXME -- Check Header
+            if mcm.open[0].has_header() {
+                w.write_all(mcm.open[0].header().line.as_bytes())?;
+            }
         }
-    } else {
-        while !heap.is_empty() {
-            if let Some(x) = heap.pop() {
-                w.write_all(mc.borrow_mut().open[x].curr_line().line())?;
-                if !mc.borrow_mut().open[x].getline()? {
-                    heap.push(x);
+        for i in 0..in_files.len() {
+            if !mc.borrow().open[i].is_done() {
+                heap.push(i)
+            }
+        }
+        if unique {
+            if heap.is_empty() {
+                return Ok(());
+            }
+            let first = heap.pop().unwrap();
+            let mut prev = mc.borrow().open[first].curr_line().clone();
+            if !mc.borrow_mut().open[first].getline()? {
+                heap.push(first);
+            }
+            w.write_all(prev.line())?;
+
+            while !heap.is_empty() {
+                if let Some(x) = heap.pop() {
+                    let eq = mc.borrow_mut().equal(&prev, x);
+                    if !eq {
+                        let mcm = mc.borrow();
+                        w.write_all(mcm.open[x].curr_line().line())?;
+                        prev.assign(mcm.open[x].curr_line());
+                    }
+                    if !mc.borrow_mut().open[x].getline()? {
+                        heap.push(x);
+                    }
+                }
+            }
+        } else {
+            while !heap.is_empty() {
+                if let Some(x) = heap.pop() {
+                    w.write_all(mc.borrow_mut().open[x].curr_line().line())?;
+                    if !mc.borrow_mut().open[x].getline()? {
+                        heap.push(x);
+                    }
                 }
             }
         }
+        Ok(())
     }
-    Ok(())
-}
 
-/// merge all the files into w, using tmp
-pub fn merge_t1 (
-    &self,
-    in_files: &[String],
-    cmp: &mut LineCompList,
-    mut w: impl Write,
-    unique: bool,
-    _tmp: &TempDir,
-) -> Result<()> {
-    if in_files.is_empty() {
-        return Ok(());
-    }
-    if in_files.len() == 1 && !unique {
-        let r = get_reader(&in_files[0])?;
-        return copy(r.0, w);
-    }
-    let mut open_files: Vec<Reader> = Vec::with_capacity(in_files.len());
-    for x in in_files {
-        open_files.push(Reader::new_open(x)?);
-    }
-    if !cmp.need_split() {
-        for x in &mut open_files {
-            x.do_split(false);
+    /// merge all the files into w, using tmp
+    pub fn merge_t1(
+        &self,
+        in_files: &[String],
+        cmp: &mut LineCompList,
+        mut w: impl Write,
+        unique: bool,
+        _tmp: &TempDir,
+    ) -> Result<()> {
+        if in_files.is_empty() {
+            return Ok(());
         }
-    }
-    // FIXME -- Check Header
-    if open_files[0].has_header() {
-        w.write_all(open_files[0].header().line.as_bytes())?;
-    }
+        if in_files.len() == 1 && !unique {
+            let r = get_reader(&in_files[0])?;
+            return copy(r.0, w);
+        }
+        let mut open_files: Vec<Reader> = Vec::with_capacity(in_files.len());
+        for x in in_files {
+            open_files.push(Reader::new_open2(x)?);
+        }
+        if !cmp.need_split() {
+            for x in &mut open_files {
+                x.do_split(false);
+            }
+        }
+        // FIXME -- Check Header
+        if open_files[0].has_header() {
+            w.write_all(open_files[0].header().line.as_bytes())?;
+        }
 
         let nums: Vec<usize> = (0..open_files.len()).collect();
         let mut mm = MergeTreeItem::new_tree(&open_files, &nums);
@@ -192,108 +197,120 @@ pub fn merge_t1 (
                 w.write_all(open_files[x].curr_line().line())?;
             }
         }
-    Ok(())
-}
-
-/// merge all the files into w
-pub fn merge(&self, files: &[String], cmp: &mut LineCompList, w: impl Write, unique: bool) -> Result<()> {
-    let tmp = TempDir::new("merge")?;
-    if self.alt_merge {
-	self.merge_t1(files, cmp, w, unique, &tmp)
-    } else {
-	self.merge_t2(files, cmp, w, unique, &tmp)
-    }
-}
-
-/// given two file names, merge them into output
-    pub fn merge_2(
-	&self,
-    left: &str,
-    right: &str,
-    cmp: &mut LineCompList,
-    mut w: impl Write,
-    unique: bool,
-) -> Result<()> {
-    let mut left_file = Reader::new();
-    let mut right_file = Reader::new();
-    left_file.open(left)?;
-    right_file.open(right)?;
-    left_file.do_split(false);
-    right_file.do_split(false);
-    cmp.lookup(&left_file.names())?;
-
-    // FIXME -- Check Header
-    if left_file.has_header() {
-        w.write_all(left_file.header().line.as_bytes())?;
+        Ok(())
     }
 
-    if unique {
-        let mut prev: Vec<u8> = Vec::new();
-        while !left_file.is_done() && !right_file.is_done() {
-            let ord = cmp.comp_lines(left_file.curr().line(), right_file.curr().line());
-            if ord == Ordering::Less {
-                left_file.write(&mut w)?;
-                mem::swap(&mut prev, left_file.curr_mut().raw());
-                left_file.getline()?;
-            } else if ord == Ordering::Greater {
-                right_file.write(&mut w)?;
-                mem::swap(&mut prev, left_file.curr_mut().raw());
-                right_file.getline()?;
+    /// merge all the files into w
+    pub fn merge(
+        &self,
+        files: &[String],
+        cmp: &mut LineCompList,
+        w: impl Write,
+        unique: bool,
+    ) -> Result<()> {
+        let tmp = TempDir::new()?;
+        if self.alt_merge {
+            self.merge_t1(files, cmp, w, unique, &tmp)
+        } else {
+            self.merge_t2(files, cmp, w, unique, &tmp)
+        }
+    }
+    /*
+        /// given two file names, merge them into output
+        pub fn merge_2(
+            &self,
+            left: &str,
+            right: &str,
+            cmp: &mut LineCompList,
+            mut w: impl Write,
+            unique: bool,
+        ) -> Result<()> {
+            let mut left_file = Reader::new2();
+            let mut right_file = Reader::new2();
+            left_file.open(left)?;
+            right_file.open(right)?;
+            left_file.do_split(false);
+            right_file.do_split(false);
+            cmp.lookup(&left_file.names())?;
+
+            // FIXME -- Check Header
+            if left_file.has_header() {
+                w.write_all(left_file.header().line.as_bytes())?;
+            }
+
+            if unique {
+                let mut prev: Vec<u8> = Vec::new();
+                while !left_file.is_done() && !right_file.is_done() {
+                    let ord = cmp.comp_lines(left_file.curr().line(), right_file.curr().line());
+                    if ord == Ordering::Less {
+                        left_file.write(&mut w)?;
+                        mem::swap(&mut prev, left_file.curr_mut().raw());
+                        left_file.getline()?;
+                    } else if ord == Ordering::Greater {
+                        right_file.write(&mut w)?;
+                        mem::swap(&mut prev, left_file.curr_mut().raw());
+                        right_file.getline()?;
+                    } else {
+                        left_file.write(&mut w)?;
+                        mem::swap(&mut prev, left_file.curr_mut().raw());
+                        left_file.getline()?;
+                        right_file.getline()?;
+                    }
+                    while !left_file.is_done() && cmp.equal_lines(left_file.curr().line(), &prev) {
+                        left_file.getline()?;
+                    }
+                    while !right_file.is_done() && cmp.equal_lines(right_file.curr().line(), &prev) {
+                        right_file.getline()?;
+                    }
+                }
             } else {
+                while !left_file.is_done() && !right_file.is_done() {
+                    let ord = cmp.comp_lines(left_file.curr().line(), right_file.curr().line());
+                    // if Equal, write both lines
+                    if ord != Ordering::Less {
+                        right_file.write(&mut w)?;
+                        right_file.getline()?;
+                    }
+                    if ord != Ordering::Greater {
+                        left_file.write(&mut w)?;
+                        left_file.getline()?;
+                    }
+                }
+            }
+            while !left_file.is_done() {
                 left_file.write(&mut w)?;
-                mem::swap(&mut prev, left_file.curr_mut().raw());
-                left_file.getline()?;
-                right_file.getline()?;
-            }
-            while !left_file.is_done() && cmp.equal_lines(left_file.curr().line(), &prev) {
                 left_file.getline()?;
             }
-            while !right_file.is_done() && cmp.equal_lines(right_file.curr().line(), &prev) {
-                right_file.getline()?;
-            }
-        }
-    } else {
-        while !left_file.is_done() && !right_file.is_done() {
-            let ord = cmp.comp_lines(left_file.curr().line(), right_file.curr().line());
-            // if Equal, write both lines
-            if ord != Ordering::Less {
+            while !right_file.is_done() {
                 right_file.write(&mut w)?;
                 right_file.getline()?;
             }
-            if ord != Ordering::Greater {
-                left_file.write(&mut w)?;
-                left_file.getline()?;
-            }
+            Ok(())
         }
-    }
-    while !left_file.is_done() {
-        left_file.write(&mut w)?;
-        left_file.getline()?;
-    }
-    while !right_file.is_done() {
-        right_file.write(&mut w)?;
-        right_file.getline()?;
-    }
-    Ok(())
-}
+    */
     /// Sort all the files together, into w
-    pub fn sort<W: Write>(&self, files: &[String], cmp: LineCompList, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
+    pub fn sort<W: Write>(
+        &self,
+        files: &[String],
+        cmp: LineCompList,
+        w: &mut W,
+        unique: bool,
+    ) -> Result<()> // maybe return some useful stats?
     {
-	let mut s = Sorter::new(cmp, 500000000, unique);
-	for fname in files {
+        let mut s = Sorter::new(cmp, 500000000, unique);
+        for fname in files {
             s.add_file(fname, w)?;
-	}
-	s.finalize(w)?;
-	//    s.no_del();
-	Ok(())
+        }
+        s.finalize(w)?;
+        //    s.no_del();
+        Ok(())
     }
-
 }
 
 /// Large block of text and pointers to lines therein
 #[allow(missing_debug_implementations)]
 pub struct Sorter {
-    config : SortConfig,
+    config: SortConfig,
     ptrs: Vec<Item>,
     cmp: LineCompList,
     tmp: TempDir,
@@ -329,11 +346,11 @@ impl Sorter {
         }
         let ptr_size = max_alloc / 2 / std::mem::size_of::<Item>();
         Self {
-	    config : SortConfig::default(),
+            config: SortConfig::default(),
             ptrs: Vec::with_capacity(ptr_size),
             data: Vec::with_capacity(data_size),
             cmp,
-            tmp: TempDir::new("sort").unwrap(), // FIXME - new should return Result
+            tmp: TempDir::new().unwrap(), // FIXME - new should return Result
             tmp_files: Vec::new(),
             unique,
             checker: HeaderChecker::new(),
@@ -449,11 +466,12 @@ impl Sorter {
 
     /// sort and unique self.ptrs
     fn do_sort(&mut self) {
-	if self.config.alt_sort {
+        if self.config.alt_sort {
             do_sort_lines(&self.data, &mut self.ptrs, &mut self.cmp);
-	} else {
-            self.ptrs.sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
-	}
+        } else {
+            self.ptrs
+                .sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
+        }
         if self.unique {
             self.ptrs
                 .dedup_by(|a, b| self.cmp.equal_items(&self.data, a, b));
@@ -469,7 +487,8 @@ impl Sorter {
             }
         } else {
             self.write_tmp()?;
-            self.config.merge_t(&self.tmp_files, &mut self.cmp, w, self.unique, &self.tmp)?;
+            self.config
+                .merge_t(&self.tmp_files, &mut self.cmp, w, self.unique, &self.tmp)?;
         }
         Ok(())
     }

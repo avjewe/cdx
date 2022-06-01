@@ -221,19 +221,21 @@ impl ColumnHeader {
     }
 
     /// get new string, which is the full CDX header, including newline
-    pub fn get_head(&self, delim: u8) -> String {
+    pub fn get_head(&self, text: &TextFileMode) -> String {
         let mut res = String::with_capacity(self.get_size() + 6);
-        res.push_str(" CDX");
-        res.push(delim as char);
-        self.add_head(&mut res, delim);
+        if text.cdx {
+            res.push_str(" CDX");
+            res.push(text.delim as char);
+        }
+        self.add_head(&mut res, text.delim);
         res.push('\n');
         res
     }
 
     /// get new string, which is the column names joined
-    pub fn get_head_short(&self, delim: u8) -> String {
+    pub fn get_head_short(&self, text: &TextFileMode) -> String {
         let mut res = String::with_capacity(self.get_size());
-        self.add_head(&mut res, delim);
+        self.add_head(&mut res, text.delim);
         res
     }
 

@@ -135,7 +135,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     let mut w = get_writer("-")?;
     for x in &files {
-        let mut f = Reader::new();
+        let mut f = Reader::new(&settings.text_in);
         f.open(x)?;
         if f.is_empty() {
             continue;

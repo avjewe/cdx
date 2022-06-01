@@ -145,7 +145,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         let mut not_header = String::new();
 
         for x in &files {
-            let mut f = Reader::new_open(x)?;
+            let mut f = Reader::new_open(x, &settings.text_in)?;
             if f.is_empty() {
                 continue;
             }
@@ -154,7 +154,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             not_header.clear();
             v.add_names(&mut header, f.header())?;
             if f.has_header() {
-                not_header = header.get_head(b'\t');
+                not_header = header.get_head(&settings.text_out());
             }
             if settings.checker.check(not_header.as_bytes(), x)? {
                 w.write_all(not_header.as_bytes())?;

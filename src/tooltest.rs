@@ -9,7 +9,7 @@ use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::process::Command;
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 /// print a description of the test file format to stdout
 pub fn show_format() {
@@ -93,8 +93,7 @@ pub fn read_dir(dir: &Path) -> Result<Vec<String>> {
 /// set need_read to false if line ends up with unexamined data
 fn grab(
     tag: &[u8],
-#[allow(clippy::ptr_arg)]
-    buff: &mut Vec<u8>,
+    #[allow(clippy::ptr_arg)] buff: &mut Vec<u8>,
     line: &mut Vec<u8>,
     reader: &mut Infile,
     need_read: &mut bool,
@@ -412,7 +411,7 @@ impl Config {
             fail: 0,
             bindir: "./".to_string(),
             tmpdir: String::new(),
-            tmp: TempDir::new("tooltest")?,
+            tmp: TempDir::new()?,
         })
     }
     /// set tmp dir

@@ -2,7 +2,7 @@
 
 use crate::prelude::*;
 use crate::util::is_cdx;
-use memmap;
+use memmap2;
 use std::cmp::Ordering;
 use std::fs;
 
@@ -12,7 +12,7 @@ use std::fs;
 /// memory map a file, extract CDX header
 #[derive(Debug)]
 pub struct MemMap {
-    map: memmap::Mmap,
+    map: memmap2::Mmap,
     header_len: usize,
     header: StringLine,
     delim: u8,
@@ -23,7 +23,7 @@ impl MemMap {
     pub fn new(fname: &str) -> Result<Self> {
         // needs delim as input if no CDX header
         let file = fs::File::open(fname)?;
-        let map = unsafe { memmap::Mmap::map(&file)? };
+        let map = unsafe { memmap2::Mmap::map(&file)? };
         let mut delim = b'\t';
         let mut header_len = find_end(&map[..], 0);
         let mut header = StringLine::new();

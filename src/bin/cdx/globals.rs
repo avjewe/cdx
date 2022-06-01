@@ -12,8 +12,10 @@ use cdx::textgen::GenMaker;
 use cdx::trans::TransMaker;
 use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
 
-const A: [ArgSpec; 8] = [
+const A: [ArgSpec; 10] = [
     arg_enum! {"header", "", "Mode", "header requirements", &HEADER_MODE},
+    arg! {"text-in", "", "Format", "Input text file format"},
+    arg! {"text-out", "", "Format", "Output text file format"},
     arg! {"std-agg", "", "", "Show aggregators"},
     arg! {"std-comp", "", "", "Show comparators"},
     arg! {"std-const", "", "", "Show constants"},
@@ -31,12 +33,19 @@ pub fn global_args() -> &'static [ArgSpec] {
 pub struct Settings {
     /// --header controls how to mix and match input files with different CDX headers
     pub checker: HeaderChecker,
-    // closures to open files, e.g. for redis module
+    pub text_in: TextFileMode,
+    pub text_out: Option<TextFileMode>,
 }
 
 impl Settings {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn text_out(&self) -> TextFileMode {
+        match self.text_out {
+            Some(x) => x,
+            None => self.text_in,
+        }
     }
     pub fn add_std_help<'t>(&self, a: clap::Command<'t>) -> clap::Command<'t> {
         add_arg(
@@ -62,6 +71,10 @@ impl Settings {
         for x in args {
             if x.name == "header" {
                 self.checker.mode = HeaderMode::from_str(&x.value)?;
+            } else if x.name == "text-in" {
+                self.text_in = TextFileMode::new(&x.value)?;
+            } else if x.name == "text-out" {
+                self.text_out = Some(TextFileMode::new(&x.value)?);
             } else if x.name == "std-agg" {
                 AggMaker::help();
                 return cdx_err(CdxError::NoError);

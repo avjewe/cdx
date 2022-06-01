@@ -1,0 +1,9 @@
+#command cdx cut --text-in c --text-out x -f two,one
+#stdin
+ CDX	one	two	three
+aaa	bbb	ccc
+ddd	eee	fff
+#stdout
+two	one
+bbb	aaa
+eee	ddd

@@ -170,7 +170,7 @@ impl Joiner {
         }
 
         for x in &config.infiles {
-            self.r.push(Reader::new_open(x)?);
+            self.r.push(Reader::new_open2(x)?);
         }
 
         for _x in 0..config.infiles.len() {

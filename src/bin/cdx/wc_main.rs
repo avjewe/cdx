@@ -92,7 +92,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         let mut aggs: Vec<NamedAgg> = Vec::new();
         let mut colmap: Vec<usize> = Vec::new();
         for x in &files {
-            let mut f = Reader::new();
+            let mut f = Reader::new(&settings.text_in);
             f.open(x)?;
             if f.is_empty() {
                 continue;
@@ -141,7 +141,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             let mut c_write = Writer::new(b'\t');
             agg.fill(&mut c_write);
             c_write.add_names(&mut ch, &StringLine::new())?;
-            w.write_all(ch.get_head(b'\t').as_bytes())?;
+            w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
         }
         if !total_only {
             for x in &aggs {
@@ -187,7 +187,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             Tri::Maybe => agg.len() > 1 || show_file,
         };
         for x in &files {
-            let mut f = Reader::new();
+            let mut f = Reader::new(&settings.text_in);
             f.open(x)?;
             if f.is_empty() {
                 continue;
@@ -203,7 +203,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                     ch.push(&file_name_col)?;
                 }
                 c_write.add_names(&mut ch, f.header())?;
-                w.write_all(ch.get_head(f.delim()).as_bytes())?;
+                w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
             }
 
             if f.is_done() {

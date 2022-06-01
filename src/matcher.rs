@@ -592,7 +592,7 @@ impl Match for ExactMatch {
 }
 
 fn load_hashset(data: &mut HashSet<Vec<u8>>, fname: &str) -> Result<()> {
-    let mut f = Reader::new();
+    let mut f = Reader::new(&TextFileMode::default());
     f.do_split(false);
     f.open(fname)?;
     if f.is_done() {
@@ -639,7 +639,7 @@ impl Match for FileExactMatch {
 }
 
 fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Result<()> {
-    let mut f = Reader::new();
+    let mut f = Reader::new(&TextFileMode::default());
     f.do_split(false);
     f.open(fname)?;
     if f.is_done() {
