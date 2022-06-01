@@ -8,12 +8,12 @@
 //!
 //! ```
 //! use cdx::comp::LineCompList;
-//! use cdx::util::Reader;
+//! use cdx::prelude::*;
 //! let mut comp = LineCompList::new();
 //! comp.add("price,float")?;
 //! comp.add("quant,num")?;
 //! let input = "<< CDX\tname\tquant\tprice\naaa\t42\t1.23\nbbb\t12\t2.34\nccc\t12\t2.34\n";
-//! let mut reader = Reader::new_with(2);
+//! let mut reader = Reader::new_with(2, &TextFileMode::default());
 //! reader.open(input);
 //! comp.lookup(&reader.names())?;
 //! reader.getline()?;

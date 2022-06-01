@@ -11,7 +11,7 @@
 //!
 //!```
 //! use cdx::matcher::*;
-//! use cdx::util::Reader;
+//! use cdx::prelude::*;
 //! let matcher = MatchMaker::make("prefix,abc")?;
 //! assert!(matcher.umatch(b"abcdef"));
 //! assert!(!matcher.umatch(b"bcdef"));
@@ -21,7 +21,7 @@
 //! let mut list = LineMatcherList::new_with(Combiner::And);
 //! list.push("two,glob,b*")?;
 //! let input = "<< CDX\tone\ttwo\naaa\tbbb\nccc\tddd\n";
-//! let mut reader = Reader::new();
+//! let mut reader = Reader::new(&TextFileMode::default());
 //! reader.open(input);
 //! list.lookup(&reader.names())?;
 //! assert!(list.ok(reader.curr_line()));

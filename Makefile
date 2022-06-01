@@ -3,6 +3,7 @@ clean:
 
 update:
 	cargo update
+	cargo audit
 
 check:
 	cargo clippy
