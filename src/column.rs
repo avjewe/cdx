@@ -622,7 +622,7 @@ impl ColumnFun for ColumnWhole {
         w.push_all(head)
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
         w.write_all(&line.line()[0..line.line().len() - 1])?;
         Ok(())
     }

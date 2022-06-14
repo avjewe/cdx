@@ -874,6 +874,14 @@ impl StringLine {
     pub fn vec(&self) -> Vec<&str> {
         self.iter().collect()
     }
+    /// whole line, with newline
+    pub fn line(&self) -> &str {
+        if self.orig.is_empty() {
+            &self.line
+        } else {
+            &self.orig
+        }
+    }
 }
 
 impl<'a> IntoIterator for &'a TextLine {
