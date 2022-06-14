@@ -47,6 +47,16 @@ impl Settings {
             None => self.text_in,
         }
     }
+    pub fn text_out2(&self, delim: u8) -> TextFileMode {
+        match self.text_out {
+            Some(x) => x,
+            None => {
+                let mut ret = self.text_in;
+                ret.delim = delim;
+                ret
+            }
+        }
+    }
     pub fn add_std_help<'t>(&self, a: clap::Command<'t>) -> clap::Command<'t> {
         add_arg(
             a,

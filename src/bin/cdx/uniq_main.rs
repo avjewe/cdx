@@ -196,7 +196,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     }
     comp.lookup(&f.names())?;
     count.lookup(&f.names())?;
-    let mut c_write = Writer::new(f.delim());
+    let mut c_write = Writer::new(settings.text_out());
     if !agg.is_empty() {
         if count.pos == CountPos::Begin {
             agg.push_first_prefix(&format!("{},1,count", count.name))?;

@@ -1,0 +1,16 @@
+#command cdx cut --text-in xntq --text-out cn -f 2
+#stdin
+aaa	bbb	ccc
+aaa	b""bb	ccc
+aaa	"bbb"	ccc
+aaa	"b"b"b"	ccc
+aaa	"bb""b"	ccc
+aaa	"bb
+b"	ccc
+#stdout
+bbb
+b"bb
+bbb
+bbb
+bb"b
+bb b

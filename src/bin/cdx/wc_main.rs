@@ -138,7 +138,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if show_file_name != Tri::No {
                 ch.push("column")?;
             }
-            let mut c_write = Writer::new(b'\t');
+            let mut c_write = Writer::new(settings.text_out());
             agg.fill(&mut c_write);
             c_write.add_names(&mut ch, &StringLine::new())?;
             w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
@@ -192,7 +192,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if f.is_empty() {
                 continue;
             }
-            let mut c_write = Writer::new(f.delim());
+            let mut c_write = Writer::new(settings.text_out2(f.delim()));
             agg.fill(&mut c_write);
             c_write.lookup(&f.names())?;
 

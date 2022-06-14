@@ -3,6 +3,7 @@
 use crate::column::{ColumnFun, ColumnSingle};
 use crate::comp::{Comp, CompMaker};
 use crate::prelude::*;
+use crate::util::split_plain;
 use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::cmp;
@@ -423,7 +424,7 @@ impl ColumnFun for LineAgger {
         }
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
         self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
@@ -452,7 +453,7 @@ impl ColumnFun for Agger {
         w.push(&self.out)
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
         self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
@@ -795,7 +796,7 @@ impl Agg for Merge {
         }
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        self.data.split(self.delim);
+        split_plain(&mut self.data.parts, &self.data.line, self.delim);
         if self.do_sort {
             self.data.parts.sort_by(|a, b| {
                 self.comp

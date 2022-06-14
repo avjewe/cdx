@@ -1,5 +1,5 @@
 //! Misc utility stuff
-#![allow(dead_code)]
+//#![allow(dead_code)]
 use crate::column::ColumnHeader;
 use crate::comp::{CompMaker, Compare};
 use crate::prelude::*;
@@ -161,7 +161,7 @@ pub enum ColumnMode {
 // brackets only recognized at ends of values
 // --dx (whole line one column)
 
-/// convert chat to ue, but 't' means tab and such
+/// convert char to ue, but 't' means tab and such
 pub const fn auto_escape(ch: char) -> u8 {
     if ch == 't' {
         b'\t'
@@ -191,6 +191,9 @@ pub struct TextFileMode {
     pub delim: u8,
     /// line delimiter
     pub line_break: u8,
+    /// replacement character for plain encoding
+    // maybe should be Option<u8> where None means to drop, rather than replace
+    pub repl: u8,
 }
 impl Default for TextFileMode {
     fn default() -> Self {
@@ -200,6 +203,7 @@ impl Default for TextFileMode {
             col_mode: ColumnMode::Plain,
             delim: b'\t',
             line_break: b'\n',
+            repl: b' ',
         }
     }
 }
@@ -216,6 +220,7 @@ impl TextFileMode {
         let mut col_mode = dflt.col_mode;
         let mut delim = dflt.delim;
         let mut line_break = dflt.line_break;
+        let mut repl = dflt.repl;
         // 1st char : c - cdx, x - plain
         if !spec.is_empty() {
             let ch = spec.take_first();
@@ -269,7 +274,12 @@ impl TextFileMode {
                 return err!("Fourth char of text-fmt spec must be p (plain), q (quote) or b (backslash) not '{ch}'");
             }
         }
-        // 5th char : end of line
+        // 5th character : repl for plain encoding
+        if !spec.is_empty() {
+            let ch = spec.take_first();
+            repl = auto_escape(ch);
+        }
+        // 6th char : end of line
         if !spec.is_empty() {
             let ch = spec.take_first();
             line_break = auto_escape(ch);
@@ -280,11 +290,32 @@ impl TextFileMode {
             col_mode,
             delim,
             line_break,
+            repl,
         })
+    }
+    /// write a column value, properly escaped
+    pub fn write(&self, w: &mut dyn Write, buf: &[u8]) -> Result<()> {
+        match self.col_mode {
+            ColumnMode::Plain => write_plain(w, buf, self.delim, self.line_break, self.repl),
+            ColumnMode::Backslash => write_backslash(w, buf, self.delim, self.line_break),
+            ColumnMode::Quote => write_quotes(w, buf, self.delim, self.line_break),
+        }
     }
     /// split data line into columns
     pub fn split(&self, line: &mut TextLine) {
-        line.split(self.delim);
+        match self.col_mode {
+            ColumnMode::Plain => split_plain(&mut line.parts, &line.line, self.delim),
+            ColumnMode::Backslash => {
+                line.orig.clear();
+                line.orig.extend_from_slice(&line.line);
+                split_backslash(&mut line.parts, &line.orig, &mut line.line, self.delim);
+            }
+            ColumnMode::Quote => {
+                line.orig.clear();
+                line.orig.extend_from_slice(&line.line);
+                split_quotes(&mut line.parts, &line.orig, &mut line.line, self.delim);
+            }
+        }
     }
     /// split data line into columns
     pub fn split_head(&self, line: &mut StringLine) {
@@ -435,6 +466,45 @@ impl FakeSlice {
     }
 }
 
+fn write_plain(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8, repl: u8) -> Result<()> {
+    for ch in buf {
+        if *ch == tab || *ch == eol {
+            w.write_all(&[repl])?;
+        } else {
+            w.write_all(&[*ch])?;
+        }
+    }
+    Ok(())
+}
+
+fn write_backslash(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8) -> Result<()> {
+    for ch in buf {
+        if *ch == tab || *ch == eol || *ch == b'\\' {
+            w.write_all(&[b'\\'])?;
+            w.write_all(&[enslash(*ch)])?;
+        } else {
+            w.write_all(&[*ch])?;
+        }
+    }
+    Ok(())
+}
+
+fn write_quotes(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8) -> Result<()> {
+    let mut made_quote = false;
+    for ch in buf {
+        if *ch == b'"' {
+            w.write_all(b"\"\"")?;
+            continue;
+        }
+        if !made_quote && (*ch == tab || *ch == eol) {
+            made_quote = true;
+            w.write_all(&[b'"'])?;
+        }
+        w.write_all(&[*ch])?;
+    }
+    Ok(())
+}
+
 /// split a line by a delimiter. Remove trailing newline, if any.
 pub fn split_plain(parts: &mut Vec<FakeSlice>, line: &[u8], delim: u8) {
     parts.clear();
@@ -457,18 +527,121 @@ pub fn split_plain(parts: &mut Vec<FakeSlice>, line: &[u8], delim: u8) {
     }
 }
 
+/// undo slash encoding, e.g. 'n' becomes '\n'
+pub const fn unslash(ch: u8) -> u8 {
+    match ch {
+        b'n' => b'\n',
+        b'r' => b'\r',
+        b't' => b'\t',
+        _ => ch,
+    }
+}
+
+/// do slash encoding, e.g. 'n' becomes '\n'
+pub const fn enslash(ch: u8) -> u8 {
+    match ch {
+        b'\n' => b'n',
+        b'\r' => b'r',
+        b'\t' => b't',
+        _ => ch,
+    }
+}
+
+/// split a line by a delimiter. Remove trailing newline, if any.
+pub fn split_backslash(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, delim: u8) {
+    parts.clear();
+    tmp.clear();
+    let mut line = line;
+    while !line.is_empty() && line[line.len() - 1] == b'\n' {
+        line = &line[..line.len() - 1];
+    }
+    let mut begin: u32 = 0;
+    let mut end: u32 = 0;
+    let mut last_was_slash = false;
+    for xch in line.iter() {
+        let ch = *xch;
+        if last_was_slash {
+            tmp.push(unslash(ch));
+            end += 1;
+            last_was_slash = false;
+            continue;
+        } else if ch == b'\\' {
+            last_was_slash = true;
+            continue;
+        }
+
+        tmp.push(ch);
+        if ch == delim && !last_was_slash {
+            parts.push(FakeSlice { begin, end });
+            begin = end + 1;
+        }
+        end += 1;
+        last_was_slash = false;
+    }
+    if begin != end {
+        parts.push(FakeSlice { begin, end });
+    }
+}
+
+/// split a line by a delimiter. Remove trailing newline, if any.
+pub fn split_quotes(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, delim: u8) {
+    parts.clear();
+    tmp.clear();
+    let mut line = line;
+    while !line.is_empty() && line[line.len() - 1] == b'\n' {
+        line = &line[..line.len() - 1];
+    }
+    let mut begin: u32 = 0;
+    let mut end: u32 = 0;
+    let mut last_was_quote = false;
+    let mut in_quote = false;
+    for ch in line.iter() {
+        if in_quote {
+            if last_was_quote {
+                if *ch == b'"' {
+                    tmp.push(*ch);
+                    end += 1;
+                    continue;
+                } else {
+                    in_quote = false;
+                    // not continue
+                }
+            } else if *ch == b'"' {
+                last_was_quote = true;
+                continue;
+            }
+        } else if *ch == b'"' {
+            in_quote = true;
+            last_was_quote = true;
+            continue;
+        }
+
+        tmp.push(*ch);
+        if *ch == delim {
+            parts.push(FakeSlice { begin, end });
+            begin = end + 1;
+        }
+        end += 1;
+    }
+    if begin != end {
+        parts.push(FakeSlice { begin, end });
+    }
+}
+
 /// A line of a text file, broken into columns.
 /// A line ends with a newline character, but column values do not.
 /// An empty line contains one empty column
 ///```
 /// use std::io::BufRead;
+/// use cdx::util::TextFileMode;
 /// let mut data = b"one\ttwo\tthree\n";
 /// let mut dp = &data[..];
 /// let mut line = cdx::util::TextLine::new();
 /// let eof = line.read(&mut dp).unwrap();
 /// assert_eq!(eof, false);
 /// assert_eq!(line.strlen(), 14);
-/// line.split(b'\t');
+/// let mode = TextFileMode::default();
+/// line.split(&mode);
 /// assert_eq!(line.len(), 3);
 /// assert_eq!(line.get(1), b"two");
 ///```
@@ -544,7 +717,11 @@ impl TextLine {
     }
     /// whole line, with newline
     pub fn line(&self) -> &[u8] {
-        &self.line
+        if self.orig.is_empty() {
+            &self.line
+        } else {
+            &self.orig
+        }
     }
     /// whole line, without newline
     pub fn line_nl(&self) -> &[u8] {
@@ -616,8 +793,8 @@ impl TextLine {
     }
     /// split the line into columns
     /// hypothetically you could split on one delimiter, do some work, then split on a different delimiter.
-    pub fn split(&mut self, delim: u8) {
-        split_plain(&mut self.parts, &self.line, delim);
+    pub fn split(&mut self, text: &TextFileMode) {
+        split_plain(&mut self.parts, &self.line, text.delim);
     }
     /// return all parts as a vector
     pub fn vec(&self) -> Vec<&[u8]> {
@@ -1052,7 +1229,7 @@ impl InfileContext {
         if self.is_done {
             return Ok(());
         }
-        line.split(self.text.delim);
+        self.text.split(line);
 
         if !self.has_header {
             let mut head_str = String::new();

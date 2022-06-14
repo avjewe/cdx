@@ -227,7 +227,7 @@ impl ColumnHeader {
             res.push_str(" CDX");
             res.push(text.delim as char);
         }
-        self.add_head(&mut res, text.delim);
+        self.add_head(&mut res, text);
         res.push('\n');
         res
     }
@@ -235,7 +235,7 @@ impl ColumnHeader {
     /// get new string, which is the column names joined
     pub fn get_head_short(&self, text: &TextFileMode) -> String {
         let mut res = String::with_capacity(self.get_size());
-        self.add_head(&mut res, text.delim);
+        self.add_head(&mut res, text);
         res
     }
 
@@ -243,13 +243,13 @@ impl ColumnHeader {
         self.cols.iter().map(|v| v.len()).sum::<usize>() + self.cols.len() - 1
     }
     /// append column names, joined
-    fn add_head(&self, res: &mut String, delim: u8) {
+    fn add_head(&self, res: &mut String, text: &TextFileMode) {
         if self.cols.is_empty() {
             return;
         }
         res.push_str(&self.cols[0]);
         for x in self.cols.iter().skip(1) {
-            res.push(delim as char);
+            res.push(text.delim as char);
             res.push_str(x);
         }
     }
@@ -524,7 +524,7 @@ pub trait ColumnFun {
     /// write the column names (called once)
     fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()>;
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()>;
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()>;
     /// resolve any named columns
     fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
 }
@@ -558,7 +558,7 @@ impl ColumnFun for ColumnExpr {
         w.push(&self.name)
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
         write!(w, "{}", self.expr.eval(line))?;
         Ok(())
     }
@@ -601,8 +601,9 @@ impl ColumnFun for ColumnSingle {
         }
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
-        w.write_all(&line[self.col.num])?;
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
+        text.write(w, &line[self.col.num])?;
+        //        w.write_all(&line[self.col.num])?;
         Ok(())
     }
     /// resolve any named columns
@@ -621,7 +622,7 @@ impl ColumnFun for ColumnWhole {
         w.push_all(head)
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
         w.write_all(&line.line()[0..line.line().len() - 1])?;
         Ok(())
     }
@@ -654,7 +655,7 @@ impl ColumnFun for ColumnCount {
         w.push(&self.name)
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
         w.write_all(self.num.to_string().as_bytes())?;
         self.num += 1;
         Ok(())
@@ -688,8 +689,8 @@ impl ColumnFun for ColumnLiteral {
         w.push(&self.name)
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _delim: u8) -> Result<()> {
-        w.write_all(&self.value)?;
+    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, text: &TextFileMode) -> Result<()> {
+        text.write(w, &self.value)?;
         Ok(())
     }
     /// resolve any named columns
@@ -1062,17 +1063,22 @@ impl ColumnSet {
     }
 
     /// write the appropriate selection from the given columns, but no trailing newline
-    pub fn write3(&mut self, w: &mut dyn Write, cols: &TextLine, delim: u8) -> Result<()> {
+    pub fn write3(
+        &mut self,
+        w: &mut dyn Write,
+        cols: &TextLine,
+        text: &TextFileMode,
+    ) -> Result<()> {
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
         }
         if self.columns.is_empty() {
             return Ok(());
         }
-        w.write_all(self.fetch(cols, 0))?;
+        text.write(w, self.fetch(cols, 0))?;
         for i in 1..self.columns.len() {
-            w.write_all(&[delim])?;
-            w.write_all(self.fetch(cols, i))?;
+            w.write_all(&[text.delim])?;
+            text.write(w, self.fetch(cols, i))?;
         }
         Ok(())
     }
@@ -1217,7 +1223,7 @@ impl ColumnSet {
 pub struct ColumnClump {
     cols: Box<dyn ColumnFun>,
     name: String,
-    delim: u8,
+    text: TextFileMode,
 }
 impl fmt::Debug for ColumnClump {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1228,10 +1234,14 @@ impl fmt::Debug for ColumnClump {
 impl ColumnClump {
     /// new ColumnClump from parts
     pub fn new(cols: Box<dyn ColumnFun>, name: &str, delim: u8) -> Self {
+        let text = TextFileMode {
+            delim,
+            ..Default::default()
+        };
         Self {
             cols,
             name: name.to_string(),
-            delim,
+            text,
         }
     }
     /// new ColumnClump from spec : DelimOutcol:Columns
@@ -1256,17 +1266,21 @@ impl ColumnClump {
         let mut g = ColumnSet::new();
         g.add_yes(parts.1)?;
         let cols = Box::new(ReaderColumns::new(g));
+        let text = TextFileMode {
+            delim: delim as u8,
+            ..Default::default()
+        };
         Ok(Self {
             cols,
             name: parts.0.to_string(),
-            delim: delim as u8,
+            text,
         })
     }
 }
 
 impl ColumnFun for ColumnClump {
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
-        self.cols.write(w, line, self.delim)?;
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        self.cols.write(w, line, &self.text)?;
         Ok(())
     }
 
@@ -1302,8 +1316,8 @@ pub fn write_colname(w: &mut dyn Write, col: &OutCol, head: &StringLine) -> Resu
 }
 
 impl ColumnFun for ReaderColumns {
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, delim: u8) -> Result<()> {
-        self.columns.write3(w, line, delim)?;
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
+        self.columns.write3(w, line, text)?;
         Ok(())
     }
 
@@ -1323,9 +1337,10 @@ impl ColumnFun for ReaderColumns {
 }
 
 /// A collection of ColumnFun writers
+#[derive(Default)]
 pub struct Writer {
     v: Vec<Box<dyn ColumnFun>>,
-    delim: u8,
+    text: TextFileMode,
 }
 impl fmt::Debug for Writer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1335,10 +1350,10 @@ impl fmt::Debug for Writer {
 
 impl Writer {
     /// new Writer
-    pub fn new(delim: u8) -> Self {
+    pub fn new(text: TextFileMode) -> Self {
         Self {
             v: Vec::new(),
-            delim,
+            text,
         }
     }
     /// is it empty
@@ -1369,21 +1384,15 @@ impl Writer {
         match iter.next() {
             None => {}
             Some(first) => {
-                first.write(w, line, self.delim)?;
+                first.write(w, line, &self.text)?;
                 for x in iter {
-                    w.write_all(&[self.delim])?;
-                    x.write(w, line, self.delim)?;
+                    w.write_all(&[self.text.delim])?;
+                    x.write(w, line, &self.text)?;
                 }
             }
         };
         w.write_all(&[b'\n'])?;
         Ok(())
-    }
-}
-
-impl Default for Writer {
-    fn default() -> Self {
-        Self::new(b'\t')
     }
 }
 
@@ -1597,12 +1606,12 @@ impl ColumnFun for CompositeColumn {
         w.push(&self.name)
     }
     /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _delim: u8) -> Result<()> {
+    fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
         for x in &self.parts {
-            w.write_all(x.prefix.as_bytes())?;
-            w.write_all(line.get(x.col.num))?;
+            text.write(w, x.prefix.as_bytes())?;
+            text.write(w, line.get(x.col.num))?;
         }
-        w.write_all(self.suffix.as_bytes())?;
+        text.write(w, self.suffix.as_bytes())?;
         Ok(())
     }
     /// resolve any named columns

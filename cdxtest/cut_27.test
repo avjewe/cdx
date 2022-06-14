@@ -1,0 +1,7 @@
+#command cdx cut --text-in xntb --text-out cn -f 2
+#stdin
+aaa	b\tb	ccc
+d\td	\te\t	fff
+#stdout
+b b
+ e 
