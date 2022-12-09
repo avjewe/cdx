@@ -30,6 +30,8 @@
 #![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::redundant_pub_crate)]
 #![allow(clippy::option_if_let_else)]
+#![allow(clippy::significant_drop_in_scrutinee)]
+#![allow(clippy::type_repetition_in_bounds)]
 
 pub mod agg;
 pub mod binsearch;

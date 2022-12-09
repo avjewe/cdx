@@ -14,7 +14,7 @@ use std::io;
 use std::ops::{Deref, DerefMut};
 use std::str;
 use tokio_stream::StreamExt;
-
+use std::fmt::Write as _;
 /// Shorthand for returning an error Result
 #[macro_export]
 macro_rules! err {
@@ -77,7 +77,7 @@ impl fmt::Display for CdxError {
 }
 
 /// Yes, No or Maybe
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Tri {
     /// always do the thing
     Yes,
@@ -125,7 +125,7 @@ impl Tri {
     }
 }
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 /// DO we have a header line?
 pub enum HeadMode {
     /// has header
@@ -136,9 +136,17 @@ pub enum HeadMode {
     Maybe,
     /// discrd cdx header, if present
     Skip,
+    /// has a CDX header
+    Cdx
+}
+impl HeadMode {
+    /// does this mode imply a CDX header
+    pub fn has_cdx(self) -> bool {
+	self == Self::Cdx || self == Self::Maybe
+    }
 }
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 /// how are column values escaped?
 pub enum ColumnMode {
     /// no escaping
@@ -181,8 +189,6 @@ pub const fn auto_escape(ch: char) -> u8 {
 #[derive(Debug, Copy, Clone)]
 /// how to pase a text file into lines and columns
 pub struct TextFileMode {
-    /// does it have a cdx header
-    pub cdx: bool,
     /// yes, no, maybe
     pub head_mode: HeadMode,
     /// plain, quote, backslash
@@ -198,7 +204,6 @@ pub struct TextFileMode {
 impl Default for TextFileMode {
     fn default() -> Self {
         Self {
-            cdx: true,
             head_mode: HeadMode::Maybe,
             col_mode: ColumnMode::Plain,
             delim: b'\t',
@@ -215,27 +220,13 @@ impl TextFileMode {
     /// new from spec, with defaults
     pub fn new_with(spec: &str, dflt: &Self) -> Result<Self> {
         let mut spec = spec;
-        let mut cdx = dflt.cdx;
         let mut head_mode = dflt.head_mode;
         let mut col_mode = dflt.col_mode;
         let mut delim = dflt.delim;
         let mut line_break = dflt.line_break;
         let mut repl = dflt.repl;
-        // 1st char : c - cdx, x - plain
-        if !spec.is_empty() {
-            let ch = spec.take_first();
-            if ch == 'c' {
-                cdx = true;
-            } else if ch == 'x' {
-                cdx = false;
-            } else {
-                return err!(
-                    "First char of text-fmt spec must be c (cdx)  or x (regular), not '{ch}'"
-                );
-            }
-        }
-        // 2nd char : header mode. y - yes, n - no, s - skip, m - maybe
-        // s and m only valid if cdx
+
+        // 1nst char : header mode. y - yes, n - no, s - skip, m - maybe, x - cdx
         if !spec.is_empty() {
             let ch = spec.take_first();
             if ch == 'y' {
@@ -243,25 +234,21 @@ impl TextFileMode {
             } else if ch == 'n' {
                 head_mode = HeadMode::No;
             } else if ch == 's' {
-                if !cdx {
-                    return err!("Header mode 's' for 'skip' only valid in cdx mode");
-                }
                 head_mode = HeadMode::Skip;
             } else if ch == 'm' {
-                if !cdx {
-                    return err!("Header mode 'm' for 'maybe' only valid in cdx mode");
-                }
                 head_mode = HeadMode::Maybe;
+            } else if ch == 'x' {
+                head_mode = HeadMode::Cdx;
             } else {
-                return err!("Second char of text-fmt spec must be y (yes), n (no), m (maybe) or s (skip) not '{ch}'");
+                return err!("First char of text-fmt spec must be y (yes), n (no), m (maybe) s (skip) or x (cdx) not '{ch}'");
             }
         }
-        // 3nd char : delimiter.
+        // 2nd char : delimiter.
         if !spec.is_empty() {
             let ch = spec.take_first();
             delim = auto_escape(ch);
         }
-        // 4th char : quoting.
+        // 3th char : quoting.
         if !spec.is_empty() {
             let ch = spec.take_first();
             if ch == 'p' {
@@ -274,18 +261,17 @@ impl TextFileMode {
                 return err!("Fourth char of text-fmt spec must be p (plain), q (quote) or b (backslash) not '{ch}'");
             }
         }
-        // 5th character : repl for plain encoding
+        // 4th character : repl for plain encoding
         if !spec.is_empty() {
             let ch = spec.take_first();
             repl = auto_escape(ch);
         }
-        // 6th char : end of line
+        // 5th char : end of line
         if !spec.is_empty() {
             let ch = spec.take_first();
             line_break = auto_escape(ch);
         }
         Ok(Self {
-            cdx,
             head_mode,
             col_mode,
             delim,
@@ -320,7 +306,7 @@ impl TextFileMode {
     /// split data line into columns
     pub fn split_head(&self, line: &mut StringLine) {
         line.split(self.delim);
-        if self.cdx {
+        if line.line.starts_with(" CDX") {
             line.parts.remove(0);
         }
     }
@@ -349,6 +335,7 @@ impl TextFileMode {
         }
         match self.head_mode {
             HeadMode::Yes => self.read_string(f, line),
+            HeadMode::Cdx => self.read_string(f, line),
             HeadMode::No => Ok(false),
             HeadMode::Maybe => {
                 if start.starts_with(b" CDX") {
@@ -1204,7 +1191,7 @@ pub fn make_header(line: &[u8]) -> StringLine {
     } else {
         s.line = String::new();
         for x in 1..=line.split(|ch| *ch == b'\t').count() {
-            s.line.push_str(&format!("c{}\t", x));
+            write!(s.line, "c{}\t", x).unwrap();
         }
         s.line.pop();
     }
@@ -1729,7 +1716,7 @@ pub fn sglob(mut wild: &str, mut buff: &str, ic: bool) -> bool {
 }
 */
 /// How to combine headers from multiple sources
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum HeaderMode {
     /// First can be anything, others must match
     Match,

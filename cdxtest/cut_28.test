@@ -1,4 +1,4 @@
-#command cdx cut --text-in xntq --text-out cn -f 2
+#command cdx cut --text-in ntq --text-out n -f 2
 #stdin
 aaa	bbb	ccc
 aaa	b""bb	ccc

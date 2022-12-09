@@ -43,7 +43,7 @@ macro_rules! arg_enum {
     };
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FileCount {
     Zero,
     One,

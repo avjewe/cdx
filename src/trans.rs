@@ -291,9 +291,9 @@ struct TransMakerAlias {
     new_name: &'static str,
 }
 
+static TRANS_MAKER: Mutex<Vec<TransMakerItem>> = Mutex::new(Vec::new());
+static TRANS_ALIAS: Mutex<Vec<TransMakerAlias>> = Mutex::new(Vec::new());
 lazy_static! {
-    static ref TRANS_MAKER: Mutex<Vec<TransMakerItem>> = Mutex::new(Vec::new());
-    static ref TRANS_ALIAS: Mutex<Vec<TransMakerAlias>> = Mutex::new(Vec::new());
     static ref MODIFIERS: Vec<&'static str> = vec!["utf8"];
 }
 

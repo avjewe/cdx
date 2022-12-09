@@ -1,4 +1,4 @@
-#command cdx cut --text-in xyt --text-out c -f two,one
+#command cdx cut --text-in yt --text-out x -f two,one
 #stdin
 one	two	three
 aaa	bbb	ccc

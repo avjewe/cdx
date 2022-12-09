@@ -10,6 +10,7 @@ use lazy_static::lazy_static;
 use libm;
 use regex::Regex;
 use std::f64::consts;
+use std::fmt::Write;
 
 /// evaluate a constant arithmetic expression
 pub fn calc(expr: &str) -> Result<f64> {
@@ -458,10 +459,10 @@ impl Expr {
             let v = s.get_cols_num();
             let mut nval = String::new();
             if !v.is_empty() {
-                nval.push_str(&format!("c{}", v[0] + 1));
+                write!(nval, "c{}", v[0] + 1)?;
             }
             for x in v.iter().skip(1) {
-                nval.push_str(&format!(",c{}", x + 1));
+                write!(nval, ",c{}", x + 1)?;
             }
             n.replace_range(pos..pos + len, &nval);
         }

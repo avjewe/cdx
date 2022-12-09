@@ -28,7 +28,7 @@ pub fn f64_less(target: f64, num: usize, denom: usize) -> bool {
 }
 
 /// amount of junk allowed in a number, before falling back to the 'error' value
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum JunkType {
     /// best effort for any input
     Any,
@@ -44,7 +44,7 @@ impl Default for JunkType {
 }
 
 /// Value to assign to junk values
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum JunkVal {
     /// if value is junk, make it compare less
     Min,
@@ -119,7 +119,7 @@ pub fn ulp_to_ulong(d: f64) -> u64 {
 }
 
 /// how to format a number
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum NumFormat {
     /// Plain or Float, whichever is shorter
     Short(Option<usize>),
@@ -168,7 +168,7 @@ impl NumFormat {
 
     fn new_format(self, num: f64) -> Self {
         match self {
-            NumFormat::Short(x) => {
+            Self::Short(x) => {
                 let num = num.abs();
                 if (0.0001..1000.0).contains(&num) {
                     Self::Plain(x)
@@ -183,7 +183,7 @@ impl NumFormat {
     /// format a number
     pub fn print(self, mut num: f64, mut w: impl Write) -> Result<()> {
         let nfmt = self.new_format(num);
-        if let NumFormat::Plain(n) = nfmt {
+        if let Self::Plain(n) = nfmt {
             if let Some(prec) = n {
                 write!(w, "{num:.0$}", prec)?;
             } else {
@@ -191,7 +191,7 @@ impl NumFormat {
             }
             return Ok(());
         }
-        if let NumFormat::Float(n) = nfmt {
+        if let Self::Float(n) = nfmt {
             if let Some(prec) = n {
                 write!(w, "{num:.0$e}", prec)?;
             } else {

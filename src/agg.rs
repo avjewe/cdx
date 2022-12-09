@@ -4,7 +4,6 @@ use crate::column::{ColumnFun, ColumnSingle};
 use crate::comp::{Comp, CompMaker};
 use crate::prelude::*;
 use crate::util::split_plain;
-use lazy_static::lazy_static;
 use std::cell::RefCell;
 use std::cmp;
 use std::rc::Rc;
@@ -1262,12 +1261,10 @@ struct AggMakerAlias {
     new_name: &'static str,
 }
 
-lazy_static! {
-    static ref COUNTER_MAKER: Mutex<Vec<CounterMakerItem>> = Mutex::new(Vec::new());
-    static ref AGG_MAKER: Mutex<Vec<AggMakerItem>> = Mutex::new(Vec::new());
-    static ref AGG_ALIAS: Mutex<Vec<AggMakerAlias>> = Mutex::new(Vec::new());
-    static ref MODIFIERS: Vec<&'static str> = vec![];
-}
+static COUNTER_MAKER: Mutex<Vec<CounterMakerItem>> = Mutex::new(Vec::new());
+static AGG_MAKER: Mutex<Vec<AggMakerItem>> = Mutex::new(Vec::new());
+static AGG_ALIAS: Mutex<Vec<AggMakerAlias>> = Mutex::new(Vec::new());
+static MODIFIERS: Vec<&'static str> = vec![];
 
 /// Makes an [Agg] or a [Counter]
 #[derive(Debug, Clone, Default)]

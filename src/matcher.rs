@@ -39,6 +39,7 @@ use memchr::memmem::find;
 use regex::Regex;
 use std::collections::HashSet;
 use std::sync::Mutex;
+use std::fmt::Write;
 
 /// Match against [TextLine]
 pub trait LineMatch {
@@ -848,7 +849,7 @@ impl Match for LengthMatch {
 }
 
 /// Mode for combining parts of a multi-match
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Combiner {
     /// matches if any match
     Or,
@@ -1290,7 +1291,7 @@ impl LineMatcherList {
         } else {
             let mut ret = format!("{}", self.matchers[0]);
             for x in self.matchers.iter().skip(1) {
-                ret.push_str(&format!("{} {}", self.multi, x));
+                write!(ret, "{} {}", self.multi, x).unwrap();
             }
             ret
         }
@@ -1407,7 +1408,7 @@ impl MatcherList {
         } else {
             let mut ret = format!("{}", self.matchers[0]);
             for x in self.matchers.iter().skip(1) {
-                ret.push_str(&format!("{} {}", self.multi, x));
+                write!(ret, "{} {}", self.multi, x).unwrap();
             }
             ret
         }
@@ -1581,9 +1582,9 @@ struct MatchMakerAlias {
     new_name: &'static str,
 }
 
+static MATCH_MAKER: Mutex<Vec<MatchMakerItem>> = Mutex::new(Vec::new());
+static MATCH_ALIAS: Mutex<Vec<MatchMakerAlias>> = Mutex::new(Vec::new());
 lazy_static! {
-    static ref MATCH_MAKER: Mutex<Vec<MatchMakerItem>> = Mutex::new(Vec::new());
-    static ref MATCH_ALIAS: Mutex<Vec<MatchMakerAlias>> = Mutex::new(Vec::new());
     static ref MODIFIERS: Vec<&'static str> =
         vec!["utf8", "not", "trim", "null", "case", "and", "or"];
 }

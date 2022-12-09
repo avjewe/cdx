@@ -846,10 +846,10 @@ struct CompMakerAlias {
     new_name: &'static str,
 }
 
+static COMP_MAKER: Mutex<Vec<CompMakerItem>> = Mutex::new(Vec::new());
+static LINE_MAKER: Mutex<Vec<LineCompMakerItem>> = Mutex::new(Vec::new());
+static COMP_ALIAS: Mutex<Vec<CompMakerAlias>> = Mutex::new(Vec::new());
 lazy_static! {
-    static ref COMP_MAKER: Mutex<Vec<CompMakerItem>> = Mutex::new(Vec::new());
-    static ref LINE_MAKER: Mutex<Vec<LineCompMakerItem>> = Mutex::new(Vec::new());
-    static ref COMP_ALIAS: Mutex<Vec<CompMakerAlias>> = Mutex::new(Vec::new());
     static ref MODIFIERS: Vec<&'static str> = vec!["rev", "strict", "trail", "low"];
 }
 

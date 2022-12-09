@@ -167,7 +167,7 @@ impl SortConfig {
         }
 
         let nums: Vec<usize> = (0..open_files.len()).collect();
-        let mut mm = MergeTreeItem::new_tree(&open_files, &nums);
+        let mut mm = MergeTreeItem::new_tree(&nums);
         if unique {
             let x = mm.next(cmp, &mut open_files)?;
             if x.is_none() {
@@ -556,7 +556,7 @@ enum MergeTreeItem {
 }
 
 impl MergeTreeItem {
-    fn new_tree(files: &[Reader], nums: &[usize]) -> Self {
+    fn new_tree(nums: &[usize]) -> Self {
         if nums.is_empty() {
             panic!("Can't make a MergeTreeItem from zero files")
         } else if nums.len() == 1 {
@@ -564,8 +564,8 @@ impl MergeTreeItem {
         } else {
             let mid = nums.len() / 2;
             Self::new_node(
-                Box::new(Self::new_tree(files, &nums[..mid])),
-                Box::new(Self::new_tree(files, &nums[mid..])),
+                Box::new(Self::new_tree(&nums[..mid])),
+                Box::new(Self::new_tree(&nums[mid..])),
             )
         }
     }

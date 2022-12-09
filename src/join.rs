@@ -6,7 +6,7 @@ use crate::prelude::*;
 use crate::util::Outfile;
 
 /// How to search and combine input files
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum JoinType {
     /// All files sorted. Files 2-N never have repeated keys
     Quick,

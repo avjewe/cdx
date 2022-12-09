@@ -2,7 +2,6 @@
 
 use crate::expr;
 use crate::prelude::*;
-use lazy_static::lazy_static;
 use rand_distr::{Distribution, Normal};
 use std::sync::Mutex;
 
@@ -281,11 +280,9 @@ struct GenMakerAlias {
     new_name: &'static str,
 }
 
-lazy_static! {
-    static ref GEN_MAKER: Mutex<Vec<GenMakerItem>> = Mutex::new(Vec::new());
-    static ref GEN_ALIAS: Mutex<Vec<GenMakerAlias>> = Mutex::new(Vec::new());
-    static ref MODIFIERS: Vec<&'static str> = vec![];
-}
+static GEN_MAKER: Mutex<Vec<GenMakerItem>> = Mutex::new(Vec::new());
+static GEN_ALIAS: Mutex<Vec<GenMakerAlias>> = Mutex::new(Vec::new());
+static MODIFIERS: Vec<&'static str> = vec![];
 
 /// Makes an [TextGen]
 #[derive(Debug, Clone, Default)]
