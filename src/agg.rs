@@ -662,11 +662,9 @@ impl LineAggList {
         }
         'outer: for (i, x) in head.iter().enumerate() {
             for y in &self.v {
-                if let AggType::Replace = &y.out {
-                    if y.is_col(i) {
-                        w.push(Box::new(y.clone()));
-                        continue 'outer;
-                    }
+                if matches!(&y.out, AggType::Replace) && y.is_col(i) {
+                    w.push(Box::new(y.clone()));
+                    continue 'outer;
                 }
             }
             w.push(Box::new(ColumnSingle::with_name(x).unwrap()));
@@ -1357,8 +1355,7 @@ impl AggMaker {
     }
     /// Return name, replaced by its alias, if any.
     fn resolve_alias(name: &str) -> &str {
-        let mut mm = AGG_ALIAS.lock().unwrap();
-        for x in mm.iter_mut() {
+        for x in AGG_ALIAS.lock().unwrap().iter_mut() {
             if x.new_name == name {
                 return x.old_name;
             }
@@ -1380,6 +1377,7 @@ impl AggMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -1402,6 +1400,7 @@ impl AggMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     fn do_push_counter<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -1426,6 +1425,7 @@ impl AggMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     /// Print all available Matchers to stdout.
@@ -1434,13 +1434,11 @@ impl AggMaker {
         println!("Modifers :");
         println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
-        let mm = AGG_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*AGG_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
         println!("Counters :");
-        let mm = COUNTER_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*COUNTER_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
         println!();
@@ -1477,8 +1475,7 @@ impl AggMaker {
             }
             name = Self::resolve_alias(name);
         }
-        let mm = AGG_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*AGG_MAKER.lock().unwrap() {
             if x.tag == name {
                 return (x.maker)(pattern);
             }
@@ -1502,8 +1499,7 @@ impl AggMaker {
             }
             name = Self::resolve_alias(name);
         }
-        let mm = COUNTER_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*COUNTER_MAKER.lock().unwrap() {
             if x.tag == name {
                 return (x.maker)(utf8, pattern);
             }

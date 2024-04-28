@@ -144,12 +144,12 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         let m = MemMap::new(f)?;
         not_header.clear();
         if m.has_header() {
-            if filename.is_none() {
-                not_header.extend(m.header());
-            } else {
+            if let Some(f) = &filename {
                 not_header.extend(b" CDX\t");
-                not_header.extend(filename.as_ref().unwrap().name.as_bytes());
+                not_header.extend(f.name.as_bytes());
                 not_header.extend(&m.header()[4..]);
+            } else {
+                not_header.extend(m.header());
             }
         }
         if settings.checker.check(&not_header, f)? {

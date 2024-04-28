@@ -2,10 +2,10 @@
 
 use crate::prelude::*;
 use crate::util::FakeSlice;
+use base64::engine::general_purpose;
+use base64::Engine;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
-
-//use crate::column::{NamedCol};
 
 /// Transform a value to another value, in the context of a (typically unused) TextLine
 pub trait Trans {
@@ -42,47 +42,20 @@ impl Trans for BytesTrans {
 // transform to and from base64
 struct Base64Trans {
     encode: bool,
-    config: base64::Config,
 }
 impl Base64Trans {
-    fn get_config(x: &str) -> Result<base64::Config> {
-        if x.eq_ignore_ascii_case("std") || x.eq_ignore_ascii_case("standard") || x.is_empty() {
-            Ok(base64::STANDARD)
-        } else if x.eq_ignore_ascii_case("std_np") || x.eq_ignore_ascii_case("standard_np") {
-            Ok(base64::STANDARD_NO_PAD)
-        } else if x.eq_ignore_ascii_case("bcrypt") {
-            Ok(base64::BCRYPT)
-        } else if x.eq_ignore_ascii_case("binhex") {
-            Ok(base64::BINHEX)
-        } else if x.eq_ignore_ascii_case("crypt") {
-            Ok(base64::CRYPT)
-        } else if x.eq_ignore_ascii_case("imap") {
-            Ok(base64::IMAP_MUTF7)
-        } else if x.eq_ignore_ascii_case("url") {
-            Ok(base64::URL_SAFE)
-        } else if x.eq_ignore_ascii_case("url_np") {
-            Ok(base64::URL_SAFE_NO_PAD)
-        } else {
-            err!("Unrecognized base64 config, must be one of : standard, standard_np, bcrypt, binhex, crypt, imap, url, or url_np.\nSee https://docs.rs/base64/ for details.")
-        }
-    }
-    fn new(encode: bool, config: &str) -> Result<Self> {
-        Ok(Self {
-            encode,
-            config: Self::get_config(config)?,
-        })
+    const fn new(encode: bool) -> Result<Self> {
+        Ok(Self { encode })
     }
 }
 impl Trans for Base64Trans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
         if self.encode {
             dst.resize(src.len() * 4 / 3 + 4, 0);
-            let len = base64::encode_config_slice(src, self.config, dst);
-            dst.resize(len, 0);
+            let bytes_written = general_purpose::STANDARD.encode_slice(src, dst)?;
+            dst.truncate(bytes_written);
         } else {
-            dst.resize((src.len() + 3) / 4 * 3, 0);
-            let len = base64::decode_config_slice(src, self.config, dst)?;
-            dst.resize(len, 0);
+            general_purpose::STANDARD.decode_vec(src, dst)?;
         }
         Ok(())
     }
@@ -311,30 +284,30 @@ impl TransMaker {
         Self::do_add_alias("upper", "uppercase")?;
         Self::do_push("normspace", "normalize white space", |c, _p| {
             if c.utf8 {
-                Ok(Box::new(NormSpaceUtf8::default()))
+                Ok(Box::<NormSpaceUtf8>::default())
             } else {
                 Ok(Box::new(NormSpace {}))
             }
         })?;
         Self::do_push("lower", "make lower case", |c, _p| {
             if c.utf8 {
-                Ok(Box::new(LowerUtfTrans::default()))
+                Ok(Box::<LowerUtfTrans>::default())
             } else {
                 Ok(Box::new(LowerTrans {}))
             }
         })?;
         Self::do_push("upper", "make upper case", |c, _p| {
             if c.utf8 {
-                Ok(Box::new(UpperUtfTrans::default()))
+                Ok(Box::<UpperUtfTrans>::default())
             } else {
                 Ok(Box::new(UpperTrans {}))
             }
         })?;
-        Self::do_push("from_base64", "decode base64 encoding", |_c, p| {
-            Ok(Box::new(Base64Trans::new(false, p)?))
+        Self::do_push("from_base64", "decode base64 encoding", |_c, _p| {
+            Ok(Box::new(Base64Trans::new(false)?))
         })?;
-        Self::do_push("to_base64", "encode base64 encoding", |_c, p| {
-            Ok(Box::new(Base64Trans::new(true, p)?))
+        Self::do_push("to_base64", "encode base64 encoding", |_c, _p| {
+            Ok(Box::new(Base64Trans::new(true)?))
         })?;
         Self::do_push("bytes", "Select bytes from value", |_c, p| {
             Ok(Box::new(BytesTrans::new(p)?))
@@ -356,8 +329,7 @@ impl TransMaker {
     }
     /// Return name, replaced by its alias, if any.
     fn resolve_alias(name: &str) -> &str {
-        let mut mm = TRANS_ALIAS.lock().unwrap();
-        for x in mm.iter_mut() {
+        for x in TRANS_ALIAS.lock().unwrap().iter_mut() {
             if x.new_name == name {
                 return x.old_name;
             }
@@ -379,6 +351,7 @@ impl TransMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -403,14 +376,14 @@ impl TransMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     /// Print all available Transs to stdout.
     pub fn help() {
         println!("Modifers :");
         Self::init().unwrap();
-        let mm = TRANS_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*TRANS_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
         println!("See also https://avjewe.github.io/cdxdoc/Trans.html.");
@@ -443,8 +416,7 @@ impl TransMaker {
     /// make a dyn Trans from a named trans and a pattern
     pub fn make_box(kind: &str, conf: &TransSettings, pattern: &str) -> Result<Box<dyn Trans>> {
         Self::init()?;
-        let mm = TRANS_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*TRANS_MAKER.lock().unwrap() {
             if x.tag == kind {
                 return (x.maker)(conf, pattern);
             }

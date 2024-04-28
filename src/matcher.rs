@@ -38,8 +38,8 @@ use lazy_static::lazy_static;
 use memchr::memmem::find;
 use regex::Regex;
 use std::collections::HashSet;
-use std::sync::Mutex;
 use std::fmt::Write;
+use std::sync::Mutex;
 
 /// Match against [TextLine]
 pub trait LineMatch {
@@ -1753,8 +1753,7 @@ impl MatchMaker {
     }
     /// Return name, replaced by its alias, if any.
     fn resolve_alias(name: String) -> String {
-        let mut mm = MATCH_ALIAS.lock().unwrap();
-        for x in mm.iter_mut() {
+        for x in MATCH_ALIAS.lock().unwrap().iter_mut() {
             if x.new_name == name {
                 return x.old_name.to_string();
             }
@@ -1776,6 +1775,7 @@ impl MatchMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -1800,6 +1800,7 @@ impl MatchMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     /// Print all available Matchers to stdout.
@@ -1814,8 +1815,7 @@ impl MatchMaker {
         println!("or    Interpret pattern as a multi-pattern, Match with OR.\n");
         println!("Methods :");
         Self::init().unwrap();
-        let mm = MATCH_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*MATCH_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
         println!("See also https://avjewe.github.io/cdxdoc/Matcher.html.");
@@ -1923,8 +1923,7 @@ impl MatchMaker {
     /// Remake the dyn Match based on current contents.
     pub fn remake(m: &mut Matcher, pattern: &str) -> Result<()> {
         Self::init()?;
-        let mm = MATCH_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*MATCH_MAKER.lock().unwrap() {
             if x.tag == m.ctype {
                 m.matcher = (x.maker)(m, pattern)?;
                 return Ok(());

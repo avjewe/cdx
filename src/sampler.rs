@@ -22,8 +22,7 @@ impl Smooth {
     pub fn new(sz: usize) -> Self {
         let small = sz.max(2);
         let large = small * 2 - 2;
-        let mut data = Vec::new();
-        data.reserve(large);
+        let mut data = Vec::with_capacity(large);
         for _ in 0..large {
             data.push(Vec::new());
         }

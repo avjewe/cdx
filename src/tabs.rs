@@ -65,8 +65,7 @@ pub fn show(file: &str, screen: &Rect, text: &TextFileMode) -> Result<()> {
         return Ok(());
     }
     let mut lines: Vec<StringLine> = Vec::new();
-    let mut sizes: Vec<usize> = Vec::new();
-    sizes.resize(f.header().len(), 0);
+    let mut sizes: Vec<usize> = vec![0; f.header().len()];
     if f.has_header() {
         lines.push(f.header().clone());
     }
@@ -137,8 +136,7 @@ pub fn show2(file: &str, screen: &Rect, w: &mut Vec<String>, text: &TextFileMode
         return Ok(0);
     }
     let mut lines: Vec<StringLine> = Vec::new();
-    let mut sizes: Vec<usize> = Vec::new();
-    sizes.resize(f.header().len(), 0);
+    let mut sizes: Vec<usize> = vec![0; f.header().len()];
     if f.has_header() {
         lines.push(f.header().clone());
     }

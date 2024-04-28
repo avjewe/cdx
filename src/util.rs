@@ -10,11 +10,12 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp;
 use std::error;
+use std::fmt::Write as _;
 use std::io;
 use std::ops::{Deref, DerefMut};
 use std::str;
-use tokio_stream::StreamExt;
-use std::fmt::Write as _;
+// use tokio_stream::StreamExt;
+
 /// Shorthand for returning an error Result
 #[macro_export]
 macro_rules! err {
@@ -137,12 +138,12 @@ pub enum HeadMode {
     /// discrd cdx header, if present
     Skip,
     /// has a CDX header
-    Cdx
+    Cdx,
 }
 impl HeadMode {
     /// does this mode imply a CDX header
     pub fn has_cdx(self) -> bool {
-	self == Self::Cdx || self == Self::Maybe
+        self == Self::Cdx || self == Self::Maybe
     }
 }
 
@@ -941,7 +942,7 @@ struct S3Reader {
     //    name : String,
     rt: tokio::runtime::Runtime,
     //    client : aws_sdk_s3::Client,
-    f: aws_sdk_s3::output::GetObjectOutput,
+    f: aws_sdk_s3::operation::get_object::GetObjectOutput,
     left: Option<bytes::Bytes>,
 }
 impl S3Reader {
@@ -949,7 +950,8 @@ impl S3Reader {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
-        let shared_config = rt.block_on(aws_config::load_from_env());
+        let version = aws_config::BehaviorVersion::latest();
+        let shared_config = rt.block_on(aws_config::load_defaults(version));
         let client = aws_sdk_s3::Client::new(&shared_config);
         let obj = rt.block_on(client.get_object().bucket(bucket).key(key).send())?;
         Ok(Self {

@@ -329,8 +329,7 @@ impl GenMaker {
     }
     /// Return name, replaced by its alias, if any.
     fn resolve_alias(name: &str) -> &str {
-        let mut mm = GEN_ALIAS.lock().unwrap();
-        for x in mm.iter_mut() {
+        for x in GEN_ALIAS.lock().unwrap().iter_mut() {
             if x.new_name == name {
                 return x.old_name;
             }
@@ -352,6 +351,7 @@ impl GenMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -374,6 +374,7 @@ impl GenMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     /// Print all available Matchers to stdout.
@@ -382,8 +383,7 @@ impl GenMaker {
         //        println!("Modifers :");
         //        println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
-        let mm = GEN_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*GEN_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
         println!();
@@ -401,8 +401,7 @@ impl GenMaker {
             }
             name = Self::resolve_alias(name);
         }
-        let mm = GEN_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*GEN_MAKER.lock().unwrap() {
             if x.tag == name {
                 return Ok(TextGen {
                     spec: orig.to_string(),

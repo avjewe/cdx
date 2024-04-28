@@ -125,7 +125,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
 
     // verify rpn
     let mut n_operands = 0isize;
-    for (_index, token) in output.iter().enumerate() {
+    for token in output.iter() {
         match *token {
             Var(_) | Number(_) => n_operands += 1,
             Unary(_) => (),

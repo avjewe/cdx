@@ -273,6 +273,7 @@ impl Test {
             let mut w = std::fs::OpenOptions::new()
                 .write(true)
                 .create(true)
+                .truncate(true)
                 .open(&tmp_stdin)?;
             w.write_all(&self.stdin)?;
         }

@@ -57,7 +57,7 @@ impl Settings {
             }
         }
     }
-    pub fn add_std_help<'t>(&self, a: clap::Command<'t>) -> clap::Command<'t> {
+    pub fn add_std_help<'a>(&'a self, a: clap::Command<'a>) -> clap::Command<'a> {
         add_arg(
             a,
             &arg! {"std-help", "", "", "Show help for standard args."},

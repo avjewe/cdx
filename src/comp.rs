@@ -920,8 +920,8 @@ impl CompMaker {
     }
     /// Return name, replaced by its alias, if any.
     fn resolve_alias(name: &str) -> &str {
-        let mut mm = COMP_ALIAS.lock().unwrap();
-        for x in mm.iter_mut() {
+        // let mut mm = COMP_ALIAS.lock().unwrap();
+        for x in COMP_ALIAS.lock().unwrap().iter_mut() {
             if x.new_name == name {
                 return x.old_name;
             }
@@ -943,6 +943,7 @@ impl CompMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -967,6 +968,7 @@ impl CompMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     fn do_push_line<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -991,6 +993,7 @@ impl CompMaker {
             }
         }
         mm.push(m);
+        drop(mm);
         Ok(())
     }
     /// Print all available Matchers to stdout.
@@ -1002,12 +1005,10 @@ impl CompMaker {
         println!("low     junk should compare low, rather than high");
         println!("Methods :");
         Self::init().unwrap();
-        let mm = COMP_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*COMP_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
-        let mm = LINE_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*LINE_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
         println!("See also https://avjewe.github.io/cdxdoc/Comparator.html.");
@@ -1089,8 +1090,7 @@ impl CompMaker {
     pub fn remake_comp(comp: &mut Comp) -> Result<()> {
         Self::init()?;
         let ctype = Self::resolve_alias(&comp.ctype);
-        let mm = COMP_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*COMP_MAKER.lock().unwrap() {
             if ctype.eq_ignore_ascii_case(x.tag) {
                 comp.comp = (x.maker)(comp)?;
                 return Ok(());
@@ -1102,16 +1102,14 @@ impl CompMaker {
     pub fn remake_line_comp(comp: &mut LineComp) -> Result<()> {
         Self::init()?;
         let ctype = Self::resolve_alias(&comp.ctype);
-        let mm = LINE_MAKER.lock().unwrap();
-        for x in &*mm {
+        for x in &*LINE_MAKER.lock().unwrap() {
             if ctype.eq_ignore_ascii_case(x.tag) {
                 comp.comp = (x.maker)(comp)?;
                 return Ok(());
             }
         }
-        let mm = COMP_MAKER.lock().unwrap();
         let mut new_comp = Comp::with_line_comp(comp);
-        for x in &*mm {
+        for x in &*COMP_MAKER.lock().unwrap() {
             if ctype.eq_ignore_ascii_case(x.tag) {
                 new_comp.comp = (x.maker)(&new_comp)?;
                 if comp.cols.is_empty() {
@@ -1454,15 +1452,13 @@ impl LineCompList {
 }
 
 #[derive(Default, Debug)]
-struct CompareRandom {
-    rng: fastrand::Rng,
-}
+struct CompareRandom {}
 impl CompareRandom {
     fn new() -> Self {
         Self::default()
     }
     fn ord(&self) -> Ordering {
-        if self.rng.bool() {
+        if fastrand::bool() {
             Ordering::Less
         } else {
             Ordering::Greater
@@ -1474,7 +1470,7 @@ impl Compare for CompareRandom {
         self.ord()
     }
     fn equal(&self, _left: &[u8], _right: &[u8]) -> bool {
-        self.rng.bool()
+        fastrand::bool()
     }
     fn fill_cache(&self, _item: &mut Item, _value: &[u8]) {}
     fn set(&mut self, _value: &[u8]) {}
@@ -1482,7 +1478,7 @@ impl Compare for CompareRandom {
         self.ord()
     }
     fn equal_self(&self, _right: &[u8]) -> bool {
-        self.rng.bool()
+        fastrand::bool()
     }
 }
 
