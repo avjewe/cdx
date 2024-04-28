@@ -3,7 +3,7 @@
 use crate::prelude::*;
 
 /// Mathematical operations.
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum BinaryOp {
     Plus,
     Minus,
@@ -19,7 +19,7 @@ pub(crate) enum BinaryOp {
     GE,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub(crate) enum UnaryOp {
     Plus,
     Minus,

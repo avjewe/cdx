@@ -2,7 +2,7 @@ use crate::prelude::*;
 use cdx::prelude::*;
 use cdx::sampler::Smooth;
 use cdx::tabs::Rect;
-use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
+use cdx::util::HeaderChecker;
 use std::ops::RangeInclusive;
 
 #[derive(Default)]
@@ -85,8 +85,7 @@ impl For {
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sample lines from files.", args::FileCount::Many);
-    const A: [ArgSpec; 4] = [
-        arg_enum! {"header", "h", "Mode", "header requirements", &HEADER_MODE},
+    const A: [ArgSpec; 3] = [
         arg! {"for", "f", "by,from,to", "for i=from; i<=to; i+= by"},
         arg! {"sample", "s", "Number", "Select this number of lines, more or less evenly spaced."},
         arg! {"range", "r", "Ranges", "e.g. 1-5,42,95-106."},
@@ -102,9 +101,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut saw_range = false;
 
     for x in args {
-        if x.name == "header" {
-            checker.mode = HeaderMode::from_str(&x.value)?;
-        } else if x.name == "for" {
+        if x.name == "for" {
             if saw_for || saw_sample || saw_range {
                 return err!("No more that one --sample, --range  or --for allowed");
             }

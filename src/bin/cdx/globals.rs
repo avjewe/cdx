@@ -10,10 +10,9 @@ use cdx::matcher::MatchMaker;
 use cdx::prelude::*;
 use cdx::textgen::GenMaker;
 use cdx::trans::TransMaker;
-use cdx::util::{HeaderChecker, HeaderMode, HEADER_MODE};
+use cdx::util::HeaderChecker;
 
 const A: [ArgSpec; 10] = [
-    arg_enum! {"header", "", "Mode", "header requirements", &HEADER_MODE},
     arg! {"text-in", "", "Format", "Input text file format"},
     arg! {"text-out", "", "Format", "Output text file format"},
     arg! {"std-agg", "", "", "Show aggregators"},
@@ -22,6 +21,7 @@ const A: [ArgSpec; 10] = [
     arg! {"std-func", "", "", "Show functions"},
     arg! {"std-gen", "", "", "Show generators"},
     arg! {"std-match", "", "", "Show matchers"},
+    arg! {"std-text", "", "", "Show text format help"},
     arg! {"std-trans", "", "", "Show transforms"},
 ];
 
@@ -79,9 +79,7 @@ impl Settings {
     }
     pub fn consume(&mut self, args: &[ArgValue]) -> Result<()> {
         for x in args {
-            if x.name == "header" {
-                self.checker.mode = HeaderMode::from_str(&x.value)?;
-            } else if x.name == "text-in" {
+            if x.name == "text-in" {
                 self.text_in = TextFileMode::new(&x.value)?;
             } else if x.name == "text-out" {
                 self.text_out = Some(TextFileMode::new(&x.value)?);
@@ -102,6 +100,9 @@ impl Settings {
                 return cdx_err(CdxError::NoError);
             } else if x.name == "std-match" {
                 MatchMaker::help();
+                return cdx_err(CdxError::NoError);
+            } else if x.name == "std-text" {
+                TextFileMode::text_help();
                 return cdx_err(CdxError::NoError);
             } else if x.name == "std-trans" {
                 TransMaker::help();

@@ -149,7 +149,7 @@ impl HeadMode {
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 /// how are column values escaped?
-pub enum ColumnMode {
+pub enum QuoteMode {
     /// no escaping
     Plain,
     /// double quotes
@@ -187,13 +187,64 @@ pub enum ColumnMode {
     }
 }
 
+const TEXT_HELP_STRING: &str = r#"
+
+# Input Text Files #
+
+All tools have a --text-in option, that takes a string of up to five characters
+which defines how text files are parsed.
+
+The first character is the header mode, which can be
+    m - maybe (default) : Use the CDX header if it exists, otherwise don't.
+    y - yes : A CDX header is required
+    n - no : A CDX header is forbidden
+    s - skip : A CDX header, if present, is ignored.
+
+The second chracter is the column delimiter, auto-escaped
+    default is 't' for 'tab'
+
+The third charater is the quoting mode
+    p - plain (default) : no quoting is done. It is impossible to have a data field
+                          containing the column deliiter.
+    q - quote : The column delimiter is ignored when between double quotes : '"'
+                Within a quoted sting, '""' is used to mean '"'
+    b - backslash : All backslahes are combined with the following character in the usual way.
+
+The fouth character is the replacement character, used when the quote mode is 'plain'.
+Any occurrences of the column delimiter are replaced with this charater.
+    default is space.
+
+The fifth character is the line delimiter, default is newline (\n)
+
+Omitted trailing characters accept the default, so 'y' is the same as 'ytpsn'
+
+# Output Text Files #
+
+All tools have a --text-out option that controls how text files are written.
+Its parameter is treated exactly like --text-in, except that the default values
+are thos passed to --text-in.
+If --text-in sepcified "maybe" as the header mode, then the output default is
+'yes' if an input header was present and 'no' otherwise.
+
+# Auto Escaped #
+    Auto escaping make it easier to specify special characters,
+    mostly by implying a leading backslash.
+    Auto escaping maps letters to other characters :
+    t is tab
+    s is space
+    r is return (/r)
+    n is newline (/n)
+    other lowecase ascii is reserved
+    otherwise the character is unchanged.
+"#;
+
 #[derive(Debug, Copy, Clone)]
 /// how to pase a text file into lines and columns
 pub struct TextFileMode {
     /// yes, no, maybe
     pub head_mode: HeadMode,
     /// plain, quote, backslash
-    pub col_mode: ColumnMode,
+    pub col_mode: QuoteMode,
     /// column delimiter
     pub delim: u8,
     /// line delimiter
@@ -206,7 +257,7 @@ impl Default for TextFileMode {
     fn default() -> Self {
         Self {
             head_mode: HeadMode::Maybe,
-            col_mode: ColumnMode::Plain,
+            col_mode: QuoteMode::Plain,
             delim: b'\t',
             line_break: b'\n',
             repl: b' ',
@@ -227,7 +278,7 @@ impl TextFileMode {
         let mut line_break = dflt.line_break;
         let mut repl = dflt.repl;
 
-        // 1nst char : header mode. y - yes, n - no, s - skip, m - maybe, x - cdx
+        // 1st char : header mode. y - yes, n - no, s - skip, m - maybe, x - cdx
         if !spec.is_empty() {
             let ch = spec.take_first();
             if ch == 'y' {
@@ -249,15 +300,15 @@ impl TextFileMode {
             let ch = spec.take_first();
             delim = auto_escape(ch);
         }
-        // 3th char : quoting.
+        // 3rd char : quoting. p - plain, q - quote, b - backslash
         if !spec.is_empty() {
             let ch = spec.take_first();
             if ch == 'p' {
-                col_mode = ColumnMode::Plain;
+                col_mode = QuoteMode::Plain;
             } else if ch == 'q' {
-                col_mode = ColumnMode::Quote;
+                col_mode = QuoteMode::Quote;
             } else if ch == 'b' {
-                col_mode = ColumnMode::Backslash;
+                col_mode = QuoteMode::Backslash;
             } else {
                 return err!("Fourth char of text-fmt spec must be p (plain), q (quote) or b (backslash) not '{ch}'");
             }
@@ -280,24 +331,31 @@ impl TextFileMode {
             repl,
         })
     }
+
+    /// print the help for TextFileMode
+    pub fn text_help() {
+        println!("{}", TEXT_HELP_STRING);
+    }
+
     /// write a column value, properly escaped
+    /// print help for text modes
     pub fn write(&self, w: &mut dyn Write, buf: &[u8]) -> Result<()> {
         match self.col_mode {
-            ColumnMode::Plain => write_plain(w, buf, self.delim, self.line_break, self.repl),
-            ColumnMode::Backslash => write_backslash(w, buf, self.delim, self.line_break),
-            ColumnMode::Quote => write_quotes(w, buf, self.delim, self.line_break),
+            QuoteMode::Plain => write_plain(w, buf, self.delim, self.line_break, self.repl),
+            QuoteMode::Backslash => write_backslash(w, buf, self.delim, self.line_break),
+            QuoteMode::Quote => write_quotes(w, buf, self.delim, self.line_break),
         }
     }
     /// split data line into columns
     pub fn split(&self, line: &mut TextLine) {
         match self.col_mode {
-            ColumnMode::Plain => split_plain(&mut line.parts, &line.line, self.delim),
-            ColumnMode::Backslash => {
+            QuoteMode::Plain => split_plain(&mut line.parts, &line.line, self.delim),
+            QuoteMode::Backslash => {
                 line.orig.clear();
                 line.orig.extend_from_slice(&line.line);
                 split_backslash(&mut line.parts, &line.orig, &mut line.line, self.delim);
             }
-            ColumnMode::Quote => {
+            QuoteMode::Quote => {
                 line.orig.clear();
                 line.orig.extend_from_slice(&line.line);
                 split_quotes(&mut line.parts, &line.orig, &mut line.line, self.delim);
@@ -363,7 +421,7 @@ impl TextFileMode {
         if sz == 0 {
             return Ok(true);
         }
-        if self.col_mode != ColumnMode::Quote {
+        if self.col_mode != QuoteMode::Quote {
             return self.ensure_eof(line);
         }
         let mut within = false;
@@ -1733,8 +1791,6 @@ pub enum HeaderMode {
     /// Ignore CDX if present
     Ignore,
 }
-/// strings associated with `HeaderMode`
-pub const HEADER_MODE: [&str; 6] = ["Match", "Require", "Strip", "None", "Trust", "Ignore"];
 
 impl FromStr for HeaderMode {
     type Err = Error;
@@ -2327,10 +2383,10 @@ mod tests {
         assert_eq!(data1, &line[..]);
         mode.read_line(&mut &data3[..], &mut line)?;
         assert_eq!(data4, &line[..]);
-        mode.col_mode = ColumnMode::Quote;
+        mode.col_mode = QuoteMode::Quote;
         mode.read_line(&mut &data3[..], &mut line)?;
         assert_eq!(data3, &line[..]);
-        mode.col_mode = ColumnMode::Backslash;
+        mode.col_mode = QuoteMode::Backslash;
         mode.read_line(&mut &data3[..], &mut line)?;
         assert_eq!(data4, &line[..]);
         Ok(())
