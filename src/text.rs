@@ -55,7 +55,7 @@ pub trait Text {
     fn skip_first(&self) -> &Self;
     /// create a character from an ascii value
     fn ascii(&self, ch: u8) -> Self::Char;
-    /// are two characters equal FIXME, should be is_XXX
+    /// are two characters equal FIXME, should be `is_XXX`
     fn chars_equal(&self, c1: Self::Char, c2: Self::Char, ic: Case) -> bool;
     /// return first character and remove it from slice
     fn take_first(self: &mut &Self) -> Self::Char;
@@ -95,11 +95,11 @@ pub trait Text {
     fn to_str(&self) -> std::borrow::Cow<'_, str>;
     /// convert to usize
     fn to_usize(&self) -> (usize, &Self);
-    /// to_usize, but simply retrj best guess
+    /// `to_usize`, but simply retrj best guess
     fn to_usize_lossy(&self) -> usize {
         self.to_usize().0
     }
-    /// to_usize, but fail if any text remains
+    /// `to_usize`, but fail if any text remains
     fn to_usize_whole(&self, spec: &[u8], what: &str) -> Result<usize> {
         let (val, rest) = self.to_usize();
         if !rest.is_empty() {
@@ -112,7 +112,7 @@ pub trait Text {
             Ok(val)
         }
     }
-    /// bytes_to_d, returning junk value as appropriate
+    /// `bytes_to_d`, returning junk value as appropriate
     fn to_usize_junk(&self, junk: &Junk) -> usize {
         let (val, rest) = self.to_usize();
         match junk.junk_type {
@@ -135,11 +135,11 @@ pub trait Text {
     }
     /// convert to isize
     fn to_isize(&self) -> (isize, &Self);
-    /// to_isize, but simply retrj best guess
+    /// `to_isize`, but simply retrj best guess
     fn to_isize_lossy(&self) -> isize {
         self.to_isize().0
     }
-    /// to_isize, but fail if any text remains
+    /// `to_isize`, but fail if any text remains
     fn to_isize_whole(&self, spec: &[u8], what: &str) -> Result<isize> {
         let (val, rest) = self.to_isize();
         if !rest.is_empty() {
@@ -152,7 +152,7 @@ pub trait Text {
             Ok(val)
         }
     }
-    /// bytes_to_d, returning junk value as appropriate
+    /// `bytes_to_d`, returning junk value as appropriate
     fn to_isize_junk(&self, junk: &Junk) -> isize {
         let (val, rest) = self.to_isize();
         match junk.junk_type {
@@ -175,11 +175,11 @@ pub trait Text {
     }
     /// convert to f64, return value and remainder
     fn to_f64(&self) -> (f64, &Self);
-    /// to_f64, but simply return best guess
+    /// `to_f64`, but simply return best guess
     fn to_f64_lossy(&self) -> f64 {
         self.to_f64().0
     }
-    /// to_f64, but fail if any text remains
+    /// `to_f64`, but fail if any text remains
     fn to_f64_whole(&self, spec: &[u8], what: &str) -> Result<f64> {
         let (val, rest) = self.to_f64();
         if !rest.is_empty() {
@@ -192,7 +192,7 @@ pub trait Text {
             Ok(val)
         }
     }
-    /// bytes_to_d, returning junk value as appropriate
+    /// `bytes_to_d`, returning junk value as appropriate
     fn to_f64_junk(&self, junk: &Junk) -> f64 {
         let (val, rest) = self.to_f64();
         match junk.junk_type {
@@ -332,7 +332,7 @@ impl Text for str {
     }
 
     fn ascii(&self, ch: u8) -> Self::Char {
-        char::from_u32(ch as u32).unwrap()
+        char::from_u32(u32::from(ch)).unwrap()
     }
     fn empty(&self) -> &Self {
         ""
@@ -687,14 +687,14 @@ impl Text for [u8] {
         let mut ret: f64 = 0.0;
         while !curr.is_empty() && curr[0].is_ascii_digit() {
             ret *= 10.0;
-            ret += (curr[0] - b'0') as f64;
+            ret += f64::from(curr[0] - b'0');
             curr = &curr[1..];
         }
         if !curr.is_empty() && (curr[0] == b'.') {
             curr = &curr[1..];
             let mut place = 0.1;
             while !curr.is_empty() && curr[0].is_ascii_digit() {
-                ret += place * (curr[0] - b'0') as f64;
+                ret += place * f64::from(curr[0] - b'0');
                 place *= 0.1;
                 curr = &curr[1..];
             }
@@ -714,7 +714,7 @@ impl Text for [u8] {
             let mut exponent: i32 = 0;
             while !curr.is_empty() && curr[0].is_ascii_digit() {
                 exponent *= 10;
-                exponent += (curr[0] - b'0') as i32;
+                exponent += i32::from(curr[0] - b'0');
                 curr = &curr[1..];
             }
             exponent *= neg_exp;
@@ -739,7 +739,7 @@ impl Text for [u8] {
                 //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LOG2_10).exp2();},
                 //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LN_10).exp();},
                 _ => {
-                    ret *= libm::exp10(exponent as f64);
+                    ret *= libm::exp10(f64::from(exponent));
                 }
             }
         }

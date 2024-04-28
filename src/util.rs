@@ -43,13 +43,13 @@ pub type Error = anyhow::Error;
 pub type Result<T> = core::result::Result<T, Error>;
 impl error::Error for CdxError {}
 
-/// convert CdxError to Result
+/// convert `CdxError` to Result
 pub fn cdx_err<T>(err: CdxError) -> Result<T> {
     Err(anyhow::Error::new(err))
 }
 
 /// if suppress(e) is true, treat as success
-pub fn suppress(err: &Error) -> bool {
+#[must_use] pub fn suppress(err: &Error) -> bool {
     if let Some(ioerr) = err.downcast_ref::<io::Error>() {
         ioerr.kind() == io::ErrorKind::BrokenPipe
     } else {
@@ -58,14 +58,14 @@ pub fn suppress(err: &Error) -> bool {
 }
 
 /// if silent(e) is true, treat as failure, but print no message
-pub fn silent(err: &Error) -> bool {
+#[must_use] pub fn silent(err: &Error) -> bool {
     matches!(err.downcast_ref::<CdxError>(), Some(CdxError::Silent))
 }
 
 impl fmt::Display for CdxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Error(s) => write!(f, "{}", s)?,
+            Self::Error(s) => write!(f, "{s}")?,
             Self::NeedLookup => write!(
                 f,
                 "ColumnSet.lookup() must be called before ColumnSet.select()"
@@ -109,7 +109,7 @@ impl Tri {
         }
     }
     /// return Yes is x is true, else Maybe
-    pub const fn yes_if(x: bool) -> Self {
+    #[must_use] pub const fn yes_if(x: bool) -> Self {
         if x {
             Self::Yes
         } else {
@@ -117,7 +117,7 @@ impl Tri {
         }
     }
     /// return No is x is true, else Maybe
-    pub const fn no_if(x: bool) -> Self {
+    #[must_use] pub const fn no_if(x: bool) -> Self {
         if x {
             Self::No
         } else {
@@ -142,7 +142,7 @@ pub enum HeadMode {
 }
 impl HeadMode {
     /// does this mode imply a CDX header
-    pub fn has_cdx(self) -> bool {
+    #[must_use] pub fn has_cdx(self) -> bool {
         self == Self::Cdx || self == Self::Maybe
     }
 }
@@ -171,7 +171,7 @@ pub enum ColumnMode {
 // --dx (whole line one column)
 
 /// convert char to ue, but 't' means tab and such
-pub const fn auto_escape(ch: char) -> u8 {
+#[must_use] pub const fn auto_escape(ch: char) -> u8 {
     if ch == 't' {
         b'\t'
     } else if ch == 's' {
@@ -436,20 +436,20 @@ impl FakeSlice {
             }
         }
     }
-    /// get slice from FakeSlice
-    pub fn get<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+    /// get slice from `FakeSlice`
+    #[must_use] pub fn get<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         &data[self.begin as usize..self.end as usize]
     }
-    /// get slice from FakeSlice, but don't fall off the end.
-    pub fn get_safe<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+    /// get slice from `FakeSlice`, but don't fall off the end.
+    #[must_use] pub fn get_safe<'a>(&self, data: &'a [u8]) -> &'a [u8] {
         &data[cmp::min(self.begin as usize, data.len())..cmp::min(self.end as usize, data.len())]
     }
     /// len
-    pub const fn len(&self) -> usize {
+    #[must_use] pub const fn len(&self) -> usize {
         (self.end - self.begin) as usize
     }
     /// is empty?
-    pub const fn is_empty(&self) -> bool {
+    #[must_use] pub const fn is_empty(&self) -> bool {
         self.begin == self.end
     }
 }
@@ -499,7 +499,7 @@ pub fn split_plain(parts: &mut Vec<FakeSlice>, line: &[u8], delim: u8) {
     let mut begin: u32 = 0;
     let mut end: u32 = 0;
     #[allow(clippy::explicit_counter_loop)] // I need the counter to be u32
-    for ch in line.iter() {
+    for ch in line {
         if *ch == delim {
             parts.push(FakeSlice { begin, end });
             begin = end + 1;
@@ -516,7 +516,7 @@ pub fn split_plain(parts: &mut Vec<FakeSlice>, line: &[u8], delim: u8) {
 }
 
 /// undo slash encoding, e.g. 'n' becomes '\n'
-pub const fn unslash(ch: u8) -> u8 {
+#[must_use] pub const fn unslash(ch: u8) -> u8 {
     match ch {
         b'n' => b'\n',
         b'r' => b'\r',
@@ -526,7 +526,7 @@ pub const fn unslash(ch: u8) -> u8 {
 }
 
 /// do slash encoding, e.g. 'n' becomes '\n'
-pub const fn enslash(ch: u8) -> u8 {
+#[must_use] pub const fn enslash(ch: u8) -> u8 {
     match ch {
         b'\n' => b'n',
         b'\r' => b'r',
@@ -546,7 +546,7 @@ pub fn split_backslash(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8
     let mut begin: u32 = 0;
     let mut end: u32 = 0;
     let mut last_was_slash = false;
-    for xch in line.iter() {
+    for xch in line {
         let ch = *xch;
         if last_was_slash {
             tmp.push(unslash(ch));
@@ -583,7 +583,7 @@ pub fn split_quotes(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, 
     let mut end: u32 = 0;
     let mut last_was_quote = false;
     let mut in_quote = false;
-    for ch in line.iter() {
+    for ch in line {
         if in_quote {
             if last_was_quote {
                 if *ch == b'"' {
@@ -644,7 +644,7 @@ pub struct TextLine {
     pub(crate) orig: Vec<u8>,
 }
 
-/// as TextLine, but [String] rather than `Vec<u8>`
+/// as `TextLine`, but [String] rather than `Vec<u8>`
 #[derive(Debug, Clone, Default)]
 pub struct StringLine {
     /// The whole input line, with newline
@@ -667,7 +667,7 @@ impl fmt::Display for TextLine {
 impl fmt::Display for StringLine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for i in self {
-            write!(f, "{} ", i)?;
+            write!(f, "{i} ")?;
         }
         Ok(())
     }
@@ -704,7 +704,7 @@ impl TextLine {
         &mut self.parts
     }
     /// whole line, with newline
-    pub fn line(&self) -> &[u8] {
+    #[must_use] pub fn line(&self) -> &[u8] {
         if self.orig.is_empty() {
             &self.line
         } else {
@@ -712,22 +712,22 @@ impl TextLine {
         }
     }
     /// whole line, without newline
-    pub fn line_nl(&self) -> &[u8] {
+    #[must_use] pub fn line_nl(&self) -> &[u8] {
         &self.line[..self.line.len() - 1]
     }
     /// whole line, with newline, as Vec
     pub fn raw(&mut self) -> &mut Vec<u8> {
         &mut self.line
     }
-    /// assign TextLine into existing TextLine, avoiding allocation if possible
+    /// assign `TextLine` into existing `TextLine`, avoiding allocation if possible
     pub fn assign(&mut self, x: &Self) {
         self.line.clear();
         self.line.extend_from_slice(&x.line[..]);
         self.parts.clear();
         self.parts.extend_from_slice(&x.parts[..]);
     }
-    /// make a new TextLine
-    pub const fn new() -> Self {
+    /// make a new `TextLine`
+    #[must_use] pub const fn new() -> Self {
         Self {
             line: Vec::new(),
             parts: Vec::new(),
@@ -735,7 +735,7 @@ impl TextLine {
         }
     }
     /// Iterator over columns in the line
-    pub const fn iter(&self) -> TextLineIter<'_> {
+    #[must_use] pub const fn iter(&self) -> TextLineIter<'_> {
         TextLineIter {
             line: self,
             index: 0,
@@ -747,19 +747,19 @@ impl TextLine {
         self.line.clear();
     }
     /// How many column in the line
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.parts.len()
     }
     /// How many bytes in the line
-    pub fn strlen(&self) -> usize {
+    #[must_use] pub fn strlen(&self) -> usize {
         self.line.len()
     }
     /// should always be false, but required by clippy
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.parts.is_empty()
     }
     /// Get one column. Return an empty column if index is too big.
-    pub fn get(&self, index: usize) -> &[u8] {
+    #[must_use] pub fn get(&self, index: usize) -> &[u8] {
         if index >= self.parts.len() {
             &self.line[0..0]
         } else {
@@ -785,14 +785,14 @@ impl TextLine {
         split_plain(&mut self.parts, &self.line, text.delim);
     }
     /// return all parts as a vector
-    pub fn vec(&self) -> Vec<&[u8]> {
+    #[must_use] pub fn vec(&self) -> Vec<&[u8]> {
         self.iter().collect()
     }
 }
 
 impl StringLine {
-    /// make a new StringLine
-    pub const fn new() -> Self {
+    /// make a new `StringLine`
+    #[must_use] pub const fn new() -> Self {
         Self {
             line: String::new(),
             parts: Vec::new(),
@@ -800,7 +800,7 @@ impl StringLine {
         }
     }
     /// Iterator over columns in the line
-    pub const fn iter(&self) -> StringLineIter<'_> {
+    #[must_use] pub const fn iter(&self) -> StringLineIter<'_> {
         StringLineIter {
             line: self,
             index: 0,
@@ -821,19 +821,19 @@ impl StringLine {
         self.line.clear();
     }
     /// How many column in the line
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.parts.len()
     }
     /// How many bytes in the line
-    pub fn strlen(&self) -> usize {
+    #[must_use] pub fn strlen(&self) -> usize {
         self.line.len()
     }
     /// should always be false, but required by clippy
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.parts.is_empty()
     }
     /// Get one column. Return an empty column if index is too big.
-    pub fn get(&self, index: usize) -> &str {
+    #[must_use] pub fn get(&self, index: usize) -> &str {
         if index >= self.parts.len() {
             &self.line[0..0]
         } else {
@@ -859,11 +859,11 @@ impl StringLine {
         split_plain(&mut self.parts, self.line.as_bytes(), delim);
     }
     /// return all parts as a vector
-    pub fn vec(&self) -> Vec<&str> {
+    #[must_use] pub fn vec(&self) -> Vec<&str> {
         self.iter().collect()
     }
     /// whole line, with newline
-    pub fn line(&self) -> &str {
+    #[must_use] pub fn line(&self) -> &str {
         if self.orig.is_empty() {
             &self.line
         } else {
@@ -896,14 +896,14 @@ impl<'a> IntoIterator for &'a StringLine {
     }
 }
 
-/// Iterator over the columns in a TextLine
+/// Iterator over the columns in a `TextLine`
 #[derive(Debug, Clone)]
 pub struct TextLineIter<'a> {
     line: &'a TextLine,
     index: usize,
 }
 
-/// Iterator over the columns in a StringLine
+/// Iterator over the columns in a `StringLine`
 #[derive(Debug, Clone)]
 pub struct StringLineIter<'a> {
     line: &'a StringLine,
@@ -1019,7 +1019,7 @@ pub struct Infile(
 
 impl Infile {
     /// create a new input file
-    pub fn new(f: io::BufReader<Box<dyn Read>>, n: &str) -> Self {
+    #[must_use] pub fn new(f: io::BufReader<Box<dyn Read>>, n: &str) -> Self {
         Self(f, n.to_string())
     }
 }
@@ -1067,7 +1067,7 @@ pub struct Outfile(pub io::BufWriter<Box<dyn Write>>, pub String);
 
 impl Outfile {
     /// create a new input file
-    pub fn new(f: io::BufWriter<Box<dyn Write>>, n: &str) -> Self {
+    #[must_use] pub fn new(f: io::BufWriter<Box<dyn Write>>, n: &str) -> Self {
         Self(f, n.to_string())
     }
 }
@@ -1186,14 +1186,14 @@ pub struct InfileContext {
 }
 
 /// create appropriate header from first line of file
-pub fn make_header(line: &[u8]) -> StringLine {
+#[must_use] pub fn make_header(line: &[u8]) -> StringLine {
     let mut s = StringLine::new();
     if is_cdx(line) {
         s.line = String::from_utf8_lossy(&line[5..]).to_string();
     } else {
         s.line = String::new();
         for x in 1..=line.split(|ch| *ch == b'\t').count() {
-            write!(s.line, "c{}\t", x).unwrap();
+            write!(s.line, "c{x}\t").unwrap();
         }
         s.line.pop();
     }
@@ -1310,7 +1310,7 @@ impl FileLocItem {
     }
 }
 
-/// FileLocItem with column name
+/// `FileLocItem` with column name
 #[derive(Debug, Clone)]
 struct FileLoc {
     col_name: String,
@@ -1336,18 +1336,18 @@ impl FileLoc {
     }
 }
 
-/// List of FileLoc
+/// List of `FileLoc`
 #[derive(Default, Debug, Clone)]
 pub struct FileLocList {
     v: Vec<FileLoc>,
 }
 impl FileLocList {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// new
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// add Name:Spec
@@ -1409,11 +1409,11 @@ impl Default for Reader {
 
 impl Reader {
     /// loc
-    pub const fn loc(&self) -> &FileLocData {
+    #[must_use] pub const fn loc(&self) -> &FileLocData {
         &self.loc
     }
     /// make a new Reader
-    pub fn new(text_in: &TextFileMode) -> Self {
+    #[must_use] pub fn new(text_in: &TextFileMode) -> Self {
         Self::new_with(1, text_in)
     }
     /// set to false to skip breaking into columns
@@ -1421,7 +1421,7 @@ impl Reader {
         self.do_split = val;
     }
     /// make a new Reader, with explicit lookback
-    pub fn new_with(lookback: usize, text_in: &TextFileMode) -> Self {
+    #[must_use] pub fn new_with(lookback: usize, text_in: &TextFileMode) -> Self {
         let mut lines: Vec<TextLine> = Vec::new();
         lines.resize(lookback + 1, TextLine::new());
         Self {
@@ -1464,21 +1464,21 @@ impl Reader {
         Ok(tmp)
     }
     /// get current line contents, without the trailing newline
-    pub fn curr_nl(&self) -> &[u8] {
+    #[must_use] pub fn curr_nl(&self) -> &[u8] {
         let line = self.curr_line();
         &line.line[0..line.line.len() - 1]
     }
     /// get previous line contents, without the trailing newline
-    pub fn prev_nl(&self, n: usize) -> &[u8] {
+    #[must_use] pub fn prev_nl(&self, n: usize) -> &[u8] {
         let line = self.prev_line(n);
         &line.line[0..line.line.len() - 1]
     }
     /// get delimiter
-    pub const fn delim(&self) -> u8 {
+    #[must_use] pub const fn delim(&self) -> u8 {
         self.cont.text.delim
     }
     /// get column names
-    pub fn names(&self) -> Vec<&str> {
+    #[must_use] pub fn names(&self) -> Vec<&str> {
         self.cont.header.vec()
     }
     /// write the current text line with newline
@@ -1492,19 +1492,19 @@ impl Reader {
         self.cont.read_header(&mut *self.file, &mut self.lines[0])
     }
     /// The full text of the header, without the trailing newline
-    pub const fn header_line(&self) -> &String {
+    #[must_use] pub const fn header_line(&self) -> &String {
         &self.cont.header.line
     }
     /// was file zero bytes?
-    pub const fn is_empty(&self) -> bool {
+    #[must_use] pub const fn is_empty(&self) -> bool {
         self.cont.is_empty
     }
     /// have we hit EOF?
-    pub const fn is_done(&self) -> bool {
+    #[must_use] pub const fn is_done(&self) -> bool {
         self.cont.is_done
     }
-    /// line number of curr_line
-    pub const fn line_number(&self) -> usize {
+    /// line number of `curr_line`
+    #[must_use] pub const fn line_number(&self) -> usize {
         self.loc.line
     }
     fn incr(&mut self) {
@@ -1530,7 +1530,7 @@ impl Reader {
         Ok(self.cont.is_done)
     }
     /// get current line of text
-    pub fn curr_line(&self) -> &TextLine {
+    #[must_use] pub fn curr_line(&self) -> &TextLine {
         &self.lines[self.curr]
     }
     /// get current line of text
@@ -1538,12 +1538,12 @@ impl Reader {
         &mut self.lines[self.curr]
     }
     /// get current line of text
-    pub fn curr(&self) -> &TextLine {
+    #[must_use] pub fn curr(&self) -> &TextLine {
         &self.lines[self.curr]
     }
     /// get a previous line of text
     /// looking back from the start of the file shows empty lines.
-    pub fn prev_line(&self, lookback: usize) -> &TextLine {
+    #[must_use] pub fn prev_line(&self, lookback: usize) -> &TextLine {
         if lookback <= self.curr {
             &self.lines[self.curr - lookback]
         } else {
@@ -1566,11 +1566,11 @@ impl Reader {
         Ok(())
     }
     /// write header
-    pub const fn header(&self) -> &StringLine {
+    #[must_use] pub const fn header(&self) -> &StringLine {
         &self.cont.header
     }
     /// write header
-    pub const fn has_header(&self) -> bool {
+    #[must_use] pub const fn has_header(&self) -> bool {
         self.cont.has_header
     }
 }
@@ -1733,7 +1733,7 @@ pub enum HeaderMode {
     /// Ignore CDX if present
     Ignore,
 }
-/// strings associated with HeaderMode
+/// strings associated with `HeaderMode`
 pub const HEADER_MODE: [&str; 6] = ["Match", "Require", "Strip", "None", "Trust", "Ignore"];
 
 impl FromStr for HeaderMode {
@@ -1766,7 +1766,7 @@ impl Default for HeaderMode {
     }
 }
 
-/// Object to enforce HeaderMode
+/// Object to enforce `HeaderMode`
 #[derive(Debug, Default, Clone)]
 pub struct HeaderChecker {
     /// the mode to enforce
@@ -1778,7 +1778,7 @@ pub struct HeaderChecker {
 }
 
 /// Is this line a CDX header?
-pub fn is_cdx(data: &[u8]) -> bool {
+#[must_use] pub fn is_cdx(data: &[u8]) -> bool {
     data.starts_with(b" CDX")
     // check for more validity?
 }
@@ -1805,7 +1805,7 @@ fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {
         return err!("Header for file {} has an invalid column delimiter", fname);
     }
     let data = str::from_utf8(&data[5..])?;
-    let delim = char::from_u32(delim as u32).unwrap();
+    let delim = char::from_u32(u32::from(delim)).unwrap();
     for x in data.split(|ch| ch == delim) {
         if x.is_empty() {
             return err!("File {} has an empty column name", fname);
@@ -1824,11 +1824,11 @@ fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {
 
 impl HeaderChecker {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// new with mode
-    pub fn from_mode(mode: HeaderMode) -> Self {
+    #[must_use] pub fn from_mode(mode: HeaderMode) -> Self {
         Self {
             mode,
             ..Self::default()
@@ -1987,8 +1987,8 @@ impl FromStr for CompareOp {
 
 impl CompareOp {
     /// invert left vs right. That is, swap less vs greater, but not equal vs not equal
-    pub const fn invert(&self) -> Self {
-        use CompareOp::*;
+    #[must_use] pub const fn invert(&self) -> Self {
+        use CompareOp::{EQ, GE, GT, LE, LT, NE};
         match self {
             LT => GT,
             GT => LT,
@@ -2006,9 +2006,9 @@ impl CompareOp {
         line_num: usize,
     ) -> bool {
         if !self.invert().line_ok(line, comp) {
-            eprint!("Line {} : ", line_num);
+            eprint!("Line {line_num} : ");
             prerr_n(&[&line.line]);
-            eprint!("should have been {:?} ", self);
+            eprint!("should have been {self:?} ");
             prerr_n(&[comp.get_value()]);
             eprintln!(" but wasn't");
             false
@@ -2021,10 +2021,10 @@ impl CompareOp {
         let o = comp.comp_self_cols(line);
         self.ord_ok(o)
     }
-    /// does Ordering satisfy CompareOp
-    pub fn ord_ok(&self, o: Ordering) -> bool {
-        use CompareOp::*;
-        use Ordering::*;
+    /// does Ordering satisfy `CompareOp`
+    #[must_use] pub fn ord_ok(&self, o: Ordering) -> bool {
+        use CompareOp::{EQ, GE, GT, LE, LT, NE};
+        use Ordering::{Equal, Greater, Less};
         match self {
             LT => o == Less,
             GT => o == Greater,
@@ -2248,7 +2248,7 @@ impl CheckBuff {
         })
     }
     /// does right match?
-    pub fn buff_ok(&self, right: &[u8]) -> bool {
+    #[must_use] pub fn buff_ok(&self, right: &[u8]) -> bool {
         let c = self.val.comp_self(right);
         if !self.op.invert().ord_ok(c) {
             return false;
@@ -2297,7 +2297,7 @@ pub fn find_close(spec: &str) -> Result<usize> {
 }
 
 /// remove trailing end of line characters
-pub fn chomp(mut x: &[u8]) -> &[u8] {
+#[must_use] pub fn chomp(mut x: &[u8]) -> &[u8] {
     while !x.is_empty() {
         let len = x.len() - 1;
         if x[len] != b'\n' && x[len] != b'\r' {

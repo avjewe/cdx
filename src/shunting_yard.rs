@@ -6,11 +6,11 @@
 //!
 //! [RPN]: https://en.wikipedia.org/wiki/Reverse_Polish_notation
 //! [shunting]: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
-use self::Associativity::*;
+use self::Associativity::{Left, NA, Right};
 use crate::prelude::*;
-use crate::tok2::BinaryOp::*;
+use crate::tok2::BinaryOp::{Div, EQ, GE, GT, LE, LT, Minus, NE, Plus, Pow, Rem, Times};
 use crate::tok2::Token;
-use crate::tok2::Token::*;
+use crate::tok2::Token::{Binary, Comma, Func, LParen, Number, RParen, Unary, Var};
 use crate::tok2::UnaryOp;
 
 #[derive(Debug, Clone, Copy)]
@@ -67,7 +67,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
                         }
                     }
                 }
-                stack.push((index, token))
+                stack.push((index, token));
             }
             LParen => stack.push((index, token)),
             RParen => {
@@ -125,7 +125,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
 
     // verify rpn
     let mut n_operands = 0isize;
-    for token in output.iter() {
+    for token in &output {
         match *token {
             Var(_) | Number(_) => n_operands += 1,
             Unary(_) => (),

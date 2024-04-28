@@ -10,7 +10,7 @@ fancier sort
 use crate::comp::Item;
 use crate::prelude::*;
 use crate::util::{copy, get_reader, is_cdx, make_header, HeaderChecker};
-use binary_heap_plus::*;
+use binary_heap_plus::BinaryHeap;
 use std::cell::RefCell;
 //use std::mem;
 use std::rc::Rc;
@@ -96,7 +96,7 @@ impl SortConfig {
         }
         for i in 0..in_files.len() {
             if !mc.borrow().open[i].is_done() {
-                heap.push(i)
+                heap.push(i);
             }
         }
         if unique {
@@ -297,7 +297,7 @@ impl SortConfig {
         unique: bool,
     ) -> Result<()> // maybe return some useful stats?
     {
-        let mut s = Sorter::new(cmp, 500000000, unique);
+        let mut s = Sorter::new(cmp, 500_000_000, unique);
         for fname in files {
             s.add_file(fname, w)?;
         }
@@ -335,11 +335,11 @@ pub struct Sorter {
     data_nonl: usize,
 }
 
-const MAX_DATA: usize = 0x0ffffff00;
+const MAX_DATA: usize = 0x0000_ffff_ff00;
 
 impl Sorter {
     /// new Sorter
-    pub fn new(cmp: LineCompList, max_alloc: usize, unique: bool) -> Self {
+    #[must_use] pub fn new(cmp: LineCompList, max_alloc: usize, unique: bool) -> Self {
         let mut data_size = max_alloc / 2;
         if data_size > MAX_DATA {
             data_size = MAX_DATA;
@@ -673,7 +673,7 @@ fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut Line
         let low = items.len() / 2;
         sort_lines(data, &mut items[low..], temp, cmp);
         if low == 1 {
-            temp[0] = items[0]
+            temp[0] = items[0];
         } else {
             sort_lines_temp(data, &mut items[..low], temp, cmp);
         }

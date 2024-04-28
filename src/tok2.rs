@@ -51,7 +51,7 @@ pub(crate) enum Token {
 impl Token {
     fn make_func(&mut self) -> bool {
         if let Self::Var(s) = self {
-            *self = Self::Func(s.to_string(), None);
+            *self = Self::Func((*s).to_string(), None);
             true
         } else {
             false
@@ -60,7 +60,7 @@ impl Token {
 }
 
 const fn can_binary(tok: &Token) -> bool {
-    use Token::*;
+    use Token::{Binary, Comma, Func, LParen, Number, RParen, Unary, Var};
     match tok {
         Binary(_) => false,
         Unary(_) => false,

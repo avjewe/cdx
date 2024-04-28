@@ -41,7 +41,7 @@ pub struct NoMatch {
 
 impl NoMatch {
     /// new
-    pub fn new(file_num: usize, file_name: &str) -> Self {
+    #[must_use] pub fn new(file_num: usize, file_name: &str) -> Self {
         Self {
             file_num,
             file_name: file_name.to_string(),
@@ -60,7 +60,7 @@ pub struct OutColSpec {
 
 impl OutColSpec {
     /// new
-    pub const fn new(file: usize, cols: ColumnSet) -> Self {
+    #[must_use] pub const fn new(file: usize, cols: ColumnSet) -> Self {
         Self { file, cols }
     }
 }
@@ -127,8 +127,8 @@ impl OneOutCol {
 }
 
 impl JoinConfig {
-    /// create new JoinConfig. Note that derived 'default' is sub-optimal
-    pub fn new() -> Self {
+    /// create new `JoinConfig`. Note that derived 'default' is sub-optimal
+    #[must_use] pub fn new() -> Self {
         Self {
             match_out: "-".to_string(),
             out_delim: b'\t',
@@ -174,7 +174,7 @@ impl Joiner {
         }
 
         for _x in 0..config.infiles.len() {
-            self.no_match.push(None)
+            self.no_match.push(None);
         }
         for x in &config.unmatch_out {
             if (x.file_num < 1) || (x.file_num > config.infiles.len()) {

@@ -45,30 +45,30 @@ impl MemMap {
         })
     }
     /// get underlying memmap data
-    pub fn get(&self) -> &[u8] {
+    #[must_use] pub fn get(&self) -> &[u8] {
         &self.map[..]
     }
     /// get column delimiter
-    pub const fn get_delim(&self) -> u8 {
+    #[must_use] pub const fn get_delim(&self) -> u8 {
         self.delim
     }
     /// does the file have a CDX header?
-    pub const fn has_header(&self) -> bool {
+    #[must_use] pub const fn has_header(&self) -> bool {
         self.header_len > 0
     }
     /// full text of header line, including newline
-    pub fn header(&self) -> &[u8] {
+    #[must_use] pub fn header(&self) -> &[u8] {
         self.header.line.as_bytes()
     }
     /// column names, suitable for lookup
-    pub fn names(&self) -> Vec<&str> {
+    #[must_use] pub fn names(&self) -> Vec<&str> {
         self.header.vec()
     }
 }
 
 /// return the position after the next newline after start
 /// that is, starting in the middle of a line, find the start of the next line
-pub const fn find_end(data: &[u8], mut start: usize) -> usize {
+#[must_use] pub const fn find_end(data: &[u8], mut start: usize) -> usize {
     while (start < data.len()) && (data[start] != b'\n') {
         start += 1;
     }
@@ -80,7 +80,7 @@ pub const fn find_end(data: &[u8], mut start: usize) -> usize {
 
 /// return the position after the first newline before start
 /// that is, starting in the middle of a line, find the start of it
-pub const fn find_start(data: &[u8], mut start: usize) -> usize {
+#[must_use] pub const fn find_start(data: &[u8], mut start: usize) -> usize {
     while (start > 0) && (data[start] != b'\n') {
         start -= 1;
     }
@@ -92,7 +92,7 @@ pub const fn find_start(data: &[u8], mut start: usize) -> usize {
 
 /// 'start' should be the beginning of a line
 /// return the beginning of the previous line
-pub const fn find_prev(data: &[u8], start: usize) -> usize {
+#[must_use] pub const fn find_prev(data: &[u8], start: usize) -> usize {
     if start <= 1 {
         return 0;
     }
@@ -103,21 +103,21 @@ pub const fn find_prev(data: &[u8], start: usize) -> usize {
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// LineCompList holds the value against which we are comparing
+/// `LineCompList` holds the value against which we are comparing
 pub fn lower_bound<'a>(data: &'a [u8], comp: &mut LineCompList) -> &'a [u8] {
     let (start, stop) = lower_bound_n(data, comp);
     &data[start..stop]
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// LineCompList holds the value against which we are comparing
+/// `LineCompList` holds the value against which we are comparing
 pub fn equal_range<'a>(data: &'a [u8], comp: &mut LineCompList) -> &'a [u8] {
     let (start, stop) = equal_range_n(data, comp);
     &data[start..stop]
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// LineCompList holds the value against which we are comparing
+/// `LineCompList` holds the value against which we are comparing
 pub fn equal_range_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
     let (start1, stop1) = lower_bound_n(data, comp);
     if start1 == stop1 {
@@ -128,7 +128,7 @@ pub fn equal_range_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
 }
 
 /// return first line that matches (with newline) or empty slice if none
-/// LineCompList holds the value against which we are comparing
+/// `LineCompList` holds the value against which we are comparing
 pub fn lower_bound_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
     let mut trapped = false; // to exit a possible infinite loop
     let mut begin: usize = 0; // start of range under consideration

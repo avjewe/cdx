@@ -61,12 +61,12 @@ pub trait LineAgg {
     fn replace<'a>(&self, head: &'a StringLine) -> &'a str;
     /// is the replace function available
     fn can_replace(&self) -> bool;
-    /// does this LineAgg specifically refer to this input column?
+    /// does this `LineAgg` specifically refer to this input column?
     fn is_col(&self, col: usize) -> bool;
 }
 type LineAggRef = Rc<RefCell<dyn LineAgg>>;
 
-/// LineAgg with Context
+/// `LineAgg` with Context
 #[derive(Clone)]
 pub struct LineAgger {
     /// orig spec
@@ -85,13 +85,13 @@ impl fmt::Debug for LineAgger {
 }
 
 impl LineAgger {
-    /// does this LineAgg specifically refer to this input column?
+    /// does this `LineAgg` specifically refer to this input column?
     fn is_col(&self, col: usize) -> bool {
         return self.agg.borrow().is_col(col);
     }
     /// add one more value to the aggregate
     pub fn add(&mut self, data: &TextLine) {
-        self.agg.borrow_mut().add(data)
+        self.agg.borrow_mut().add(data);
     }
     /// print result of aggregation
     fn result(&mut self, w: &mut dyn Write) -> Result<()> {
@@ -99,7 +99,7 @@ impl LineAgger {
     }
     /// reset to empty or zero state
     fn reset(&mut self) {
-        self.agg.borrow_mut().reset()
+        self.agg.borrow_mut().reset();
     }
     /// return floating point value of Agg, as possible
     fn value(&self) -> f64 {
@@ -139,11 +139,11 @@ impl LineAgger {
     }
     /// new replace
     pub fn new_replace(spec: &str) -> Result<Self> {
-        Self::new_replace2(spec, &format!("replace,{}", spec))
+        Self::new_replace2(spec, &format!("replace,{spec}"))
     }
     /// new prefix
     pub fn new_prefix(spec: &str) -> Result<Self> {
-        Self::new_prefix2(spec, &format!("prefix,{}", spec))
+        Self::new_prefix2(spec, &format!("prefix,{spec}"))
     }
     /// new prefix
     pub fn new_prefix2(rep: &str, spec: &str) -> Result<Self> {
@@ -155,7 +155,7 @@ impl LineAgger {
     }
     /// new append
     pub fn new_append(spec: &str) -> Result<Self> {
-        Self::new_append2(spec, &format!("append,{}", spec))
+        Self::new_append2(spec, &format!("append,{spec}"))
     }
     /// new append
     pub fn new_append2(rep: &str, spec: &str) -> Result<Self> {
@@ -165,7 +165,7 @@ impl LineAgger {
             err!("Append format is NewName,Column,Spec : {}", spec)
         }
     }
-    /// new LineAgger
+    /// new `LineAgger`
     pub fn new2(out: AggType, rep: &str, spec: &str) -> Result<Self> {
         Ok(Self {
             spec: spec.to_string(),
@@ -338,7 +338,7 @@ impl Counter for Awords {
 }
 
 #[derive(Clone, Debug)]
-/// Does this LineAgger replace a column, or add a new column
+/// Does this `LineAgger` replace a column, or add a new column
 pub enum AggType {
     /// replace a column
     Replace,
@@ -364,7 +364,7 @@ struct AggCol {
 }
 
 impl LineAgg for AggCol {
-    /// does this LineAgg specifically refer to this input column?
+    /// does this `LineAgg` specifically refer to this input column?
     fn is_col(&self, col: usize) -> bool {
         self.src.num == col
     }
@@ -395,7 +395,7 @@ impl LineAgg for AggCol {
     }
 }
 impl AggCol {
-    /// new from AggType and spec
+    /// new from `AggType` and spec
     fn new(spec: &str) -> Result<Self> {
         if let Some((a, _)) = spec.split_once(',') {
             Self::new2(a, spec)
@@ -404,7 +404,7 @@ impl AggCol {
             //            Self::new3(mode, spec, "")
         }
     }
-    /// new from AggType and spec
+    /// new from `AggType` and spec
     fn new2(src: &str, spec: &str) -> Result<Self> {
         Ok(Self {
             src: NamedCol::new_from(src)?,
@@ -463,7 +463,7 @@ impl ColumnFun for Agger {
 impl Agger {
     /// add one more value to the aggregate
     pub fn add(&mut self, data: &[u8]) {
-        self.agg.borrow_mut().add(data)
+        self.agg.borrow_mut().add(data);
     }
     /// print result of aggregation
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
@@ -471,7 +471,7 @@ impl Agger {
     }
     /// reset to empty or zero state
     fn reset(&mut self) {
-        self.agg.borrow_mut().reset()
+        self.agg.borrow_mut().reset();
     }
     /// return floating point value of Agg, as possible
     fn value(&self) -> f64 {
@@ -486,7 +486,7 @@ impl Agger {
             Self::new2("", spec, spec)
         }
     }
-    /// new from AggType and spec
+    /// new from `AggType` and spec
     pub fn new2(name: &str, spec: &str, orig: &str) -> Result<Self> {
         Ok(Self {
             spec: orig.to_string(),
@@ -496,7 +496,7 @@ impl Agger {
         })
     }
     /// clone, but make a whole new Agg
-    pub fn deep_clone(&self) -> Self {
+    #[must_use] pub fn deep_clone(&self) -> Self {
         Self::new(&self.spec).unwrap()
     }
 }
@@ -512,11 +512,11 @@ pub struct AggList {
 
 impl AggList {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// len
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.v.len()
     }
     /// fmt
@@ -527,7 +527,7 @@ impl AggList {
         }
     }
     /// clone, but make a all new Aggs
-    pub fn deep_clone(&self) -> Self {
+    #[must_use] pub fn deep_clone(&self) -> Self {
         let mut n = Self::new();
         for x in &self.v {
             n.push(&x.spec).unwrap();
@@ -554,7 +554,7 @@ impl AggList {
         }
     */
     /// index
-    pub fn get(&self, pos: usize) -> &Agger {
+    #[must_use] pub fn get(&self, pos: usize) -> &Agger {
         &self.v[pos]
     }
     /// reset to empty or zero
@@ -564,7 +564,7 @@ impl AggList {
         }
     }
     /// is empty?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// OutName,Agg,Pattern
@@ -599,7 +599,7 @@ pub struct LineAggList {
 
 impl LineAggList {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// reset to empty or zero
@@ -615,7 +615,7 @@ impl LineAggList {
         }
     }
     /// is empty?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// Column,Agg,Pattern
@@ -1233,7 +1233,7 @@ impl Agg for Count {
 }
 
 type MakerBox = Box<dyn Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send>;
-/// A named constructor for a [Agg], used by [AggMaker]
+/// A named constructor for a [Agg], used by [`AggMaker`]
 struct AggMakerItem {
     /// name of Agg
     tag: &'static str,
@@ -1244,7 +1244,7 @@ struct AggMakerItem {
 }
 
 type CounterBox = Box<dyn Fn(bool, &str) -> Result<Box<dyn Counter>> + Send>;
-/// A named constructor for a [Counter], used by [AggMaker]
+/// A named constructor for a [Counter], used by [`AggMaker`]
 struct CounterMakerItem {
     /// name of Counter
     tag: &'static str,

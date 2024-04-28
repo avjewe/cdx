@@ -1,10 +1,10 @@
 //! Tools for comparing lines and fields
 //!
 //!  For plain buffers, there is a trait [Compare], which is usually wrapped in a struct [Comp]
-//!  which is usually aggregated into a [CompList]
+//!  which is usually aggregated into a [`CompList`]
 //!
-//!  For whole lines, there is a trait [LineCompare], which is usually wrapped in a struct [LineComp]
-//!  which is usually aggregated into a [LineCompList]
+//!  For whole lines, there is a trait [`LineCompare`], which is usually wrapped in a struct [`LineComp`]
+//!  which is usually aggregated into a [`LineCompList`]
 //!
 //! ```
 //! use cdx::comp::LineCompList;
@@ -86,7 +86,7 @@ pub trait LineCompare {
     ) -> bool;
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
     fn lookup(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()>;
-    /// initialize columns in TextLine?
+    /// initialize columns in `TextLine`?
     fn need_split(&self) -> bool {
         true
     }
@@ -142,11 +142,11 @@ impl Default for Comp {
 
 impl Comp {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// new
-    pub fn with_line_comp(c: &LineComp) -> Self {
+    #[must_use] pub fn with_line_comp(c: &LineComp) -> Self {
         Self {
             junk: c.junk,
             pattern: c.pattern.clone(),
@@ -156,27 +156,27 @@ impl Comp {
         }
     }
     /// Compare two slices, usually column values
-    pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+    #[must_use] pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
         self.comp.comp(left, right)
     }
     /// Compare two slices for equality
-    pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+    #[must_use] pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         self.comp.equal(left, right)
     }
     /// set cache for this value
     pub fn fill_cache(&self, item: &mut Item, value: &[u8]) {
-        self.comp.fill_cache(item, value)
+        self.comp.fill_cache(item, value);
     }
     /// set my value
     pub fn set(&mut self, value: &[u8]) {
-        self.comp.set(value)
+        self.comp.set(value);
     }
     /// Compare self to slice
-    pub fn comp_self(&self, right: &[u8]) -> Ordering {
+    #[must_use] pub fn comp_self(&self, right: &[u8]) -> Ordering {
         self.comp.comp_self(right)
     }
     /// Compare self to slice for equality
-    pub fn equal_self(&self, right: &[u8]) -> bool {
+    #[must_use] pub fn equal_self(&self, right: &[u8]) -> bool {
         self.comp.equal_self(right)
     }
 }
@@ -224,12 +224,12 @@ impl Default for LineComp {
 
 impl LineComp {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// which columns are in use for this file
     pub fn used_cols(&self, v: &mut Vec<usize>, file_num: usize) {
-        self.comp.used_cols(v, file_num)
+        self.comp.used_cols(v, file_num);
     }
     /// Compare Items
     pub fn comp_items(&mut self, base: &[u8], left: &Item, right: &Item) -> Ordering {
@@ -253,19 +253,19 @@ impl LineComp {
         }
     }
     /// reverse the ordering if self.reverse is set
-    pub const fn reverse(&self, x: Ordering) -> Ordering {
+    #[must_use] pub const fn reverse(&self, x: Ordering) -> Ordering {
         if self.reverse {
             x.reverse()
         } else {
             x
         }
     }
-    /// compare [TextLine]s from a single file
+    /// compare [`TextLine`]s from a single file
     pub fn comp_cols(&mut self, left: &TextLine, right: &TextLine) -> Ordering {
         let x = self.comp.comp_cols(left, right, 0, 0);
         self.reverse(x)
     }
-    /// compare [TextLine]s from multiple files
+    /// compare [`TextLine`]s from multiple files
     pub fn comp_cols_n(
         &mut self,
         left: &TextLine,
@@ -276,11 +276,11 @@ impl LineComp {
         let x = self.comp.comp_cols(left, right, left_file, right_file);
         self.reverse(x)
     }
-    /// compare [TextLine]s from a single file
+    /// compare [`TextLine`]s from a single file
     pub fn equal_cols(&mut self, left: &TextLine, right: &TextLine) -> bool {
         self.comp.equal_cols(left, right, 0, 0)
     }
-    /// compare [TextLine]s from multiple files
+    /// compare [`TextLine`]s from multiple files
     pub fn equal_cols_n(
         &mut self,
         left: &TextLine,
@@ -331,21 +331,21 @@ impl LineComp {
     pub fn lookup_n(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()> {
         self.comp.lookup(fieldnames, file_num)
     }
-    /// do [TextLine]s need their columns to be initialized
-    pub fn need_split(&self) -> bool {
+    /// do [`TextLine`]s need their columns to be initialized
+    #[must_use] pub fn need_split(&self) -> bool {
         self.comp.need_split()
     }
-    /// set cache of [Item] from [TextLine]
+    /// set cache of [Item] from [`TextLine`]
     pub fn fill_cache_cols(&mut self, item: &mut Item, value: &TextLine) {
-        self.comp.fill_cache_cols(item, value)
+        self.comp.fill_cache_cols(item, value);
     }
     /// set cache of [Item] from line
     pub fn fill_cache_line(&mut self, item: &mut Item, value: &[u8]) {
-        self.comp.fill_cache_line(item, value, self.delim)
+        self.comp.fill_cache_line(item, value, self.delim);
     }
     /// set value for later comparison
     pub fn set(&mut self, value: &[u8]) {
-        self.comp.set(value)
+        self.comp.set(value);
     }
     /// compare self to this line
     pub fn comp_self_cols(&mut self, right: &TextLine) -> Ordering {
@@ -431,15 +431,15 @@ impl LineCompare for LineCompWhole {
     }
 
     fn fill_cache_cols(&mut self, item: &mut Item, value: &TextLine) {
-        self.comp.fill_cache(item, value.line())
+        self.comp.fill_cache(item, value.line());
     }
 
     fn fill_cache_line(&mut self, item: &mut Item, value: &[u8], _delim: u8) {
-        self.comp.fill_cache(item, value)
+        self.comp.fill_cache(item, value);
     }
 
     fn set(&mut self, value: &[u8]) {
-        self.comp.set(value)
+        self.comp.set(value);
     }
 
     fn comp_self_cols(&mut self, right: &TextLine) -> Ordering {
@@ -466,7 +466,7 @@ struct LineCompCol {
 }
 
 impl LineCompCol {
-    /// cols must not be empty, use LineCompWhole for that
+    /// cols must not be empty, use `LineCompWhole` for that
     fn new(comp: Comp, spec: &str) -> Result<Self> {
         let mut cols = Vec::new();
         for x in spec.split('.') {
@@ -542,16 +542,16 @@ impl LineCompare for LineCompCol {
         self.cols[file_num].lookup(fieldnames)
     }
     fn fill_cache_cols(&mut self, item: &mut Item, value: &TextLine) {
-        self.comp.fill_cache(item, value.get(self.cols[0].num))
+        self.comp.fill_cache(item, value.get(self.cols[0].num));
     }
 
     fn fill_cache_line(&mut self, item: &mut Item, value: &[u8], delim: u8) {
         self.comp
-            .fill_cache(item, get_col(item.get(value), self.cols[0].num, delim))
+            .fill_cache(item, get_col(item.get(value), self.cols[0].num, delim));
     }
 
     fn set(&mut self, value: &[u8]) {
-        self.comp.set(value)
+        self.comp.set(value);
     }
 
     fn comp_self_cols(&mut self, right: &TextLine) -> Ordering {
@@ -820,7 +820,7 @@ const _: () = assert!(std::mem::size_of::<Item>() == 16);
 */
 
 type MakerBox = Box<dyn Fn(&Comp) -> Result<Box<dyn Compare>> + Send>;
-/// A named constructor for a [Compare], used by [CompMaker]
+/// A named constructor for a [Compare], used by [`CompMaker`]
 struct CompMakerItem {
     /// matched against Comparator::ctype
     tag: &'static str,
@@ -831,7 +831,7 @@ struct CompMakerItem {
 }
 
 type LineMakerBox = Box<dyn Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send>;
-/// A named constructor for a [LineCompare], used by [CompMaker]
+/// A named constructor for a [`LineCompare`], used by [`CompMaker`]
 struct LineCompMakerItem {
     /// matched against Comparator::ctype
     tag: &'static str,
@@ -853,7 +853,7 @@ lazy_static! {
     static ref MODIFIERS: Vec<&'static str> = vec!["rev", "strict", "trail", "low"];
 }
 
-/// Makes a [Compare or LineComp]
+/// Makes a [Compare or `LineComp`]
 #[derive(Debug, Clone, Default)]
 pub struct CompMaker {}
 
@@ -905,7 +905,7 @@ impl CompMaker {
         Self::init()?;
         Self::do_push(tag, help, maker)
     }
-    /// Add a new LineCompare. If a Compare already exists by that name, replace it.
+    /// Add a new `LineCompare`. If a Compare already exists by that name, replace it.
     pub fn push_line<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
         F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send,
@@ -1051,7 +1051,7 @@ impl CompMaker {
         Self::remake_comp(&mut comp)?;
         Ok(comp)
     }
-    /// create LineComp from spec
+    /// create `LineComp` from spec
     pub fn make_line_comp(spec: &str) -> Result<LineComp> {
         if let Some((a, b)) = spec.split_once(',') {
             if let Some((c, d)) = b.split_once(',') {
@@ -1063,7 +1063,7 @@ impl CompMaker {
             Self::make_line_comp_parts(spec, "", "")
         }
     }
-    /// create LineComp from columns, method and pattern
+    /// create `LineComp` from columns, method and pattern
     pub fn make_line_comp_parts(cols: &str, method: &str, pattern: &str) -> Result<LineComp> {
         let mut comp = LineComp::new();
         comp.pattern = pattern.to_string();
@@ -1098,7 +1098,7 @@ impl CompMaker {
         }
         err!("No such compare type : '{}'", comp.ctype)
     }
-    /// reset the LineCompare inside the LineComp
+    /// reset the `LineCompare` inside the `LineComp`
     pub fn remake_line_comp(comp: &mut LineComp) -> Result<()> {
         Self::init()?;
         let ctype = Self::resolve_alias(&comp.ctype);
@@ -1130,7 +1130,7 @@ pub struct CompList {
     c: Vec<Comp>,
 }
 #[derive(Default, Debug)]
-/// Ordered list of [LineComp]
+/// Ordered list of [`LineComp`]
 pub struct LineCompList {
     c: Vec<LineComp>,
     value: Vec<u8>,
@@ -1138,11 +1138,11 @@ pub struct LineCompList {
 
 impl CompList {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// any [Comp]s in the list?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.c.is_empty()
     }
     /// add
@@ -1155,7 +1155,7 @@ impl CompList {
         Ok(())
     }
     /// Compare two slices, usually column values
-    pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+    #[must_use] pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
         for x in &self.c {
             let ret = x.comp(left, right);
             if ret != Ordering::Equal {
@@ -1165,7 +1165,7 @@ impl CompList {
         Ordering::Equal
     }
     /// Compare two slices for equality
-    pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+    #[must_use] pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         for x in &self.c {
             if !x.comp.equal(left, right) {
                 return false;
@@ -1199,7 +1199,7 @@ impl CompList {
         Ok(())
     }
     /// Compare self to slice
-    pub fn comp_self(&self, right: &[u8]) -> Ordering {
+    #[must_use] pub fn comp_self(&self, right: &[u8]) -> Ordering {
         for x in &self.c {
             let ret = x.comp_self(right);
             if ret != Ordering::Equal {
@@ -1209,7 +1209,7 @@ impl CompList {
         Ordering::Equal
     }
     /// Compare self to slice for equality
-    pub fn equal_self(&self, right: &[u8]) -> bool {
+    #[must_use] pub fn equal_self(&self, right: &[u8]) -> bool {
         for x in &self.c {
             if !x.equal_self(right) {
                 return false;
@@ -1221,15 +1221,15 @@ impl CompList {
 
 impl LineCompList {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
-    /// any [LineComp]s in the list?
-    pub fn is_empty(&self) -> bool {
+    /// any [`LineComp`]s in the list?
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.c.is_empty()
     }
     /// which columns used as part of key?
-    pub fn used_cols(&self, file_num: usize) -> Vec<usize> {
+    #[must_use] pub fn used_cols(&self, file_num: usize) -> Vec<usize> {
         let mut v = Vec::new();
         for x in &self.c {
             x.used_cols(&mut v, file_num);
@@ -1277,11 +1277,11 @@ impl LineCompList {
         }
         true
     }
-    /// compare [TextLine]s in the same file
+    /// compare [`TextLine`]s in the same file
     pub fn comp_cols(&mut self, left: &TextLine, right: &TextLine) -> Ordering {
         self.comp_cols_n(left, right, 0, 0)
     }
-    /// compare [TextLine]s in different files
+    /// compare [`TextLine`]s in different files
     pub fn comp_cols_n(
         &mut self,
         left: &TextLine,
@@ -1297,11 +1297,11 @@ impl LineCompList {
         }
         Ordering::Equal
     }
-    /// compare [TextLine]s in the same file
+    /// compare [`TextLine`]s in the same file
     pub fn equal_cols(&mut self, left: &TextLine, right: &TextLine) -> bool {
         self.equal_cols_n(left, right, 0, 0)
     }
-    /// compare [TextLine]s in different files
+    /// compare [`TextLine`]s in different files
     pub fn equal_cols_n(
         &mut self,
         left: &TextLine,
@@ -1362,12 +1362,12 @@ impl LineCompList {
     /// resolve named columns in the given file
     pub fn lookup_n(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()> {
         for x in &mut self.c {
-            x.lookup_n(fieldnames, file_num)?
+            x.lookup_n(fieldnames, file_num)?;
         }
         Ok(())
     }
-    /// do [TextLine]s need their columns initialized
-    pub fn need_split(&self) -> bool {
+    /// do [`TextLine`]s need their columns initialized
+    #[must_use] pub fn need_split(&self) -> bool {
         for x in &self.c {
             if x.need_split() {
                 return true;
@@ -1388,7 +1388,7 @@ impl LineCompList {
         }
     }
     /// get the value previously set
-    pub fn get_value(&self) -> &[u8] {
+    #[must_use] pub fn get_value(&self) -> &[u8] {
         &self.value
     }
     /// set value fo later comparison
@@ -1590,7 +1590,7 @@ impl Compare for CompareLower {
     fn fill_cache(&self, item: &mut Item, value: &[u8]) {
         let mut aa = make_array(value);
         for x in &mut aa {
-            x.make_ascii_lowercase()
+            x.make_ascii_lowercase();
         }
         item.cache = u64::from_be_bytes(aa);
         item.assign_complete(value.len() <= 8);
@@ -1715,7 +1715,7 @@ impl Compare for CompareLen {
 
 impl Item {
     /// new item
-    pub const fn new() -> Self {
+    #[must_use] pub const fn new() -> Self {
         Self {
             offset: 0,
             size_plus: 0,
@@ -1723,24 +1723,24 @@ impl Item {
         }
     }
     /// return line as slice
-    pub fn get<'a>(&self, base: &'a [u8]) -> &'a [u8] {
+    #[must_use] pub fn get<'a>(&self, base: &'a [u8]) -> &'a [u8] {
         &base[self.begin()..self.end()]
     }
     /// size in bytes of line
-    pub const fn size(&self) -> u32 {
-        self.size_plus & 0x7fffffff
+    #[must_use] pub const fn size(&self) -> u32 {
+        self.size_plus & 0x7fff_ffff
     }
     /// test complete bit
-    pub const fn complete(&self) -> bool {
-        (self.size_plus & 0x80000000) != 0
+    #[must_use] pub const fn complete(&self) -> bool {
+        (self.size_plus & 0x8000_0000) != 0
     }
     /// set complete bit
     pub fn set_complete(&mut self) {
-        self.size_plus |= 0x80000000;
+        self.size_plus |= 0x8000_0000;
     }
     /// clear complete bit
     pub fn clear_complete(&mut self) {
-        self.size_plus &= 0x7fffffff;
+        self.size_plus &= 0x7fff_ffff;
     }
     /// conditionally set complete bit
     pub fn assign_complete(&mut self, tag: bool) {
@@ -1751,15 +1751,15 @@ impl Item {
         }
     }
     /// offset of begin
-    pub const fn begin(&self) -> usize {
+    #[must_use] pub const fn begin(&self) -> usize {
         self.offset as usize
     }
     /// offset of end
-    pub const fn end(&self) -> usize {
+    #[must_use] pub const fn end(&self) -> usize {
         self.offset as usize + self.size() as usize
     }
     /// Test an Item for equality to myself
-    pub fn equal(&self, other: &Self, base: &[u8]) -> bool {
+    #[must_use] pub fn equal(&self, other: &Self, base: &[u8]) -> bool {
         if self.cache != other.cache {
             return false;
         }
@@ -1769,7 +1769,7 @@ impl Item {
         self.get(base) == other.get(base)
     }
     /// Compare Item to myself with standard ordering
-    pub fn compare(&self, other: &Self, base: &[u8]) -> Ordering {
+    #[must_use] pub fn compare(&self, other: &Self, base: &[u8]) -> Ordering {
         if self.cache < other.cache {
             return Ordering::Less;
         }
@@ -1884,7 +1884,7 @@ impl LineCompare for LineCompExpr {
         item.set_complete();
     }
     fn set(&mut self, value: &[u8]) {
-        self.value = value.to_f64_lossy()
+        self.value = value.to_f64_lossy();
     }
     fn comp_self_cols(&mut self, right: &TextLine) -> Ordering {
         let value = self.exprs[0].eval(right);

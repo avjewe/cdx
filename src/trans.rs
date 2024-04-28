@@ -7,11 +7,11 @@ use base64::Engine;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 
-/// Transform a value to another value, in the context of a (typically unused) TextLine
+/// Transform a value to another value, in the context of a (typically unused) `TextLine`
 pub trait Trans {
     /// Transform `src` into a new value, and append to `dst`
     fn trans(&mut self, src: &[u8], cont: &TextLine, dst: &mut Vec<u8>) -> Result<()>;
-    /// Resolve any named columns, typically needed only if TextLine is used in `trans`
+    /// Resolve any named columns, typically needed only if `TextLine` is used in `trans`
     fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
         Ok(())
     }
@@ -249,7 +249,7 @@ impl TransList {
 }
 
 type MakerBox = Box<dyn Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send>;
-/// A named constructor for a [Trans], used by [TransMaker]
+/// A named constructor for a [Trans], used by [`TransMaker`]
 struct TransMakerItem {
     /// name of Trans
     tag: &'static str,

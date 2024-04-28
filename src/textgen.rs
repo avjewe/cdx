@@ -200,7 +200,7 @@ pub struct TextGen {
 impl Default for TextGen {
     fn default() -> Self {
         Self {
-            spec: "".to_string(),
+            spec: String::new(),
             gen: Box::new(NullGen {}),
         }
     }
@@ -225,7 +225,7 @@ pub struct GenList {
 }
 impl GenList {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// add a Gen
@@ -234,11 +234,11 @@ impl GenList {
         Ok(())
     }
     /// is empty?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// length?
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.v.len()
     }
     /// Write full line of Gens
@@ -265,7 +265,7 @@ impl GenList {
 }
 
 type MakerBox = Box<dyn Fn(&str) -> Result<Box<dyn Gen>> + Send>;
-/// A named constructor for a [Gen], used by [GenMaker]
+/// A named constructor for a [Gen], used by [`GenMaker`]
 struct GenMakerItem {
     /// name of Gen
     tag: &'static str,
@@ -284,7 +284,7 @@ static GEN_MAKER: Mutex<Vec<GenMakerItem>> = Mutex::new(Vec::new());
 static GEN_ALIAS: Mutex<Vec<GenMakerAlias>> = Mutex::new(Vec::new());
 static MODIFIERS: Vec<&'static str> = vec![];
 
-/// Makes an [TextGen]
+/// Makes an [`TextGen`]
 #[derive(Debug, Clone, Default)]
 pub struct GenMaker {}
 

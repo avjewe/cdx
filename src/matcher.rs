@@ -1,4 +1,4 @@
-//! Test if a [TextLine], `str` or `&[u8]` matches a pattern
+//! Test if a [`TextLine`], `str` or `&[u8]` matches a pattern
 //!
 //! A `Matcher` is a generalization of a Regular Expression.
 //! It answers "does a pattern match a target", but you supply a
@@ -7,7 +7,7 @@
 //! See <https://avjewe.github.io/cdxdoc/Matcher.html> for a list of matchers,
 //! and other details about the syntax for specifying lagauges,
 //!
-//! Most uses will involve [Matcher]s, collected into [MatcherList]s, or
+//! Most uses will involve [Matcher]s, collected into [`MatcherList`]s, or
 //!
 //!```
 //! use cdx::matcher::*;
@@ -41,7 +41,7 @@ use std::collections::HashSet;
 use std::fmt::Write;
 use std::sync::Mutex;
 
-/// Match against [TextLine]
+/// Match against [`TextLine`]
 pub trait LineMatch {
     /// Is this line ok?
     fn ok(&mut self, line: &TextLine) -> bool;
@@ -153,7 +153,7 @@ impl Thresh {
         }
     }
     /// new Count
-    pub const fn new_count(c: usize) -> Self {
+    #[must_use] pub const fn new_count(c: usize) -> Self {
         Self::Count(c)
     }
     /// new Frac
@@ -165,35 +165,35 @@ impl Thresh {
         }
     }
     /// we've seen this many, with more to come. Are we done yet?
-    pub const fn at_most_mid(&self, n: usize) -> Tri {
+    #[must_use] pub const fn at_most_mid(&self, n: usize) -> Tri {
         match self {
             Self::Count(c) => Tri::no_if(n > *c),
             _ => Tri::Maybe,
         }
     }
     /// we've seen this many, with more to come. Are we done yet?
-    pub const fn at_least_mid(&self, n: usize) -> Tri {
+    #[must_use] pub const fn at_least_mid(&self, n: usize) -> Tri {
         match self {
             Self::Count(c) => Tri::yes_if(n >= *c),
             _ => Tri::Maybe,
         }
     }
     /// we've seen this many, is that a match?
-    pub fn at_most_final(&self, n: usize, tot: usize) -> bool {
+    #[must_use] pub fn at_most_final(&self, n: usize, tot: usize) -> bool {
         match self {
             Self::Count(c) => n <= *c,
             Self::Frac(f) => num::f64_less(*f, n, tot),
         }
     }
     /// we've seen this many, is that a match?
-    pub fn at_least_final(&self, n: usize, tot: usize) -> bool {
+    #[must_use] pub fn at_least_final(&self, n: usize, tot: usize) -> bool {
         match self {
             Self::Count(c) => n >= *c,
             Self::Frac(f) => num::f64_greater(*f, n, tot),
         }
     }
     /// we've seen this many, is that a match?
-    pub fn exactly(&self, n: usize, tot: usize) -> bool {
+    #[must_use] pub fn exactly(&self, n: usize, tot: usize) -> bool {
         match self {
             Self::Count(c) => n == *c,
             Self::Frac(f) => num::f64_equal(*f, n, tot),
@@ -267,8 +267,8 @@ impl Determiner {
         })
     }
     /// we've seen this many yes's and this many no's, with more to come. Are we done yet?
-    pub const fn match_mid(&self, yes: usize, no: usize) -> Tri {
-        use Determiner::*;
+    #[must_use] pub const fn match_mid(&self, yes: usize, no: usize) -> Tri {
+        use Determiner::{All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform};
         match self {
             All => Tri::no_if(no > 0),
             Some => Tri::yes_if(yes > 0),
@@ -286,8 +286,8 @@ impl Determiner {
     }
 
     /// we've seen this many yes's and this many no's, with more to come. Is that a match?
-    pub fn match_final(&self, yes: usize, no: usize) -> bool {
-        use Determiner::*;
+    #[must_use] pub fn match_final(&self, yes: usize, no: usize) -> bool {
+        use Determiner::{All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform};
         let tot = yes + no;
         match self {
             All => no == 0,
@@ -353,7 +353,7 @@ impl PrefixMatchC {
     fn new(data: &str) -> Self {
         Self {
             s_data: data.to_lowercase(),
-            u_data: data.as_bytes().to_ascii_lowercase().to_vec(),
+            u_data: data.as_bytes().to_ascii_lowercase(),
         }
     }
 }
@@ -470,7 +470,7 @@ impl SuffixMatchC {
     fn new(data: &str) -> Self {
         Self {
             s_data: data.to_lowercase(),
-            u_data: data.as_bytes().to_ascii_lowercase().to_vec(),
+            u_data: data.as_bytes().to_ascii_lowercase(),
         }
     }
 }
@@ -496,7 +496,7 @@ impl InfixMatchC {
     fn new(data: &str) -> Self {
         Self {
             s_data: data.to_lowercase(),
-            u_data: data.as_bytes().to_ascii_lowercase().to_vec(),
+            u_data: data.as_bytes().to_ascii_lowercase(),
         }
     }
 }
@@ -999,7 +999,7 @@ impl LineMatch for CompMatcher {
     }
 }
 
-/// Does the whole line match a pattern. Implements LineMatch
+/// Does the whole line match a pattern. Implements `LineMatch`
 #[derive(Debug)]
 struct WholeMatcher {
     matcher: Matcher,
@@ -1074,7 +1074,7 @@ impl LineMatch for CountMatcher {
     }
 }
 
-/// Does a particular column of a line match a pattern. Implements LineMatch
+/// Does a particular column of a line match a pattern. Implements `LineMatch`
 #[derive(Debug)]
 struct ColSetMatcher {
     matcher: Matcher,
@@ -1129,7 +1129,7 @@ impl LineMatch for ColSetMatcher {
     }
 }
 
-/// Does a particular column of a line match a pattern. Implements LineMatch
+/// Does a particular column of a line match a pattern. Implements `LineMatch`
 #[derive(Debug)]
 struct ColMatcher {
     matcher: Matcher,
@@ -1169,7 +1169,7 @@ impl LineMatch for ColMatcher {
     }
 }
 
-/// List of [LineMatch], combined with AND or OR
+/// List of [`LineMatch`], combined with AND or OR
 #[derive(Default)]
 pub struct LineMatcherList {
     /// the mode
@@ -1185,14 +1185,14 @@ impl fmt::Debug for LineMatcherList {
 
 impl LineMatcherList {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             multi: Combiner::Or,
             matchers: Vec::new(),
         }
     }
     /// new with combiner
-    pub fn new_with(multi: Combiner) -> Self {
+    #[must_use] pub fn new_with(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
@@ -1204,7 +1204,7 @@ impl LineMatcherList {
         Ok(())
     }
     /// is empty list?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
     /// ok, with supplied Combiner
@@ -1214,7 +1214,7 @@ impl LineMatcherList {
             Combiner::Or => self.ok_or(line),
         }
     }
-    /// ok_verbose, with supplied Combiner
+    /// `ok_verbose`, with supplied Combiner
     pub fn ok_verbose_tagged(
         &mut self,
         line: &TextLine,
@@ -1236,7 +1236,7 @@ impl LineMatcherList {
         }
         true
     }
-    /// ok_verbose, with AND
+    /// `ok_verbose`, with AND
     pub fn ok_verbose_and(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         let mut ret = true;
         for x in &mut self.matchers {
@@ -1264,7 +1264,7 @@ impl LineMatcherList {
             }
         }
         // FIXME - some report of each thing?
-        eprintln!("Line {} of {} failed to match OR matcher", line_num, fname);
+        eprintln!("Line {line_num} of {fname} failed to match OR matcher");
         false
     }
     /// Is this line ok?
@@ -1277,7 +1277,7 @@ impl LineMatcherList {
     }
     /// resolve any named columns
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        for x in self.matchers.iter_mut() {
+        for x in &mut self.matchers {
             x.lookup(fieldnames)?;
         }
         Ok(())
@@ -1328,15 +1328,15 @@ impl fmt::Debug for MatcherList {
 }
 
 impl MatcherList {
-    /// new MatcherList with Or
-    pub const fn new() -> Self {
+    /// new `MatcherList` with Or
+    #[must_use] pub const fn new() -> Self {
         Self {
             multi: Combiner::Or,
             matchers: Vec::new(),
         }
     }
-    /// new MatcherList with given mode
-    pub const fn new_with(multi: Combiner) -> Self {
+    /// new `MatcherList` with given mode
+    #[must_use] pub const fn new_with(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
@@ -1352,7 +1352,7 @@ impl MatcherList {
         self.matchers.push(item);
     }
     /// Are there any matchers in the list?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
     fn smatch_tagged(&self, buff: &str, multi: Combiner) -> bool {
@@ -1400,7 +1400,7 @@ impl MatcherList {
         false
     }
     /// Human readable desription
-    pub fn show(&self) -> String {
+    #[must_use] pub fn show(&self) -> String {
         if self.is_empty() {
             format!("Empty {} MatcherList", self.multi)
         } else if self.matchers.len() == 1 {
@@ -1414,15 +1414,15 @@ impl MatcherList {
         }
     }
     /// Are these characters ok?
-    pub fn smatch(&self, buff: &str) -> bool {
+    #[must_use] pub fn smatch(&self, buff: &str) -> bool {
         self.smatch_tagged(buff, self.multi)
     }
     /// Are these bytes ok?
-    pub fn umatch(&self, buff: &[u8]) -> bool {
+    #[must_use] pub fn umatch(&self, buff: &[u8]) -> bool {
         self.umatch_tagged(buff, self.multi)
     }
     /// smatch, but print to stderr if fail
-    pub fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
+    #[must_use] pub fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
         let res = self.smatch(buff);
         if res != negate {
             eprintln!(
@@ -1521,7 +1521,7 @@ impl Clone for Matcher {
 
 impl Matcher {
     /// Are these characters ok?
-    pub fn smatch(&self, mut buff: &str) -> bool {
+    #[must_use] pub fn smatch(&self, mut buff: &str) -> bool {
         if self.trim {
             buff = buff.trimw();
         }
@@ -1532,7 +1532,7 @@ impl Matcher {
         }
     }
     /// Are these bytes ok?
-    pub fn umatch(&self, mut buff: &[u8]) -> bool {
+    #[must_use] pub fn umatch(&self, mut buff: &[u8]) -> bool {
         if self.trim {
             buff = buff.trimw();
         }
@@ -1553,7 +1553,7 @@ impl Matcher {
 
     /// umatch or smatch, depending on self.string ;
     /// Failure to convert to utf8 is simply 'does not match'
-    pub fn do_match_safe(&self, buff: &[u8]) -> bool {
+    #[must_use] pub fn do_match_safe(&self, buff: &[u8]) -> bool {
         if self.string {
             if let Ok(x) = std::str::from_utf8(buff) {
                 self.smatch(x)
@@ -1567,7 +1567,7 @@ impl Matcher {
 }
 
 type MakerBox = Box<dyn Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send>;
-/// A named constructor for a [Match], used by [MatchMaker]
+/// A named constructor for a [Match], used by [`MatchMaker`]
 struct MatchMakerItem {
     /// matched against Matcher::ctype
     tag: &'static str,

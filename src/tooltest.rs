@@ -90,7 +90,7 @@ pub fn read_dir(dir: &Path) -> Result<Vec<String>> {
 
 /// if line doesn't start with tag, return false
 /// read following lines into buff, until another # line is seen
-/// set need_read to false if line ends up with unexamined data
+/// set `need_read` to false if line ends up with unexamined data
 fn grab(
     tag: &[u8],
     #[allow(clippy::ptr_arg)] buff: &mut Vec<u8>,
@@ -130,7 +130,7 @@ fn grab(
 
 impl Test {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     fn add_outfile(
@@ -347,7 +347,7 @@ impl Test {
             match get_reader(&fname) {
                 Err(e) => {
                     failed = true;
-                    eprintln!("{:?}", e);
+                    eprintln!("{e:?}");
                 }
                 Ok(mut f) => {
                     let mut body = Vec::new();
@@ -371,7 +371,7 @@ impl Test {
             failed = true;
             eprintln!("Files left over in TMP dir :");
             for x in &files {
-                eprintln!("{}", x);
+                eprintln!("{x}");
                 delete_file(x, &tmp)?;
             }
         }
@@ -462,7 +462,7 @@ impl Config {
             }
             Err(x) => {
                 self.fail += 1;
-                eprintln!("Failure : {}", x);
+                eprintln!("Failure : {x}");
                 prerr(&[b"Test ", file.as_bytes(), b" failed "]);
             }
         }

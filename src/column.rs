@@ -72,7 +72,7 @@ pub struct ColumnHeader {
 }
 
 /// is 'name' a valid column name
-pub fn is_valid_column_name(name: &str) -> bool {
+#[must_use] pub fn is_valid_column_name(name: &str) -> bool {
     get_col_name(name) == name.len()
 }
 
@@ -86,7 +86,7 @@ pub fn validate_column_name(name: &str) -> Result<()> {
 }
 
 /// extract column from line
-pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
+#[must_use] pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
     for (n, s) in data.split(|ch| *ch == delim).enumerate() {
         if n == col {
             return if !s.is_empty() && s.last().unwrap() == &b'\n' {
@@ -101,10 +101,10 @@ pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
 
 impl ColumnHeader {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
-    /// set the DupColHandling mode
+    /// set the `DupColHandling` mode
     pub fn set_handling(&mut self, dups: DupColHandling) {
         self.dups = dups;
     }
@@ -125,8 +125,8 @@ impl ColumnHeader {
     pub fn rename_sloppy(&mut self) {
         self.sloppy = true;
     }
-    /// get fieldnames suitable for lookup()
-    pub fn fieldnames(&self) -> Vec<&str> {
+    /// get fieldnames suitable for `lookup()`
+    #[must_use] pub fn fieldnames(&self) -> Vec<&str> {
         let mut v: Vec<&str> = Vec::with_capacity(self.cols.len());
         for x in &self.cols {
             v.push(x);
@@ -135,20 +135,20 @@ impl ColumnHeader {
     }
     /// add all of the columns from 'cols'
     pub fn push_all(&mut self, cols: &StringLine) -> Result<()> {
-        for x in cols.into_iter() {
+        for x in cols {
             self.push(x)?;
         }
         Ok(())
     }
     /// add all of the columns from 'cols', unchecked
     pub fn push_all_unchecked(&mut self, cols: &StringLine) {
-        for x in cols.into_iter() {
+        for x in cols {
             self.push_unchecked(x);
         }
     }
 
     /// do we already have this column name
-    pub fn contains(&self, name: &str) -> bool {
+    #[must_use] pub fn contains(&self, name: &str) -> bool {
         for x in &self.cols {
             if x == name {
                 return true;
@@ -202,11 +202,11 @@ impl ColumnHeader {
                 DupColHandling::Fail => return err!("Duplicate column name {}", name),
                 DupColHandling::Allow => {
                     self.cols.push(name.to_string());
-                    eprintln!("Warning : creating duplicate column name {}", name);
+                    eprintln!("Warning : creating duplicate column name {name}");
                 }
                 DupColHandling::Numeric => {
                     for x in 1..10000 {
-                        let new_name = format!("{name}{}", x);
+                        let new_name = format!("{name}{x}");
                         if !self.contains(&new_name) {
                             self.cols.push(new_name);
                             break;
@@ -221,7 +221,7 @@ impl ColumnHeader {
     }
 
     /// get new string, which is the full CDX header, including newline
-    pub fn get_head(&self, text: &TextFileMode) -> String {
+    #[must_use] pub fn get_head(&self, text: &TextFileMode) -> String {
         let mut res = String::with_capacity(self.get_size() + 6);
         if text.head_mode.has_cdx() {
             res.push_str(" CDX");
@@ -233,14 +233,14 @@ impl ColumnHeader {
     }
 
     /// get new string, which is the column names joined
-    pub fn get_head_short(&self, text: &TextFileMode) -> String {
+    #[must_use] pub fn get_head_short(&self, text: &TextFileMode) -> String {
         let mut res = String::with_capacity(self.get_size());
         self.add_head(&mut res, text);
         res
     }
 
     fn get_size(&self) -> usize {
-        self.cols.iter().map(|v| v.len()).sum::<usize>() + self.cols.len() - 1
+        self.cols.iter().map(std::string::String::len).sum::<usize>() + self.cols.len() - 1
     }
     /// append column names, joined
     fn add_head(&self, res: &mut String, text: &TextFileMode) {
@@ -332,7 +332,7 @@ pub struct OutCol {
 
 impl OutCol {
     /// new
-    pub fn new(num: usize, name: &str) -> Self {
+    #[must_use] pub fn new(num: usize, name: &str) -> Self {
         Self {
             num,
             name: name.to_string(),
@@ -340,7 +340,7 @@ impl OutCol {
         }
     }
     /// new with name and trans
-    pub fn new_trans(num: usize, name: &str, trans: usize) -> Self {
+    #[must_use] pub fn new_trans(num: usize, name: &str, trans: usize) -> Self {
         Self {
             num,
             name: name.to_string(),
@@ -348,7 +348,7 @@ impl OutCol {
         }
     }
     /// new with empty name
-    pub const fn from_num(num: usize) -> Self {
+    #[must_use] pub const fn from_num(num: usize) -> Self {
         Self {
             num,
             name: String::new(),
@@ -356,7 +356,7 @@ impl OutCol {
         }
     }
     /// new with empty name but a trans
-    pub const fn from_num_trans(num: usize, trans: usize) -> Self {
+    #[must_use] pub const fn from_num_trans(num: usize, trans: usize) -> Self {
         Self {
             num,
             name: String::new(),
@@ -365,7 +365,7 @@ impl OutCol {
     }
 }
 
-/// A ColumnSet with associated string
+/// A `ColumnSet` with associated string
 #[derive(Debug, Default, Clone)]
 pub struct ScopedValue {
     cols: ColumnSet,
@@ -429,7 +429,7 @@ pub struct ScopedValues {
 
 impl ScopedValues {
     /// new
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// value for column not otherwise assigned a value
@@ -452,7 +452,7 @@ impl ScopedValues {
         }
         Ok(())
     }
-    /// do the work so that get_int() will work properly
+    /// do the work so that `get_int()` will work properly
     pub fn make_ints(&mut self) -> Result<()> {
         self.ints.clear();
         for i in 0..self.strings.len() {
@@ -462,7 +462,7 @@ impl ScopedValues {
         }
         Ok(())
     }
-    /// do the work so that get_int() will work properly
+    /// do the work so that `get_int()` will work properly
     pub fn make_floats(&mut self) -> Result<()> {
         self.floats.clear();
         for i in 0..self.strings.len() {
@@ -471,18 +471,18 @@ impl ScopedValues {
         Ok(())
     }
 
-    /// add one ScopedValue
+    /// add one `ScopedValue`
     pub fn add(&mut self, spec: &str, del: char) -> Result<()> {
         self.data.push(ScopedValue::new(spec, del)?);
         Ok(())
     }
-    /// add one ScopedValue
+    /// add one `ScopedValue`
     pub fn add2(&mut self, value: &str, cols: &str) -> Result<()> {
         self.data.push(ScopedValue::new2(value, cols)?);
         Ok(())
     }
     /// get appropriate value for the column
-    pub fn get(&self, col: usize) -> &str {
+    #[must_use] pub fn get(&self, col: usize) -> &str {
         if col < self.strings.len() {
             &self.strings[col]
         } else {
@@ -490,7 +490,7 @@ impl ScopedValues {
         }
     }
     /// get appropriate int value for the column
-    pub fn get_int(&self, col: usize) -> isize {
+    #[must_use] pub fn get_int(&self, col: usize) -> isize {
         if col < self.ints.len() {
             self.ints[col]
         } else {
@@ -498,7 +498,7 @@ impl ScopedValues {
         }
     }
     /// get appropriate int value for the column
-    pub fn get_float(&self, col: usize) -> f64 {
+    #[must_use] pub fn get_float(&self, col: usize) -> f64 {
         if col < self.floats.len() {
             self.floats[col]
         } else {
@@ -506,7 +506,7 @@ impl ScopedValues {
         }
     }
     /// has this column been assigned a value?
-    pub fn has_value(&self, col: usize) -> bool {
+    #[must_use] pub fn has_value(&self, col: usize) -> bool {
         if col < self.has_value.len() {
             self.has_value[col]
         } else {
@@ -514,7 +514,7 @@ impl ScopedValues {
         }
     }
     /// Have any column been assigned values?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 }
@@ -576,8 +576,8 @@ pub struct ColumnSingle {
 }
 
 impl ColumnSingle {
-    /// new from NamedCol
-    pub fn with_named_col(col: &NamedCol) -> Self {
+    /// new from `NamedCol`
+    #[must_use] pub fn with_named_col(col: &NamedCol) -> Self {
         Self {
             col: col.clone(),
             new_name: String::new(),
@@ -641,7 +641,7 @@ pub struct ColumnCount {
 
 impl ColumnCount {
     /// new
-    pub fn new(num: isize, name: &str) -> Self {
+    #[must_use] pub fn new(num: isize, name: &str) -> Self {
         Self {
             num,
             name: name.to_string(),
@@ -675,7 +675,7 @@ pub struct ColumnLiteral {
 
 impl ColumnLiteral {
     /// new
-    pub fn new(value: &[u8], name: &str) -> Self {
+    #[must_use] pub fn new(value: &[u8], name: &str) -> Self {
         Self {
             value: value.to_vec(),
             name: name.to_string(),
@@ -707,11 +707,11 @@ impl fmt::Debug for dyn ColumnFun {
 
 impl ColumnSet {
     /// Create an empty column set, which selects all columns.
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// is empty?
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.pos.is_empty() && self.neg.is_empty()
     }
 
@@ -1153,18 +1153,18 @@ impl ColumnSet {
     }
 
     /// return owned columns by const reference
-    pub const fn get_cols(&self) -> &Vec<OutCol> {
+    #[must_use] pub const fn get_cols(&self) -> &Vec<OutCol> {
         &self.columns
     }
 
     /// steal owned columns by value
     #[allow(clippy::missing_const_for_fn)] // clippy bug
-    pub fn get_cols_full(self) -> Vec<OutCol> {
+    #[must_use] pub fn get_cols_full(self) -> Vec<OutCol> {
         self.columns
     }
 
     /// get owned column numbers
-    pub fn get_cols_num(&self) -> Vec<usize> {
+    #[must_use] pub fn get_cols_num(&self) -> Vec<usize> {
         let mut v = Vec::with_capacity(self.columns.len());
         for x in &self.columns {
             v.push(x.num);
@@ -1232,8 +1232,8 @@ impl fmt::Debug for ColumnClump {
 }
 
 impl ColumnClump {
-    /// new ColumnClump from parts
-    pub fn new(cols: Box<dyn ColumnFun>, name: &str, delim: u8) -> Self {
+    /// new `ColumnClump` from parts
+    #[must_use] pub fn new(cols: Box<dyn ColumnFun>, name: &str, delim: u8) -> Self {
         let text = TextFileMode {
             delim,
             ..Default::default()
@@ -1244,7 +1244,7 @@ impl ColumnClump {
             text,
         }
     }
-    /// new ColumnClump from spec : DelimOutcol:Columns
+    /// new `ColumnClump` from spec : DelimOutcol:Columns
     /// e.g. ,group:1-3
     pub fn from_spec(orig_spec: &str) -> Result<Self> {
         let mut spec = orig_spec;
@@ -1299,8 +1299,8 @@ pub struct ReaderColumns {
 }
 
 impl ReaderColumns {
-    /// new ReaderColumns
-    pub const fn new(columns: ColumnSet) -> Self {
+    /// new `ReaderColumns`
+    #[must_use] pub const fn new(columns: ColumnSet) -> Self {
         Self { columns }
     }
 }
@@ -1336,7 +1336,7 @@ impl ColumnFun for ReaderColumns {
     }
 }
 
-/// A collection of ColumnFun writers
+/// A collection of `ColumnFun` writers
 #[derive(Default)]
 pub struct Writer {
     v: Vec<Box<dyn ColumnFun>>,
@@ -1350,20 +1350,20 @@ impl fmt::Debug for Writer {
 
 impl Writer {
     /// new Writer
-    pub fn new(text: TextFileMode) -> Self {
+    #[must_use] pub fn new(text: TextFileMode) -> Self {
         Self {
             v: Vec::new(),
             text,
         }
     }
     /// is it empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// resolve column names
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        for x in self.v.iter_mut() {
-            x.lookup(fieldnames)?
+        for x in &mut self.v {
+            x.lookup(fieldnames)?;
         }
         Ok(())
     }
@@ -1373,7 +1373,7 @@ impl Writer {
     }
     /// Write the column names
     pub fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
-        for x in self.v.iter() {
+        for x in &self.v {
             x.add_names(w, head)?;
         }
         Ok(())
@@ -1422,7 +1422,7 @@ impl fmt::Display for NamedCol {
 
 impl NamedCol {
     /// new named column
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::default()
     }
     /// new column from spec
@@ -1438,7 +1438,7 @@ impl NamedCol {
     /// Resolve the column name
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
         if !self.name.is_empty() {
-            self.num = ColumnSet::lookup_col(fieldnames, &self.name)?
+            self.num = ColumnSet::lookup_col(fieldnames, &self.name)?;
         } else if self.from_end > 0 {
             if self.from_end > fieldnames.len() {
                 return err!(
@@ -1447,7 +1447,7 @@ impl NamedCol {
                     fieldnames.len()
                 );
             }
-            self.num = fieldnames.len() - self.from_end
+            self.num = fieldnames.len() - self.from_end;
         }
         Ok(())
     }
@@ -1489,8 +1489,8 @@ impl NamedCol {
 }
 
 /// return number of bytes used by the column name
-/// zero means no name present, return < str.len() if there's extra stuff
-pub fn get_col_name(spec: &str) -> usize {
+/// zero means no name present, return < `str.len()` if there's extra stuff
+#[must_use] pub fn get_col_name(spec: &str) -> usize {
     if spec.is_empty() {
         return 0;
     }

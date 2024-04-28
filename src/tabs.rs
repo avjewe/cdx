@@ -14,11 +14,11 @@ pub struct Rect {
 }
 impl Rect {
     /// new
-    pub const fn new(width: usize, height: usize) -> Self {
+    #[must_use] pub const fn new(width: usize, height: usize) -> Self {
         Self { width, height }
     }
     /// get screen size
-    pub fn from_screen() -> Self {
+    #[must_use] pub fn from_screen() -> Self {
         let mut ws = libc::winsize {
             ws_row: 0,
             ws_col: 0,
