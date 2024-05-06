@@ -315,9 +315,9 @@ impl TransMaker {
         Ok(())
     }
     /// Add a new trans. If a Trans already exists by that name, replace it.
-    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send,
+        F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send + 'static
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
@@ -354,9 +354,9 @@ impl TransMaker {
         drop(mm);
         Ok(())
     }
-    fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send,
+        F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send + 'static
     {
         if MODIFIERS.contains(&tag) {
             return err!(

@@ -240,7 +240,7 @@ impl ColumnHeader {
     }
 
     fn get_size(&self) -> usize {
-        self.cols.iter().map(std::string::String::len).sum::<usize>() + self.cols.len() - 1
+        self.cols.iter().map(String::len).sum::<usize>() + self.cols.len() - 1
     }
     /// append column names, joined
     fn add_head(&self, res: &mut String, text: &TextFileMode) {
@@ -446,7 +446,7 @@ impl ScopedValues {
             x.lookup(fieldnames)?;
             for i in 0..x.cols.columns.len() {
                 let j = x.cols.columns[i].num;
-                self.strings[j] = x.value.clone();
+                self.strings[j].clone_from(&x.value);
                 self.has_value[j] = true;
             }
         }

@@ -45,7 +45,7 @@ impl error::Error for CdxError {}
 
 /// convert `CdxError` to Result
 pub fn cdx_err<T>(err: CdxError) -> Result<T> {
-    Err(anyhow::Error::new(err))
+    Err(Error::new(err))
 }
 
 /// if suppress(e) is true, treat as success
@@ -116,7 +116,7 @@ impl Tri {
             Self::Maybe
         }
     }
-    /// return No is x is true, else Maybe
+    /// return No if x is true, else Maybe
     #[must_use] pub const fn no_if(x: bool) -> Self {
         if x {
             Self::No
@@ -135,7 +135,7 @@ pub enum HeadMode {
     No,
     /// check for cdx header
     Maybe,
-    /// discrd cdx header, if present
+    /// discard cdx header, if present
     Skip,
     /// has a CDX header
     Cdx,
@@ -163,14 +163,14 @@ pub enum QuoteMode {
 // single quotes
 // square brackets
 // curly bracket
-// angle brckets
+// angle brackets
 // explicit quotes, e.g. A...B or A...A
 // parens
 // nested ?? e.g. ab"cd(ef" means what?
 // brackets only recognized at ends of values
 // --dx (whole line one column)
 
-/// convert char to ue, but 't' means tab and such
+/// convert char to u8, but 't' means tab and such
 #[must_use] pub const fn auto_escape(ch: char) -> u8 {
     if ch == 't' {
         b'\t'
@@ -239,7 +239,7 @@ If --text-in sepcified "maybe" as the header mode, then the output default is
 "#;
 
 #[derive(Debug, Copy, Clone)]
-/// how to pase a text file into lines and columns
+/// how to parse a text file into lines and columns
 pub struct TextFileMode {
     /// yes, no, maybe
     pub head_mode: HeadMode,
@@ -868,7 +868,7 @@ impl StringLine {
     pub fn fake(&mut self, num_cols: usize, delim: u8) {
         self.line = " CDX".to_string();
         for i in 1..=num_cols {
-            self.line += std::str::from_utf8(&[delim]).unwrap();
+            self.line += str::from_utf8(&[delim]).unwrap();
             self.line += "c";
             self.line += &i.to_string();
         }
@@ -1033,22 +1033,22 @@ impl S3Reader {
     }
 }
 impl Read for S3Reader {
-    fn read(&mut self, buf: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
+    fn read(&mut self, buf: &mut [u8]) -> std::result::Result<usize, io::Error> {
         if let Some(bytes) = &self.left {
-            if bytes.len() > buf.len() {
+            return if bytes.len() > buf.len() {
                 buf.clone_from_slice(&bytes[..buf.len()]);
                 self.left = Some(bytes.slice(buf.len()..));
-                return Ok(buf.len());
+                Ok(buf.len())
             } else {
                 let len = bytes.len();
                 buf[0..len].clone_from_slice(bytes);
                 self.left = None;
-                return Ok(len);
+                Ok(len)
             }
         }
         let bytes_res = self.rt.block_on(self.f.body.try_next());
         if bytes_res.is_err() {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no"));
+            return Err(io::Error::new(io::ErrorKind::Other, "oh no"));
         }
         self.left = bytes_res.unwrap();
         if let Some(bytes) = &self.left {
@@ -1068,7 +1068,7 @@ impl Read for S3Reader {
     }
 }
 
-/// Input file. Wrapped in a type so I can 'impl Debug'
+/// Input file. Wrapped in a type, so I can 'impl Debug'
 pub struct Infile(
     /// The file being read
     pub io::BufReader<Box<dyn Read>>,
@@ -1216,7 +1216,7 @@ pub fn get_reader(name: &str) -> Result<Infile> {
         } else if name.starts_with("s3://") {
             Box::new(S3Reader::new_path(name)?)
         } else if let Some(stripped) = name.strip_prefix("<<") {
-            Box::new(std::io::Cursor::new(unescape_vec(stripped.as_bytes())))
+            Box::new(io::Cursor::new(unescape_vec(stripped.as_bytes())))
         } else {
             Box::new(fs::File::open(name)?)
         }
@@ -1234,7 +1234,7 @@ pub fn get_reader(name: &str) -> Result<Infile> {
 pub struct InfileContext {
     // CDX header, contructed if necessary
     header: StringLine,
-    // have we read all the btes of the file
+    // have we read all the bytes of the file
     is_done: bool,
     // is the file length zero
     is_empty: bool,
@@ -1491,7 +1491,7 @@ impl Reader {
             loc: FileLocData::default(),
         }
     }
-    /// make a new Reader, with deault text, FIXME - delete this
+    /// make a new Reader, with default text, FIXME - delete this
     pub fn new_open2(name: &str) -> Result<Self> {
         Self::new_open_with(name, 1, &TextFileMode::default())
     }
@@ -1636,14 +1636,14 @@ impl Reader {
 /// print a bunch of u8 to stderr, adding a newline
 pub fn prerr(data: &[&[u8]]) {
     for x in data {
-        std::io::stderr().write_all(x).unwrap();
+        io::stderr().write_all(x).unwrap();
     }
-    std::io::stderr().write_all(b"\n").unwrap();
+    io::stderr().write_all(b"\n").unwrap();
 }
 /// print a bunch of u8 to stderr
 pub fn prerr_n(data: &[&[u8]]) {
     for x in data {
-        std::io::stderr().write_all(x).unwrap();
+        io::stderr().write_all(x).unwrap();
     }
 }
 /*
@@ -1871,7 +1871,7 @@ fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {
         }
         for ch in x.chars() {
             if !ch.is_alphanumeric() && ch != '_' {
-                return err!("Header for file {} has column name {} which contains something other than alphnumeric and underscore.", fname, x);
+                return err!("Header for file {} has column name {} which contains something other than alphanumeric and underscore.", fname, x);
             }
         }
     }
@@ -2215,7 +2215,7 @@ impl CheckLine {
     /// new from parts
     fn set_with(&mut self, r: &RangeSpec<'_>) -> Result<()> {
         self.op = r.op1.parse::<CompareOp>()?;
-        self.val = r.val1.to_owned();
+        r.val1.clone_into(&mut self.val);
         self.op2 = if r.op2.is_none() {
             None
         } else {
@@ -2232,7 +2232,7 @@ impl CheckLine {
     pub fn set(&mut self, spec: &str) -> Result<()> {
         self.set_with(&RangeSpec::new(spec)?)
     }
-    /// compare line OP text, return true if match, print to stderr if non-mtch
+    /// compare line OP text, return true if matched, print to stderr if non-match
     pub fn line_ok_verbose(
         &self,
         line: &TextLine,
@@ -2326,7 +2326,7 @@ pub fn closer(ch: u8) -> Result<u8> {
         b'{' => Ok(b'}'),
         b'[' => Ok(b']'),
         b'<' => Ok(b'>'),
-        _ => err!("I don't know how to cloase a '{}'", ch as char),
+        _ => err!("I don't know how to close a '{}'", ch as char),
     }
 }
 

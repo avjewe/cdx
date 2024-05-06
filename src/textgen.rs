@@ -315,9 +315,9 @@ impl GenMaker {
         Ok(())
     }
     /// Add a new Gen. If an Gen already exists by that name, replace it.
-    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Box<dyn Gen>> + Send
+        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
@@ -354,9 +354,9 @@ impl GenMaker {
         drop(mm);
         Ok(())
     }
-    fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Box<dyn Gen>> + Send
+        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static
     {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");

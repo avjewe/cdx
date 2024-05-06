@@ -898,17 +898,17 @@ impl CompMaker {
         Ok(())
     }
     /// Add a new Compare. If a Compare already exists by that name, replace it.
-    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send,
+        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
     }
     /// Add a new `LineCompare`. If a Compare already exists by that name, replace it.
-    pub fn push_line<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    pub fn push_line<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send,
+        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static
     {
         Self::init()?;
         Self::do_push_line(tag, help, maker)
@@ -946,9 +946,9 @@ impl CompMaker {
         drop(mm);
         Ok(())
     }
-    fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send,
+        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -971,9 +971,9 @@ impl CompMaker {
         drop(mm);
         Ok(())
     }
-    fn do_push_line<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    fn do_push_line<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send,
+        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -1393,7 +1393,7 @@ impl LineCompList {
     }
     /// set value fo later comparison
     pub fn set(&mut self, value: &[u8], delim: u8) -> Result<()> {
-        self.value = value.to_owned();
+        value.clone_into(&mut self.value);
         if self.c.len() == 1 {
             self.c[0].set(value);
         } else {

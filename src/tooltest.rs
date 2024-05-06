@@ -380,7 +380,7 @@ impl Test {
             fname.push_str("stdout");
             let mut w = get_writer(&fname)?;
             w.write_all(&output.stdout)?;
-            fname = tmp.clone();
+            fname.clone_from(&tmp);
             fname.push_str("stderr");
             w = get_writer(&fname)?;
             w.write_all(&output.stderr)?;

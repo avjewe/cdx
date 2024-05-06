@@ -1739,9 +1739,9 @@ impl MatchMaker {
         )
     }
     /// Add a new matcher. If a Matcher already exists by that name, replace it.
-    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send,
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
@@ -1778,9 +1778,9 @@ impl MatchMaker {
         drop(mm);
         Ok(())
     }
-    fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send,
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static
     {
         if MODIFIERS.contains(&tag) {
             return err!(

@@ -202,8 +202,8 @@ mod tests {
 
     #[test]
     fn test_lower() {
-        let mut comp = crate::comp::LineCompList::new();
-        comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
+        let mut comp = LineCompList::new();
+        comp.push(CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
         assert_eq!(lower_bound(b"aaa\nbbb\nccc\n", &mut comp), b"bbb\n");
         assert_eq!(lower_bound(b"bbb\nccc\n", &mut comp), b"bbb\n");

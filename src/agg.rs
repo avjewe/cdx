@@ -1333,17 +1333,18 @@ impl AggMaker {
         Ok(())
     }
     /// Add a new Agg. If an Agg already exists by that name, replace it.
-    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+//    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send,
+        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send + 'static
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
     }
     /// Add a new Counter. If a Counter already exists by that name, replace it.
-    pub fn push_counter<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    pub fn push_counter<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send,
+        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static
     {
         Self::init()?;
         Self::do_push_counter(tag, help, maker)
@@ -1380,9 +1381,9 @@ impl AggMaker {
         drop(mm);
         Ok(())
     }
-    fn do_push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send,
+        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send +'static
     {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");
@@ -1403,9 +1404,9 @@ impl AggMaker {
         drop(mm);
         Ok(())
     }
-    fn do_push_counter<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    fn do_push_counter<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send,
+        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static
     {
         if MODIFIERS.contains(&tag) {
             return err!(
