@@ -41,7 +41,8 @@ pub struct NoMatch {
 
 impl NoMatch {
     /// new
-    #[must_use] pub fn new(file_num: usize, file_name: &str) -> Self {
+    #[must_use]
+    pub fn new(file_num: usize, file_name: &str) -> Self {
         Self {
             file_num,
             file_name: file_name.to_string(),
@@ -60,7 +61,8 @@ pub struct OutColSpec {
 
 impl OutColSpec {
     /// new
-    #[must_use] pub const fn new(file: usize, cols: ColumnSet) -> Self {
+    #[must_use]
+    pub const fn new(file: usize, cols: ColumnSet) -> Self {
         Self { file, cols }
     }
 }
@@ -128,7 +130,8 @@ impl OneOutCol {
 
 impl JoinConfig {
     /// create new `JoinConfig`. Note that derived 'default' is sub-optimal
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             match_out: "-".to_string(),
             out_delim: b'\t',

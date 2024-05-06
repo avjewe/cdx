@@ -142,11 +142,13 @@ impl Default for Comp {
 
 impl Comp {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
     /// new
-    #[must_use] pub fn with_line_comp(c: &LineComp) -> Self {
+    #[must_use]
+    pub fn with_line_comp(c: &LineComp) -> Self {
         Self {
             junk: c.junk,
             pattern: c.pattern.clone(),
@@ -156,11 +158,13 @@ impl Comp {
         }
     }
     /// Compare two slices, usually column values
-    #[must_use] pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+    #[must_use]
+    pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
         self.comp.comp(left, right)
     }
     /// Compare two slices for equality
-    #[must_use] pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+    #[must_use]
+    pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         self.comp.equal(left, right)
     }
     /// set cache for this value
@@ -172,11 +176,13 @@ impl Comp {
         self.comp.set(value);
     }
     /// Compare self to slice
-    #[must_use] pub fn comp_self(&self, right: &[u8]) -> Ordering {
+    #[must_use]
+    pub fn comp_self(&self, right: &[u8]) -> Ordering {
         self.comp.comp_self(right)
     }
     /// Compare self to slice for equality
-    #[must_use] pub fn equal_self(&self, right: &[u8]) -> bool {
+    #[must_use]
+    pub fn equal_self(&self, right: &[u8]) -> bool {
         self.comp.equal_self(right)
     }
 }
@@ -224,7 +230,8 @@ impl Default for LineComp {
 
 impl LineComp {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
     /// which columns are in use for this file
@@ -253,7 +260,8 @@ impl LineComp {
         }
     }
     /// reverse the ordering if self.reverse is set
-    #[must_use] pub const fn reverse(&self, x: Ordering) -> Ordering {
+    #[must_use]
+    pub const fn reverse(&self, x: Ordering) -> Ordering {
         if self.reverse {
             x.reverse()
         } else {
@@ -332,7 +340,8 @@ impl LineComp {
         self.comp.lookup(fieldnames, file_num)
     }
     /// do [`TextLine`]s need their columns to be initialized
-    #[must_use] pub fn need_split(&self) -> bool {
+    #[must_use]
+    pub fn need_split(&self) -> bool {
         self.comp.need_split()
     }
     /// set cache of [Item] from [`TextLine`]
@@ -900,7 +909,7 @@ impl CompMaker {
     /// Add a new Compare. If a Compare already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static
+        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static,
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
@@ -908,7 +917,7 @@ impl CompMaker {
     /// Add a new `LineCompare`. If a Compare already exists by that name, replace it.
     pub fn push_line<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static
+        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static,
     {
         Self::init()?;
         Self::do_push_line(tag, help, maker)
@@ -948,7 +957,7 @@ impl CompMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static
+        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -973,7 +982,7 @@ impl CompMaker {
     }
     fn do_push_line<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static
+        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -1138,11 +1147,13 @@ pub struct LineCompList {
 
 impl CompList {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
     /// any [Comp]s in the list?
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.c.is_empty()
     }
     /// add
@@ -1155,7 +1166,8 @@ impl CompList {
         Ok(())
     }
     /// Compare two slices, usually column values
-    #[must_use] pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
+    #[must_use]
+    pub fn comp(&self, left: &[u8], right: &[u8]) -> Ordering {
         for x in &self.c {
             let ret = x.comp(left, right);
             if ret != Ordering::Equal {
@@ -1165,7 +1177,8 @@ impl CompList {
         Ordering::Equal
     }
     /// Compare two slices for equality
-    #[must_use] pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
+    #[must_use]
+    pub fn equal(&self, left: &[u8], right: &[u8]) -> bool {
         for x in &self.c {
             if !x.comp.equal(left, right) {
                 return false;
@@ -1199,7 +1212,8 @@ impl CompList {
         Ok(())
     }
     /// Compare self to slice
-    #[must_use] pub fn comp_self(&self, right: &[u8]) -> Ordering {
+    #[must_use]
+    pub fn comp_self(&self, right: &[u8]) -> Ordering {
         for x in &self.c {
             let ret = x.comp_self(right);
             if ret != Ordering::Equal {
@@ -1209,7 +1223,8 @@ impl CompList {
         Ordering::Equal
     }
     /// Compare self to slice for equality
-    #[must_use] pub fn equal_self(&self, right: &[u8]) -> bool {
+    #[must_use]
+    pub fn equal_self(&self, right: &[u8]) -> bool {
         for x in &self.c {
             if !x.equal_self(right) {
                 return false;
@@ -1221,15 +1236,18 @@ impl CompList {
 
 impl LineCompList {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
     /// any [`LineComp`]s in the list?
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.c.is_empty()
     }
     /// which columns used as part of key?
-    #[must_use] pub fn used_cols(&self, file_num: usize) -> Vec<usize> {
+    #[must_use]
+    pub fn used_cols(&self, file_num: usize) -> Vec<usize> {
         let mut v = Vec::new();
         for x in &self.c {
             x.used_cols(&mut v, file_num);
@@ -1367,7 +1385,8 @@ impl LineCompList {
         Ok(())
     }
     /// do [`TextLine`]s need their columns initialized
-    #[must_use] pub fn need_split(&self) -> bool {
+    #[must_use]
+    pub fn need_split(&self) -> bool {
         for x in &self.c {
             if x.need_split() {
                 return true;
@@ -1388,7 +1407,8 @@ impl LineCompList {
         }
     }
     /// get the value previously set
-    #[must_use] pub fn get_value(&self) -> &[u8] {
+    #[must_use]
+    pub fn get_value(&self) -> &[u8] {
         &self.value
     }
     /// set value fo later comparison
@@ -1715,7 +1735,8 @@ impl Compare for CompareLen {
 
 impl Item {
     /// new item
-    #[must_use] pub const fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             offset: 0,
             size_plus: 0,
@@ -1723,15 +1744,18 @@ impl Item {
         }
     }
     /// return line as slice
-    #[must_use] pub fn get<'a>(&self, base: &'a [u8]) -> &'a [u8] {
+    #[must_use]
+    pub fn get<'a>(&self, base: &'a [u8]) -> &'a [u8] {
         &base[self.begin()..self.end()]
     }
     /// size in bytes of line
-    #[must_use] pub const fn size(&self) -> u32 {
+    #[must_use]
+    pub const fn size(&self) -> u32 {
         self.size_plus & 0x7fff_ffff
     }
     /// test complete bit
-    #[must_use] pub const fn complete(&self) -> bool {
+    #[must_use]
+    pub const fn complete(&self) -> bool {
         (self.size_plus & 0x8000_0000) != 0
     }
     /// set complete bit
@@ -1751,15 +1775,18 @@ impl Item {
         }
     }
     /// offset of begin
-    #[must_use] pub const fn begin(&self) -> usize {
+    #[must_use]
+    pub const fn begin(&self) -> usize {
         self.offset as usize
     }
     /// offset of end
-    #[must_use] pub const fn end(&self) -> usize {
+    #[must_use]
+    pub const fn end(&self) -> usize {
         self.offset as usize + self.size() as usize
     }
     /// Test an Item for equality to myself
-    #[must_use] pub fn equal(&self, other: &Self, base: &[u8]) -> bool {
+    #[must_use]
+    pub fn equal(&self, other: &Self, base: &[u8]) -> bool {
         if self.cache != other.cache {
             return false;
         }
@@ -1769,7 +1796,8 @@ impl Item {
         self.get(base) == other.get(base)
     }
     /// Compare Item to myself with standard ordering
-    #[must_use] pub fn compare(&self, other: &Self, base: &[u8]) -> Ordering {
+    #[must_use]
+    pub fn compare(&self, other: &Self, base: &[u8]) -> Ordering {
         if self.cache < other.cache {
             return Ordering::Less;
         }

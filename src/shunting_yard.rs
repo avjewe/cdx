@@ -6,9 +6,9 @@
 //!
 //! [RPN]: https://en.wikipedia.org/wiki/Reverse_Polish_notation
 //! [shunting]: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
-use self::Associativity::{Left, NA, Right};
+use self::Associativity::{Left, Right, NA};
 use crate::prelude::*;
-use crate::tok2::BinaryOp::{Div, EQ, GE, GT, LE, LT, Minus, NE, Plus, Pow, Rem, Times};
+use crate::tok2::BinaryOp::{Div, Minus, Plus, Pow, Rem, Times, EQ, GE, GT, LE, LT, NE};
 use crate::tok2::Token;
 use crate::tok2::Token::{Binary, Comma, Func, LParen, Number, RParen, Unary, Var};
 use crate::tok2::UnaryOp;

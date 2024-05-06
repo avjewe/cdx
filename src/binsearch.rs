@@ -45,30 +45,36 @@ impl MemMap {
         })
     }
     /// get underlying memmap data
-    #[must_use] pub fn get(&self) -> &[u8] {
+    #[must_use]
+    pub fn get(&self) -> &[u8] {
         &self.map[..]
     }
     /// get column delimiter
-    #[must_use] pub const fn get_delim(&self) -> u8 {
+    #[must_use]
+    pub const fn get_delim(&self) -> u8 {
         self.delim
     }
     /// does the file have a CDX header?
-    #[must_use] pub const fn has_header(&self) -> bool {
+    #[must_use]
+    pub const fn has_header(&self) -> bool {
         self.header_len > 0
     }
     /// full text of header line, including newline
-    #[must_use] pub fn header(&self) -> &[u8] {
+    #[must_use]
+    pub fn header(&self) -> &[u8] {
         self.header.line.as_bytes()
     }
     /// column names, suitable for lookup
-    #[must_use] pub fn names(&self) -> Vec<&str> {
+    #[must_use]
+    pub fn names(&self) -> Vec<&str> {
         self.header.vec()
     }
 }
 
 /// return the position after the next newline after start
 /// that is, starting in the middle of a line, find the start of the next line
-#[must_use] pub const fn find_end(data: &[u8], mut start: usize) -> usize {
+#[must_use]
+pub const fn find_end(data: &[u8], mut start: usize) -> usize {
     while (start < data.len()) && (data[start] != b'\n') {
         start += 1;
     }
@@ -80,7 +86,8 @@ impl MemMap {
 
 /// return the position after the first newline before start
 /// that is, starting in the middle of a line, find the start of it
-#[must_use] pub const fn find_start(data: &[u8], mut start: usize) -> usize {
+#[must_use]
+pub const fn find_start(data: &[u8], mut start: usize) -> usize {
     while (start > 0) && (data[start] != b'\n') {
         start -= 1;
     }
@@ -92,7 +99,8 @@ impl MemMap {
 
 /// 'start' should be the beginning of a line
 /// return the beginning of the previous line
-#[must_use] pub const fn find_prev(data: &[u8], start: usize) -> usize {
+#[must_use]
+pub const fn find_prev(data: &[u8], start: usize) -> usize {
     if start <= 1 {
         return 0;
     }
@@ -203,7 +211,7 @@ mod tests {
     #[test]
     fn test_lower() {
         let mut comp = LineCompList::new();
-        comp.push(CompMaker::make_line_comp("1").unwrap());
+        comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
         assert_eq!(lower_bound(b"aaa\nbbb\nccc\n", &mut comp), b"bbb\n");
         assert_eq!(lower_bound(b"bbb\nccc\n", &mut comp), b"bbb\n");
@@ -230,7 +238,7 @@ mod tests {
     }
     #[test]
     fn test_lower2() {
-        let mut comp = crate::comp::LineCompList::new();
+        let mut comp = LineCompList::new();
         comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
         assert_eq!(

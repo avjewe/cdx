@@ -3,7 +3,8 @@
 use crate::prelude::*;
 
 /// is target closer to num/denom than to (num-1)/denom or (num+1)/denom
-#[must_use] pub fn f64_equal(target: f64, num: usize, denom: usize) -> bool {
+#[must_use]
+pub fn f64_equal(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
     let lower = 2.0f64.mul_add(fnum, -1.0) / (2.0 * fdenom);
@@ -12,7 +13,8 @@ use crate::prelude::*;
 }
 
 /// is target closer to num/denom than to (num-1)/denom
-#[must_use] pub fn f64_greater(target: f64, num: usize, denom: usize) -> bool {
+#[must_use]
+pub fn f64_greater(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
     let lower = 2.0f64.mul_add(fnum, -1.0) / (2.0 * fdenom);
@@ -20,7 +22,8 @@ use crate::prelude::*;
 }
 
 /// is target closer to num/denom than to (num+1)/denom
-#[must_use] pub fn f64_less(target: f64, num: usize, denom: usize) -> bool {
+#[must_use]
+pub fn f64_less(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
     let upper = 2.0f64.mul_add(fnum, 1.0) / (2.0 * fdenom);
@@ -92,13 +95,15 @@ pub struct Junk {
 }
 impl Junk {
     /// return value associated with `JunkVal`
-    #[must_use] pub fn val<T: JunkValue>(&self) -> T {
+    #[must_use]
+    pub fn val<T: JunkValue>(&self) -> T {
         T::val(self.junk_val)
     }
 }
 
 /// ordering for f64
-#[must_use] pub fn fcmp(x: f64, y: f64) -> Ordering {
+#[must_use]
+pub fn fcmp(x: f64, y: f64) -> Ordering {
     if x == y {
         return Ordering::Equal;
     }
@@ -109,7 +114,8 @@ impl Junk {
 }
 
 /// convert an f64 to a similarly ordered u64
-#[must_use] pub fn ulp_to_ulong(d: f64) -> u64 {
+#[must_use]
+pub fn ulp_to_ulong(d: f64) -> u64 {
     let x = u64::from_ne_bytes(d.to_ne_bytes());
     if (x & 0x8000_0000_0000_0000_u64) != 0 {
         x ^ 0xffff_ffff_ffff_ffff_u64
@@ -300,7 +306,8 @@ const P10_VALUES_F: [f64; 9] = [
 ];
 
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
-#[must_use] pub fn suffix_valf(ch: u8) -> Option<f64> {
+#[must_use]
+pub fn suffix_valf(ch: u8) -> Option<f64> {
     for (i, x) in P2_LETTERS.iter().enumerate() {
         if *x == ch {
             return Some(P2_VALUES_F[i]);
@@ -314,7 +321,8 @@ const P10_VALUES_F: [f64; 9] = [
     None
 }
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
-#[must_use] pub fn suffix_valu(ch: u8) -> Option<usize> {
+#[must_use]
+pub fn suffix_valu(ch: u8) -> Option<usize> {
     for (i, x) in P2_LETTERS.iter().enumerate() {
         if *x == ch {
             return Some(P2_VALUES_U[i]);

@@ -225,7 +225,8 @@ pub struct GenList {
 }
 impl GenList {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
     /// add a Gen
@@ -234,11 +235,13 @@ impl GenList {
         Ok(())
     }
     /// is empty?
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// length?
-    #[must_use] pub fn len(&self) -> usize {
+    #[must_use]
+    pub fn len(&self) -> usize {
         self.v.len()
     }
     /// Write full line of Gens
@@ -317,7 +320,7 @@ impl GenMaker {
     /// Add a new Gen. If an Gen already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static
+        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static,
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
@@ -356,7 +359,7 @@ impl GenMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static
+        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");

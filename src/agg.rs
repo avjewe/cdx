@@ -496,7 +496,8 @@ impl Agger {
         })
     }
     /// clone, but make a whole new Agg
-    #[must_use] pub fn deep_clone(&self) -> Self {
+    #[must_use]
+    pub fn deep_clone(&self) -> Self {
         Self::new(&self.spec).unwrap()
     }
 }
@@ -512,11 +513,13 @@ pub struct AggList {
 
 impl AggList {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
     /// len
-    #[must_use] pub fn len(&self) -> usize {
+    #[must_use]
+    pub fn len(&self) -> usize {
         self.v.len()
     }
     /// fmt
@@ -527,7 +530,8 @@ impl AggList {
         }
     }
     /// clone, but make a all new Aggs
-    #[must_use] pub fn deep_clone(&self) -> Self {
+    #[must_use]
+    pub fn deep_clone(&self) -> Self {
         let mut n = Self::new();
         for x in &self.v {
             n.push(&x.spec).unwrap();
@@ -554,7 +558,8 @@ impl AggList {
         }
     */
     /// index
-    #[must_use] pub fn get(&self, pos: usize) -> &Agger {
+    #[must_use]
+    pub fn get(&self, pos: usize) -> &Agger {
         &self.v[pos]
     }
     /// reset to empty or zero
@@ -564,7 +569,8 @@ impl AggList {
         }
     }
     /// is empty?
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// OutName,Agg,Pattern
@@ -599,7 +605,8 @@ pub struct LineAggList {
 
 impl LineAggList {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
     /// reset to empty or zero
@@ -615,7 +622,8 @@ impl LineAggList {
         }
     }
     /// is empty?
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// Column,Agg,Pattern
@@ -1333,10 +1341,10 @@ impl AggMaker {
         Ok(())
     }
     /// Add a new Agg. If an Agg already exists by that name, replace it.
-//    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
+    //    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send + 'static
+        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send + 'static,
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
@@ -1344,7 +1352,7 @@ impl AggMaker {
     /// Add a new Counter. If a Counter already exists by that name, replace it.
     pub fn push_counter<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static
+        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static,
     {
         Self::init()?;
         Self::do_push_counter(tag, help, maker)
@@ -1383,7 +1391,7 @@ impl AggMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send +'static
+        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");
@@ -1406,7 +1414,7 @@ impl AggMaker {
     }
     fn do_push_counter<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static
+        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(

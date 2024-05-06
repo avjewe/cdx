@@ -339,7 +339,8 @@ const MAX_DATA: usize = 0x0000_ffff_ff00;
 
 impl Sorter {
     /// new Sorter
-    #[must_use] pub fn new(cmp: LineCompList, max_alloc: usize, unique: bool) -> Self {
+    #[must_use]
+    pub fn new(cmp: LineCompList, max_alloc: usize, unique: bool) -> Self {
         let mut data_size = max_alloc / 2;
         if data_size > MAX_DATA {
             data_size = MAX_DATA;

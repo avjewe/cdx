@@ -4,7 +4,7 @@
 use crate::column::get_col;
 use crate::prelude::*;
 use crate::shunting_yard::to_rpn;
-use crate::tok2::{BinaryOp, Token, UnaryOp, tokenize};
+use crate::tok2::{tokenize, BinaryOp, Token, UnaryOp};
 use crate::util::find_close;
 use lazy_static::lazy_static;
 use libm;
@@ -20,7 +20,8 @@ pub fn calc(expr: &str) -> Result<f64> {
 
 /// If input is 'Format,Expression' return that format and expression
 /// else return supplied default format, and whole input slice
-#[must_use] pub fn parse_fmt_expr(dflt: NumFormat, spec: &str) -> (NumFormat, &str) {
+#[must_use]
+pub fn parse_fmt_expr(dflt: NumFormat, spec: &str) -> (NumFormat, &str) {
     if let Some((a, b)) = spec.split_once(',') {
         let x = NumFormat::new(a);
         if let Ok(f) = x {
@@ -234,7 +235,10 @@ const FUNCS: [FuncDef; 54] = [
 ];
 
 const fn min_args(f: FuncOp) -> usize {
-    use FuncOp::{Atan2, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Nextafter, Pow, Remainder, Scalbn, Yn};
+    use FuncOp::{
+        Atan2, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Nextafter, Pow,
+        Remainder, Scalbn, Yn,
+    };
     match f {
         Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
         | Remainder | Scalbn | Pow | Yn => 2,
@@ -244,7 +248,10 @@ const fn min_args(f: FuncOp) -> usize {
 }
 
 const fn max_args(f: FuncOp) -> usize {
-    use FuncOp::{Atan2, Avg, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Max, Min, Nextafter, Pow, Remainder, Scalbn, Yn};
+    use FuncOp::{
+        Atan2, Avg, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Max, Min,
+        Nextafter, Pow, Remainder, Scalbn, Yn,
+    };
     match f {
         Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
         | Remainder | Scalbn | Pow | Yn => 2,
@@ -305,7 +312,12 @@ fn apply_unary(op: UnaryOp, x: f64) -> f64 {
 }
 
 fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
-    use FuncOp::{Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh, Erf, Exp, Exp10, Exp2, Expm1, Fabs, Fdim, Floor, Fma, Fmax, Fmin, Fmod, Hypot, If, J0, J1, Jn, Ldexp, Lgamma, Log, Log10, Log1p, Log2, Max, Min, Nextafter, Pow, Remainder, Round, Scalbn, Sin, Sinh, Sqrt, Tan, Tanh, Tgamma, Trunc, Y0, Y1, Yn};
+    use FuncOp::{
+        Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh,
+        Erf, Exp, Exp10, Exp2, Expm1, Fabs, Fdim, Floor, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn,
+        Ldexp, Lgamma, Log, Log10, Log1p, Log2, Max, Min, Nextafter, Pow, Remainder, Round, Scalbn,
+        Sin, Sinh, Sqrt, Tan, Tanh, Tgamma, Trunc, Yn, J0, J1, Y0, Y1,
+    };
     match op {
         Acos => args[0].abs(),
         Acosh => args[0].acosh(),
@@ -435,7 +447,8 @@ impl Expr {
         }
     }
     /// original text string
-    #[must_use] pub fn expr(&self) -> &str {
+    #[must_use]
+    pub fn expr(&self) -> &str {
         &self.expr_str
     }
     fn parse(&mut self, exp: &str) -> Result<()> {

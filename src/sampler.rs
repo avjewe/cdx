@@ -19,7 +19,8 @@ pub struct Smooth {
 
 impl Smooth {
     /// keep best sz items
-    #[must_use] pub fn new(sz: usize) -> Self {
+    #[must_use]
+    pub fn new(sz: usize) -> Self {
         let small = sz.max(2);
         let large = small * 2 - 2;
         let mut data = Vec::with_capacity(large);

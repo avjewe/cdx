@@ -153,7 +153,8 @@ impl Thresh {
         }
     }
     /// new Count
-    #[must_use] pub const fn new_count(c: usize) -> Self {
+    #[must_use]
+    pub const fn new_count(c: usize) -> Self {
         Self::Count(c)
     }
     /// new Frac
@@ -165,35 +166,40 @@ impl Thresh {
         }
     }
     /// we've seen this many, with more to come. Are we done yet?
-    #[must_use] pub const fn at_most_mid(&self, n: usize) -> Tri {
+    #[must_use]
+    pub const fn at_most_mid(&self, n: usize) -> Tri {
         match self {
             Self::Count(c) => Tri::no_if(n > *c),
             _ => Tri::Maybe,
         }
     }
     /// we've seen this many, with more to come. Are we done yet?
-    #[must_use] pub const fn at_least_mid(&self, n: usize) -> Tri {
+    #[must_use]
+    pub const fn at_least_mid(&self, n: usize) -> Tri {
         match self {
             Self::Count(c) => Tri::yes_if(n >= *c),
             _ => Tri::Maybe,
         }
     }
     /// we've seen this many, is that a match?
-    #[must_use] pub fn at_most_final(&self, n: usize, tot: usize) -> bool {
+    #[must_use]
+    pub fn at_most_final(&self, n: usize, tot: usize) -> bool {
         match self {
             Self::Count(c) => n <= *c,
             Self::Frac(f) => num::f64_less(*f, n, tot),
         }
     }
     /// we've seen this many, is that a match?
-    #[must_use] pub fn at_least_final(&self, n: usize, tot: usize) -> bool {
+    #[must_use]
+    pub fn at_least_final(&self, n: usize, tot: usize) -> bool {
         match self {
             Self::Count(c) => n >= *c,
             Self::Frac(f) => num::f64_greater(*f, n, tot),
         }
     }
     /// we've seen this many, is that a match?
-    #[must_use] pub fn exactly(&self, n: usize, tot: usize) -> bool {
+    #[must_use]
+    pub fn exactly(&self, n: usize, tot: usize) -> bool {
         match self {
             Self::Count(c) => n == *c,
             Self::Frac(f) => num::f64_equal(*f, n, tot),
@@ -267,8 +273,12 @@ impl Determiner {
         })
     }
     /// we've seen this many yes's and this many no's, with more to come. Are we done yet?
-    #[must_use] pub const fn match_mid(&self, yes: usize, no: usize) -> Tri {
-        use Determiner::{All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform};
+    #[must_use]
+    pub const fn match_mid(&self, yes: usize, no: usize) -> Tri {
+        use Determiner::{
+            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll,
+            Some, Uniform,
+        };
         match self {
             All => Tri::no_if(no > 0),
             Some => Tri::yes_if(yes > 0),
@@ -286,8 +296,12 @@ impl Determiner {
     }
 
     /// we've seen this many yes's and this many no's, with more to come. Is that a match?
-    #[must_use] pub fn match_final(&self, yes: usize, no: usize) -> bool {
-        use Determiner::{All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform};
+    #[must_use]
+    pub fn match_final(&self, yes: usize, no: usize) -> bool {
+        use Determiner::{
+            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll,
+            Some, Uniform,
+        };
         let tot = yes + no;
         match self {
             All => no == 0,
@@ -1185,14 +1199,16 @@ impl fmt::Debug for LineMatcherList {
 
 impl LineMatcherList {
     /// new
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             multi: Combiner::Or,
             matchers: Vec::new(),
         }
     }
     /// new with combiner
-    #[must_use] pub fn new_with(multi: Combiner) -> Self {
+    #[must_use]
+    pub fn new_with(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
@@ -1204,7 +1220,8 @@ impl LineMatcherList {
         Ok(())
     }
     /// is empty list?
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
     /// ok, with supplied Combiner
@@ -1329,14 +1346,16 @@ impl fmt::Debug for MatcherList {
 
 impl MatcherList {
     /// new `MatcherList` with Or
-    #[must_use] pub const fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             multi: Combiner::Or,
             matchers: Vec::new(),
         }
     }
     /// new `MatcherList` with given mode
-    #[must_use] pub const fn new_with(multi: Combiner) -> Self {
+    #[must_use]
+    pub const fn new_with(multi: Combiner) -> Self {
         Self {
             multi,
             matchers: Vec::new(),
@@ -1352,7 +1371,8 @@ impl MatcherList {
         self.matchers.push(item);
     }
     /// Are there any matchers in the list?
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
     fn smatch_tagged(&self, buff: &str, multi: Combiner) -> bool {
@@ -1400,7 +1420,8 @@ impl MatcherList {
         false
     }
     /// Human readable desription
-    #[must_use] pub fn show(&self) -> String {
+    #[must_use]
+    pub fn show(&self) -> String {
         if self.is_empty() {
             format!("Empty {} MatcherList", self.multi)
         } else if self.matchers.len() == 1 {
@@ -1414,15 +1435,18 @@ impl MatcherList {
         }
     }
     /// Are these characters ok?
-    #[must_use] pub fn smatch(&self, buff: &str) -> bool {
+    #[must_use]
+    pub fn smatch(&self, buff: &str) -> bool {
         self.smatch_tagged(buff, self.multi)
     }
     /// Are these bytes ok?
-    #[must_use] pub fn umatch(&self, buff: &[u8]) -> bool {
+    #[must_use]
+    pub fn umatch(&self, buff: &[u8]) -> bool {
         self.umatch_tagged(buff, self.multi)
     }
     /// smatch, but print to stderr if fail
-    #[must_use] pub fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
+    #[must_use]
+    pub fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
         let res = self.smatch(buff);
         if res != negate {
             eprintln!(
@@ -1521,7 +1545,8 @@ impl Clone for Matcher {
 
 impl Matcher {
     /// Are these characters ok?
-    #[must_use] pub fn smatch(&self, mut buff: &str) -> bool {
+    #[must_use]
+    pub fn smatch(&self, mut buff: &str) -> bool {
         if self.trim {
             buff = buff.trimw();
         }
@@ -1532,7 +1557,8 @@ impl Matcher {
         }
     }
     /// Are these bytes ok?
-    #[must_use] pub fn umatch(&self, mut buff: &[u8]) -> bool {
+    #[must_use]
+    pub fn umatch(&self, mut buff: &[u8]) -> bool {
         if self.trim {
             buff = buff.trimw();
         }
@@ -1553,7 +1579,8 @@ impl Matcher {
 
     /// umatch or smatch, depending on self.string ;
     /// Failure to convert to utf8 is simply 'does not match'
-    #[must_use] pub fn do_match_safe(&self, buff: &[u8]) -> bool {
+    #[must_use]
+    pub fn do_match_safe(&self, buff: &[u8]) -> bool {
         if self.string {
             if let Ok(x) = std::str::from_utf8(buff) {
                 self.smatch(x)
@@ -1741,7 +1768,7 @@ impl MatchMaker {
     /// Add a new matcher. If a Matcher already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static,
     {
         Self::init()?;
         Self::do_push(tag, help, maker)
@@ -1780,7 +1807,7 @@ impl MatchMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
