@@ -209,10 +209,12 @@ impl Thresh {
 
 /// Given some YES's and some NO's, do we match?
 #[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub enum Determiner {
     /// no occurrences of NO
     All,
     /// at least 1 YES
+    #[default]
     Some,
     /// no occurrences of YES
     None,
@@ -234,11 +236,6 @@ pub enum Determiner {
     AtLeastNo(Thresh),
     /// Exactly this many NO's,
     ExactlyNo(Thresh),
-}
-impl Default for Determiner {
-    fn default() -> Self {
-        Self::Some
-    }
 }
 
 impl Determiner {
@@ -864,10 +861,12 @@ impl Match for LengthMatch {
 
 /// Mode for combining parts of a multi-match
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Default)]
 pub enum Combiner {
     /// matches if any match
     Or,
     /// matches only if all match
+    #[default]
     And,
 }
 impl fmt::Display for Combiner {
@@ -879,11 +878,6 @@ impl fmt::Display for Combiner {
     }
 }
 
-impl Default for Combiner {
-    fn default() -> Self {
-        Self::And
-    }
-}
 
 // single column (title,foo), whole line (,foo) or column set with determiner
 // [this-that],foo or [all,this-that],foo
@@ -1372,7 +1366,7 @@ impl MatcherList {
     }
     /// Are there any matchers in the list?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.matchers.is_empty()
     }
     fn smatch_tagged(&self, buff: &str, multi: Combiner) -> bool {

@@ -167,17 +167,17 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         for _x in 0..after {
             stop = find_end(m.get(), stop);
         }
-        if filename.is_none() {
-            write_all_nl(&mut w.0, &m.get()[start..stop])?;
-        } else {
-            let file: &FileNameColumn = filename.as_ref().unwrap();
+        if let Some(item) = &filename {
+            let file: &FileNameColumn = item;
             while start < stop {
                 let end = find_end(m.get(), start);
                 w.write_all(f.tail_path_u8(file.tail, b'/').as_bytes())?;
-                w.write_all(&[b'\t'])?;
+                w.write_all(b"\t")?;
                 write_all_nl(&mut w.0, &m.get()[start..end])?;
                 start = end;
             }
+        } else {
+            write_all_nl(&mut w.0, &m.get()[start..stop])?;
         }
     }
     Ok(())

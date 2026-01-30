@@ -149,7 +149,7 @@ impl NormalDistGen {
 }
 impl Gen for NormalDistGen {
     fn write(&mut self, w: &mut dyn Write, _loc: &Where) -> Result<()> {
-        let v = self.norm.sample(&mut rand::thread_rng());
+        let v = self.norm.sample(&mut rand::rng());
         self.fmt.print(v, w)
     }
 }
@@ -236,12 +236,12 @@ impl GenList {
     }
     /// is empty?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// length?
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.v.len()
     }
     /// Write full line of Gens

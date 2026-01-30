@@ -7,18 +7,15 @@ use std::ops::Range;
 
 /// Case Sensitive or not
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum Case {
     /// Case Sensitive
+    #[default]
     Sens,
     /// Case Insensitive
     Insens,
 }
 
-impl Default for Case {
-    fn default() -> Self {
-        Self::Sens
-    }
-}
 /// start of range contianing last 'num' parts delimited by 'delim'
 fn tail_u8_len(buff: &[u8], num: usize, delim: u8) -> usize {
     let mut left = num;
@@ -550,7 +547,7 @@ impl Text for [u8] {
         if ic == Case::Sens {
             return false;
         }
-        c1.to_ascii_lowercase() == c2.to_ascii_lowercase()
+        c1.eq_ignore_ascii_case(&c2)
     }
 
     fn take_first(self: &mut &Self) -> u8 {

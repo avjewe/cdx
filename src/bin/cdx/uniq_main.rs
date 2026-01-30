@@ -17,28 +17,22 @@ use cdx::prelude::*;
 // rename Count and count
 
 #[derive(PartialEq, Debug)]
+#[derive(Default)]
 enum CountPos {
+    #[default]
     None,
     Begin,
     End,
 }
-impl Default for CountPos {
-    fn default() -> Self {
-        Self::None
-    }
-}
 
 #[derive(PartialEq, Debug)]
+#[derive(Default)]
 enum Which {
+    #[default]
     First,
     Last,
     Min,
     Max,
-}
-impl Default for Which {
-    fn default() -> Self {
-        Self::First
-    }
 }
 #[derive(Default)]
 struct Count {

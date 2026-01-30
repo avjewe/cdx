@@ -57,7 +57,7 @@ fn dec_max(sizes: &mut [usize]) {
 pub fn basic(file: &str, text: &TextFileMode) -> Result<()> {
     let mut x = Rect::from_screen();
     x.width -= 1;
-    show(file, &Rect::from_screen(), text)
+    show(file, &x, text)
 }
 /// show the file in a specific rectangle
 pub fn show(file: &str, screen: &Rect, text: &TextFileMode) -> Result<()> {

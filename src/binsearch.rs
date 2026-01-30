@@ -61,7 +61,7 @@ impl MemMap {
     }
     /// full text of header line, including newline
     #[must_use]
-    pub fn header(&self) -> &[u8] {
+    pub const fn header(&self) -> &[u8] {
         self.header.line.as_bytes()
     }
     /// column names, suitable for lookup

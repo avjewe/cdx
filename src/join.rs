@@ -7,8 +7,10 @@ use crate::util::Outfile;
 
 /// How to search and combine input files
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum JoinType {
     /// All files sorted. Files 2-N never have repeated keys
+    #[default]
     Quick,
     /// All files sorted. Files 2-N may have repeated keys up to "limit", giving NxM output lines
     Full,
@@ -24,11 +26,6 @@ pub enum JoinType {
     Hash,
 }
 
-impl Default for JoinType {
-    fn default() -> Self {
-        Self::Quick
-    }
-}
 
 /// An output file name, matched to an input file number
 #[derive(Debug, Clone, Default)]
@@ -243,7 +240,7 @@ impl Joiner {
                 self.yes_match.write_all(&[config.out_delim])?;
                 x.write_head(&mut *self.yes_match, &self.r)?;
             }
-            self.yes_match.0.write_all(&[b'\n'])?;
+            self.yes_match.0.write_all(b"\n")?;
         }
         if config.jtype == JoinType::Quick {
             self.join_quick(config)
@@ -264,7 +261,7 @@ impl Joiner {
                             self.yes_match.write_all(&[config.out_delim])?;
                             x.write(&mut *self.yes_match, &self.r)?;
                         }
-                        self.yes_match.write_all(&[b'\n'])?;
+                        self.yes_match.write_all(b"\n")?;
                         if self.r[0].getline()? {
                             self.r[1].getline()?;
                             break 'outer;

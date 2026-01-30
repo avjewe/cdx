@@ -9,8 +9,10 @@ use std::str;
 
 /// What to do if there would be duplicate column names
 #[derive(Debug, Copy, Clone)]
+#[derive(Default)]
 pub enum DupColHandling {
     /// Fail if there are duplicate columns names
+    #[default]
     Fail,
     /// Allow duplicate columns names, but write a message to stderr
     Allow,
@@ -21,11 +23,11 @@ pub enum DupColHandling {
 impl DupColHandling {
     /// new
     pub fn new(spec: &str) -> Result<Self> {
-        if spec.to_ascii_lowercase() == "fail" {
+        if spec.eq_ignore_ascii_case("fail") {
             Ok(Self::Fail)
-        } else if spec.to_ascii_lowercase() == "allow" {
+        } else if spec.eq_ignore_ascii_case("allow") {
             Ok(Self::Allow)
-        } else if spec.to_ascii_lowercase() == "numeric" {
+        } else if spec.eq_ignore_ascii_case("numeric") {
             Ok(Self::Numeric)
         } else {
             err!("Duplicate Column Mode must be one of : Fail, Allow, Numeric")
@@ -33,11 +35,6 @@ impl DupColHandling {
     }
 }
 
-impl Default for DupColHandling {
-    fn default() -> Self {
-        Self::Fail
-    }
-}
 
 #[derive(Default, Clone, Debug)]
 struct NameMap {
@@ -108,7 +105,7 @@ impl ColumnHeader {
         Self::default()
     }
     /// set the `DupColHandling` mode
-    pub fn set_handling(&mut self, dups: DupColHandling) {
+    pub const fn set_handling(&mut self, dups: DupColHandling) {
         self.dups = dups;
     }
     /// clear
@@ -125,7 +122,7 @@ impl ColumnHeader {
         Ok(())
     }
     /// set sloppy
-    pub fn rename_sloppy(&mut self) {
+    pub const fn rename_sloppy(&mut self) {
         self.sloppy = true;
     }
     /// get fieldnames suitable for `lookup()`
@@ -264,6 +261,7 @@ impl ColumnHeader {
 
 /// A column set is a collection of column specifictions, which when interpreted
 /// in the context of a set of named columns, produces a list of column numbers
+///
 /// It contains a bunch of "yes" specs and "no" specs.
 /// If there are no "yes" specs, all columns are marked "yes"
 /// The resulting list of column numbers is all of the "yes" columns in order,
@@ -531,7 +529,7 @@ impl ScopedValues {
     }
     /// Have any column been assigned values?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 }
@@ -733,7 +731,7 @@ impl ColumnSet {
     }
     /// is empty?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.pos.is_empty() && self.neg.is_empty()
     }
 
@@ -1051,7 +1049,7 @@ impl ColumnSet {
                 }
             }
         };
-        w.write_all(&[b'\n'])?;
+        w.write_all(b"\n")?;
         Ok(())
     }
 
@@ -1071,7 +1069,7 @@ impl ColumnSet {
                 }
             }
         };
-        w.write_all(&[b'\n'])?;
+        w.write_all(b"\n")?;
         Ok(())
     }
 
@@ -1420,7 +1418,7 @@ impl Writer {
                 }
             }
         };
-        w.write_all(&[b'\n'])?;
+        w.write_all(b"\n")?;
         Ok(())
     }
 }

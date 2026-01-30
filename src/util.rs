@@ -536,7 +536,7 @@ fn write_plain(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8, repl: u8) -> Res
 fn write_backslash(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8) -> Result<()> {
     for ch in buf {
         if *ch == tab || *ch == eol || *ch == b'\\' {
-            w.write_all(&[b'\\'])?;
+            w.write_all(b"\\")?;
             w.write_all(&[enslash(*ch)])?;
         } else {
             w.write_all(&[*ch])?;
@@ -554,7 +554,7 @@ fn write_quotes(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8) -> Result<()> {
         }
         if !made_quote && (*ch == tab || *ch == eol) {
             made_quote = true;
-            w.write_all(&[b'"'])?;
+            w.write_all(b"\"")?;
         }
         w.write_all(&[*ch])?;
     }
@@ -762,7 +762,7 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
     if !buf.is_empty() {
         w.write_all(buf)?;
         if buf[buf.len() - 1] != b'\n' {
-            w.write_all(&[b'\n'])?;
+            w.write_all(b"\n")?;
         }
     }
     Ok(())
@@ -770,7 +770,7 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
 
 impl TextLine {
     /// whole line, with newline
-    pub fn parts(&mut self) -> &mut Vec<FakeSlice> {
+    pub const fn parts(&mut self) -> &mut Vec<FakeSlice> {
         &mut self.parts
     }
     /// whole line, with newline
@@ -788,7 +788,7 @@ impl TextLine {
         &self.line[..self.line.len() - 1]
     }
     /// whole line, with newline, as Vec
-    pub fn raw(&mut self) -> &mut Vec<u8> {
+    pub const fn raw(&mut self) -> &mut Vec<u8> {
         &mut self.line
     }
     /// assign `TextLine` into existing `TextLine`, avoiding allocation if possible
@@ -822,17 +822,17 @@ impl TextLine {
     }
     /// How many column in the line
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.parts.len()
     }
     /// How many bytes in the line
     #[must_use]
-    pub fn strlen(&self) -> usize {
+    pub const fn strlen(&self) -> usize {
         self.line.len()
     }
     /// should always be false, but required by clippy
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.parts.is_empty()
     }
     /// Get one column. Return an empty column if index is too big.
@@ -903,17 +903,17 @@ impl StringLine {
     }
     /// How many column in the line
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.parts.len()
     }
     /// How many bytes in the line
     #[must_use]
-    pub fn strlen(&self) -> usize {
+    pub const fn strlen(&self) -> usize {
         self.line.len()
     }
     /// should always be false, but required by clippy
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.parts.is_empty()
     }
     /// Get one column. Return an empty column if index is too big.
@@ -1077,7 +1077,7 @@ impl Read for S3Reader {
         }
         let bytes_res = self.rt.block_on(self.f.body.try_next());
         if bytes_res.is_err() {
-            return Err(io::Error::new(io::ErrorKind::Other, "oh no"));
+            return Err(io::Error::other("oh no"));
         }
         self.left = bytes_res.unwrap();
         if let Some(bytes) = &self.left {
@@ -1439,7 +1439,7 @@ impl FileLocList {
     }
     /// new
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// add Name:Spec
@@ -1511,7 +1511,7 @@ impl Reader {
         Self::new_with(1, text_in)
     }
     /// set to false to skip breaking into columns
-    pub fn do_split(&mut self, val: bool) {
+    pub const fn do_split(&mut self, val: bool) {
         self.do_split = val;
     }
     /// make a new Reader, with explicit lookback
@@ -1610,7 +1610,7 @@ impl Reader {
     pub const fn line_number(&self) -> usize {
         self.loc.line
     }
-    fn incr(&mut self) {
+    const fn incr(&mut self) {
         self.loc.line += 1;
         self.curr += 1;
         if self.curr >= self.lines.len() {
@@ -1827,8 +1827,10 @@ pub fn sglob(mut wild: &str, mut buff: &str, ic: bool) -> bool {
 */
 /// How to combine headers from multiple sources
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum HeaderMode {
     /// First can be anything, others must match
+    #[default]
     Match,
     /// First must be CDX, others must match
     Require,
@@ -1845,17 +1847,17 @@ pub enum HeaderMode {
 impl FromStr for HeaderMode {
     type Err = Error;
     fn from_str(spec: &str) -> Result<Self> {
-        if spec.to_ascii_lowercase() == "match" {
+        if spec.eq_ignore_ascii_case("match") {
             Ok(Self::Match)
-        } else if spec.to_ascii_lowercase() == "require" {
+        } else if spec.eq_ignore_ascii_case("require") {
             Ok(Self::Require)
-        } else if spec.to_ascii_lowercase() == "strip" {
+        } else if spec.eq_ignore_ascii_case("strip") {
             Ok(Self::Strip)
-        } else if spec.to_ascii_lowercase() == "none" {
+        } else if spec.eq_ignore_ascii_case("none") {
             Ok(Self::None)
-        } else if spec.to_ascii_lowercase() == "trust" {
+        } else if spec.eq_ignore_ascii_case("trust") {
             Ok(Self::Trust)
-        } else if spec.to_ascii_lowercase() == "ignore" {
+        } else if spec.eq_ignore_ascii_case("ignore") {
             Ok(Self::Ignore)
         } else {
             err!(
@@ -1866,11 +1868,6 @@ impl FromStr for HeaderMode {
     }
 }
 
-impl Default for HeaderMode {
-    fn default() -> Self {
-        Self::Match
-    }
-}
 
 /// Object to enforce `HeaderMode`
 #[derive(Debug, Default, Clone)]
@@ -1913,7 +1910,7 @@ fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {
     }
     let data = str::from_utf8(&data[5..])?;
     let delim = char::from_u32(u32::from(delim)).unwrap();
-    for x in data.split(|ch| ch == delim) {
+    for x in data.split(delim) {
         if x.is_empty() {
             return err!("File {} has an empty column name", fname);
         }
@@ -2038,8 +2035,10 @@ pub fn copy(mut r: impl Read, mut w: impl Write) -> Result<()> {
 
 /// comparison
 #[derive(Debug, Copy, Clone)]
+#[derive(Default)]
 pub enum CompareOp {
     /// less than
+    #[default]
     LT,
     /// greater than
     GT,
@@ -2051,11 +2050,6 @@ pub enum CompareOp {
     EQ,
     /// not equal
     NE,
-}
-impl Default for CompareOp {
-    fn default() -> Self {
-        Self::LT
-    }
 }
 
 impl FromStr for CompareOp {
@@ -2271,10 +2265,10 @@ impl CheckLine {
     fn set_with(&mut self, r: &RangeSpec<'_>) -> Result<()> {
         self.op = r.op1.parse::<CompareOp>()?;
         r.val1.clone_into(&mut self.val);
-        self.op2 = if r.op2.is_none() {
-            None
+        self.op2 = if let Some(item) = r.op2 {
+            Some(item.parse::<CompareOp>()?)
         } else {
-            Some(r.op2.unwrap().parse::<CompareOp>()?)
+            None
         };
         self.val2 = if r.val2.is_none() {
             None
@@ -2344,17 +2338,17 @@ impl CheckBuff {
                 c.set(r.val1.as_bytes());
                 c
             },
-            op2: if r.op2.is_none() {
-                None
+            op2: if let Some(item) = r.op2 {
+                Some(item.parse::<CompareOp>()?)
             } else {
-                Some(r.op2.unwrap().parse::<CompareOp>()?)
+                None
             },
-            val2: if r.val2.is_none() {
-                None
-            } else {
+            val2: if let Some(item) = r.val2 {
                 let mut c = CompMaker::make_comp_box(comp_spec)?;
-                c.set(r.val2.unwrap().as_bytes());
+                c.set(item.as_bytes());
                 Some(c)
+            } else {
+                None
             },
         })
     }

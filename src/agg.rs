@@ -10,7 +10,6 @@ use std::rc::Rc;
 use std::sync::Mutex;
 
 /// Aggregate Values
-
 pub trait Agg {
     /// add one more value to the aggregate
     fn add(&mut self, data: &[u8]);
@@ -94,11 +93,11 @@ impl LineAgger {
         self.agg.borrow_mut().add(data);
     }
     /// print result of aggregation
-    fn result(&mut self, w: &mut dyn Write) -> Result<()> {
+    fn result(&self, w: &mut dyn Write) -> Result<()> {
         self.agg.borrow_mut().result(w, self.fmt)
     }
     /// reset to empty or zero state
-    fn reset(&mut self) {
+    fn reset(&self) {
         self.agg.borrow_mut().reset();
     }
     /// return floating point value of Agg, as possible
@@ -106,7 +105,7 @@ impl LineAgger {
         self.agg.borrow().value()
     }
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+    fn lookup(&self, fieldnames: &[&str]) -> Result<()> {
         self.agg.borrow_mut().lookup(fieldnames)
     }
     /// return self's column within head
@@ -339,8 +338,10 @@ impl Counter for Awords {
 
 #[derive(Clone, Debug)]
 /// Does this `LineAgger` replace a column, or add a new column
+#[derive(Default)]
 pub enum AggType {
     /// replace a column
+    #[default]
     Replace,
     /// add a new column at the beginning
     Prefix(String),
@@ -348,11 +349,6 @@ pub enum AggType {
     Append(String),
 }
 
-impl Default for AggType {
-    fn default() -> Self {
-        Self::Replace
-    }
-}
 
 /// An Agg with a source column and an output designation
 #[derive(Clone, Debug)]
@@ -466,11 +462,11 @@ impl Agger {
         self.agg.borrow_mut().add(data);
     }
     /// print result of aggregation
-    fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
+    fn result(&self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         self.agg.borrow_mut().result(w, fmt)
     }
     /// reset to empty or zero state
-    fn reset(&mut self) {
+    fn reset(&self) {
         self.agg.borrow_mut().reset();
     }
     /// return floating point value of Agg, as possible
@@ -519,7 +515,7 @@ impl AggList {
     }
     /// len
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.v.len()
     }
     /// fmt
@@ -570,7 +566,7 @@ impl AggList {
     }
     /// is empty?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// OutName,Agg,Pattern
@@ -623,7 +619,7 @@ impl LineAggList {
     }
     /// is empty?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.v.is_empty()
     }
     /// Column,Agg,Pattern

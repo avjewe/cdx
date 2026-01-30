@@ -813,7 +813,7 @@ pub struct Item {
     /// Compare caches, and then if necessary compare actual data
     pub cache: u64,
 }
-const _: () = assert!(std::mem::size_of::<Item>() == 16);
+const _: () = assert!(size_of::<Item>() == 16);
 
 /*
     Reverse, // compare right to left
@@ -1153,7 +1153,7 @@ impl CompList {
     }
     /// any [Comp]s in the list?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.c.is_empty()
     }
     /// add
@@ -1242,7 +1242,7 @@ impl LineCompList {
     }
     /// any [`LineComp`]s in the list?
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.c.is_empty()
     }
     /// which columns used as part of key?
@@ -1759,15 +1759,15 @@ impl Item {
         (self.size_plus & 0x8000_0000) != 0
     }
     /// set complete bit
-    pub fn set_complete(&mut self) {
+    pub const fn set_complete(&mut self) {
         self.size_plus |= 0x8000_0000;
     }
     /// clear complete bit
-    pub fn clear_complete(&mut self) {
+    pub const fn clear_complete(&mut self) {
         self.size_plus &= 0x7fff_ffff;
     }
     /// conditionally set complete bit
-    pub fn assign_complete(&mut self, tag: bool) {
+    pub const fn assign_complete(&mut self, tag: bool) {
         if tag {
             self.set_complete();
         } else {

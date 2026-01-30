@@ -96,11 +96,11 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     for x in args {
         if x.name == "pad" {
-            if x.value.to_ascii_lowercase() == "yes" {
+            if x.value.eq_ignore_ascii_case("yes") {
                 pad = PadMode::All;
-            } else if x.value.to_ascii_lowercase() == "no" {
+            } else if x.value.eq_ignore_ascii_case("no") {
                 pad = PadMode::None;
-            } else if x.value.to_ascii_lowercase() == "end" {
+            } else if x.value.eq_ignore_ascii_case("end") {
                 pad = PadMode::End;
             } else {
                 unreachable!();

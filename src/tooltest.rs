@@ -446,7 +446,7 @@ impl Config {
             Ok(())
         }
     }
-    fn do_run(&mut self, file: &str) -> Result<bool> {
+    fn do_run(&self, file: &str) -> Result<bool> {
         let mut t = Test::new();
         t.open(file)?;
         t.run(self)

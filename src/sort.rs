@@ -345,7 +345,7 @@ impl Sorter {
         if data_size > MAX_DATA {
             data_size = MAX_DATA;
         }
-        let ptr_size = max_alloc / 2 / std::mem::size_of::<Item>();
+        let ptr_size = max_alloc / 2 / size_of::<Item>();
         Self {
             config: SortConfig::default(),
             ptrs: Vec::with_capacity(ptr_size),
@@ -369,7 +369,7 @@ impl Sorter {
     }
 
     // number of bytes available to write
-    fn avail(&self) -> usize {
+    const fn avail(&self) -> usize {
         self.data.len() - self.data_used
     }
 
@@ -498,7 +498,7 @@ impl Sorter {
     fn no_del(self) {
         eprintln!(
             "Not deleting {}",
-            self.tmp.into_path().into_os_string().to_string_lossy()
+            self.tmp.keep().into_os_string().to_string_lossy()
         );
     }
     /// add another file to be sorted
@@ -531,7 +531,7 @@ struct NodeData {
     //    done : bool, Optimization?
 }
 impl NodeData {
-    fn new(left: NodeType, right: NodeType) -> Self {
+    const fn new(left: NodeType, right: NodeType) -> Self {
         Self {
             left,
             right,
@@ -570,7 +570,7 @@ impl MergeTreeItem {
             )
         }
     }
-    fn new_node(left: NodeType, right: NodeType) -> Self {
+    const fn new_node(left: NodeType, right: NodeType) -> Self {
         Self::Node(NodeData::new(left, right))
     }
     const fn new_leaf(r: usize) -> Self {
