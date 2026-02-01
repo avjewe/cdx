@@ -36,9 +36,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             num_checks = 1;
         } else if x.name == "Check" {
             check = true;
-            num_checks = x
-                .value
-                .to_usize_whole(x.value.as_bytes(), "number of reports")?;
+            num_checks = x.value.to_usize_whole(x.value.as_bytes(), "number of reports")?;
         } else if x.name == "unique" {
             unique = true;
         } else {

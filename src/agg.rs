@@ -795,16 +795,14 @@ impl Agg for Merge {
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         split_plain(&mut self.data.parts, &self.data.line, self.delim);
         if self.do_sort {
-            self.data.parts.sort_by(|a, b| {
-                self.comp
-                    .comp(a.get(&self.data.line), b.get(&self.data.line))
-            });
+            self.data
+                .parts
+                .sort_by(|a, b| self.comp.comp(a.get(&self.data.line), b.get(&self.data.line)));
         }
         if self.do_uniq {
-            self.data.parts.dedup_by(|a, b| {
-                self.comp
-                    .equal(a.get(&self.data.line), b.get(&self.data.line))
-            });
+            self.data
+                .parts
+                .dedup_by(|a, b| self.comp.equal(a.get(&self.data.line), b.get(&self.data.line)));
         }
         if self.do_count {
             #[allow(clippy::cast_precision_loss)]
@@ -897,11 +895,7 @@ impl Agg for Mean {
         fmt.print(self.value(), w)
     }
     fn value(&self) -> f64 {
-        if self.cnt > 0.0 {
-            self.val / self.cnt
-        } else {
-            0.0
-        }
+        if self.cnt > 0.0 { self.val / self.cnt } else { 0.0 }
     }
     fn reset(&mut self) {
         self.val = 0.0;
@@ -1116,10 +1110,7 @@ impl Prefix {
                 empty: true,
             })
         } else {
-            err!(
-                "Unexpected non-empty pattern passed to Prefix agregator : '{}'",
-                spec
-            )
+            err!("Unexpected non-empty pattern passed to Prefix agregator : '{}'", spec)
         }
     }
 }
@@ -1169,10 +1160,7 @@ impl Suffix {
                 empty: true,
             })
         } else {
-            err!(
-                "Unexpected non-empty pattern passed to Sufffix agregator : '{}'",
-                spec
-            )
+            err!("Unexpected non-empty pattern passed to Sufffix agregator : '{}'", spec)
         }
     }
 }
@@ -1314,16 +1302,12 @@ impl AggMaker {
         Self::do_push("count", "The number of things aggregated", |p| {
             Ok(Rc::new(RefCell::new(Count::new(p)?)))
         })?;
-        Self::do_push(
-            "prefix",
-            "The longest common prefix of the input values",
-            |p| Ok(Rc::new(RefCell::new(Prefix::new(p)?))),
-        )?;
-        Self::do_push(
-            "suffix",
-            "The longest common suffix of the input values",
-            |p| Ok(Rc::new(RefCell::new(Suffix::new(p)?))),
-        )?;
+        Self::do_push("prefix", "The longest common prefix of the input values", |p| {
+            Ok(Rc::new(RefCell::new(Prefix::new(p)?)))
+        })?;
+        Self::do_push("suffix", "The longest common suffix of the input values", |p| {
+            Ok(Rc::new(RefCell::new(Suffix::new(p)?)))
+        })?;
         Self::do_push(
             "min",
             "Keep the minimum value, Pattern is the associated Comparator",
@@ -1375,9 +1359,7 @@ impl AggMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!(
-                "You can't add an alias named {new_name} because that is reserved for a modifier"
-            );
+            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
         }
         let m = AggMakerAlias { old_name, new_name };
         let mut mm = AGG_ALIAS.lock().unwrap();
@@ -1419,9 +1401,7 @@ impl AggMaker {
         F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!(
-                "You can't add a counter named {tag} because that is reserved for a modifier"
-            );
+            return err!("You can't add a counter named {tag} because that is reserved for a modifier");
         }
         let m = CounterMakerItem {
             tag,
@@ -1460,17 +1440,19 @@ impl AggMaker {
         println!("max_len:N   -- Discard any parts longer than N bytes.");
         println!("min_len:N   -- Discard any parts shorter than N bytes.");
         println!("max_parts:N -- Display only the first N parts.");
-        println!("Dxy         -- 'x' is the input delimiter and 'y' is the output delimiter. Default is comma for both.");
+        println!(
+            "Dxy         -- 'x' is the input delimiter and 'y' is the output delimiter. Default is comma for both."
+        );
         println!("comp:spec   -- Spec for comparator for sort or uniq. Must be last piece.");
         println!();
         println!("See also https://avjewe.github.io/cdxdoc/Aggregator.html.");
     }
     /// Create a Agg from a name and a pattern
     pub fn make_line(spec: &str) -> Result<LineAggRef> {
-        if let Some((a, b)) = spec.split_once(',') {
-            if a == "expr" {
-                return Ok(Rc::new(RefCell::new(ExprAgg::new(b)?)));
-            }
+        if let Some((a, b)) = spec.split_once(',')
+            && a == "expr"
+        {
+            return Ok(Rc::new(RefCell::new(ExprAgg::new(b)?)));
         }
         Ok(Rc::new(RefCell::new(AggCol::new(spec)?)))
     }

@@ -80,11 +80,7 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
     while !input.is_empty() {
         let prev = input.len();
         let ch = input.take_first();
-        let next = if input.is_empty() {
-            0 as char
-        } else {
-            input.first()
-        };
+        let next = if input.is_empty() { 0 as char } else { input.first() };
         match ch {
             '(' => {
                 if res.is_empty() {

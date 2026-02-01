@@ -17,9 +17,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     for x in args {
         if x.name == "lines" {
-            num_lines = x
-                .value
-                .to_usize_whole(x.value.as_bytes(), "number of lines")?;
+            num_lines = x.value.to_usize_whole(x.value.as_bytes(), "number of lines")?;
         } else if x.name == "with-header" {
             header = true;
         } else if x.name == "column" {

@@ -30,12 +30,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     }
     if files.len() == 1 {
         let mut v = Vec::new();
-        tabs::show2(
-            &files[0],
-            &tabs::Rect::from_screen(),
-            &mut v,
-            &settings.text_in,
-        )?;
+        tabs::show2(&files[0], &tabs::Rect::from_screen(), &mut v, &settings.text_in)?;
         for x in v {
             println!("{}", x);
         }

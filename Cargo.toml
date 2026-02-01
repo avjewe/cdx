@@ -2,7 +2,7 @@
 name = "cdx"
 version = "0.1.22"
 authors = ["Andy Jewell <avjewe@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Library and application for text file manipulation and command line data mining, a little like the gnu textutils"
 homepage = "https://avjewe.github.io/cdxdoc/"

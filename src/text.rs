@@ -1,7 +1,7 @@
 //! The Text trait, with implementations for str and &[u8]
 //! for all those things that are needed for both types
 
-use crate::num::{suffix_valf, suffix_valu, Junk, JunkType};
+use crate::num::{Junk, JunkType, suffix_valf, suffix_valu};
 use crate::prelude::*;
 use std::ops::Range;
 
@@ -633,11 +633,11 @@ impl Text for [u8] {
             ret += (curr[0] - b'0') as usize;
             curr = &curr[1..];
         }
-        if !curr.is_empty() {
-            if let Some(mul) = suffix_valu(curr[0]) {
-                curr = &curr[1..];
-                ret *= mul;
-            }
+        if !curr.is_empty()
+            && let Some(mul) = suffix_valu(curr[0])
+        {
+            curr = &curr[1..];
+            ret *= mul;
         }
         (ret, curr)
     }
@@ -661,11 +661,11 @@ impl Text for [u8] {
             ret += (curr[0] - b'0') as isize;
             curr = &curr[1..];
         }
-        if !curr.is_empty() {
-            if let Some(mul) = suffix_valu(curr[0]) {
-                curr = &curr[1..];
-                ret *= mul.cast_signed();
-            }
+        if !curr.is_empty()
+            && let Some(mul) = suffix_valu(curr[0])
+        {
+            curr = &curr[1..];
+            ret *= mul.cast_signed();
         }
         ret *= neg;
         (ret, curr)
@@ -741,11 +741,11 @@ impl Text for [u8] {
                 }
             }
         }
-        if !curr.is_empty() {
-            if let Some(mul) = suffix_valf(curr[0]) {
-                curr = &curr[1..];
-                ret *= mul;
-            }
+        if !curr.is_empty()
+            && let Some(mul) = suffix_valf(curr[0])
+        {
+            curr = &curr[1..];
+            ret *= mul;
         }
         (neg * ret, curr)
     }
@@ -876,11 +876,19 @@ mod tests {
         assert!(b"anb".glob(b"a?b", Case::Sens));
         assert!(!"añb".as_bytes().glob(b"a?b", Case::Sens));
 
-        assert!(b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
-	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/*/add_hour_*", Case::Sens));
+        assert!(
+            b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
+                b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/*/add_hour_*",
+                Case::Sens
+            )
+        );
 
-        assert!(b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
-	    b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/???/add_hour_*", Case::Sens));
+        assert!(
+            b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
+                b"s3://com.company.metric-holding-bin-prod//2011/02/12/23/00/acctid/???/add_hour_*",
+                Case::Sens
+            )
+        );
     }
 
     #[test]
@@ -921,9 +929,17 @@ mod tests {
         assert!("aÑb".glob("añb", Case::Insens));
         assert!("añb".glob("aÑb", Case::Insens));
 
-        assert!("s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
-	    "s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/*/add_hour_*", Case::Sens));
-        assert!("s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
-	    "s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/???/add_hour_*", Case::Sens));
+        assert!(
+            "s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
+                "s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/*/add_hour_*",
+                Case::Sens
+            )
+        );
+        assert!(
+            "s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/2da/add_hour_201102122300_2da.gz".glob(
+                "s3://com.company.metric-holding-bin-prod/2011/02/12/23/00/acctid/???/add_hour_*",
+                Case::Sens
+            )
+        );
     }
 }

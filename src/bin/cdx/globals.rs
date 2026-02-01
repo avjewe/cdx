@@ -1,7 +1,7 @@
 //! global settings and command line arguments available to all tools
 
-use crate::args::add_arg;
 use crate::args::ArgValue;
+use crate::args::add_arg;
 use crate::prelude::*;
 use cdx::agg::AggMaker;
 use cdx::comp::CompMaker;
@@ -58,11 +58,7 @@ impl Settings {
         }
     }
     pub fn add_std_help<'a>(&'a self, a: clap::Command<'a>) -> clap::Command<'a> {
-        add_arg(
-            a,
-            &arg! {"std-help", "", "", "Show help for standard args."},
-            false,
-        )
+        add_arg(a, &arg! {"std-help", "", "", "Show help for standard args."}, false)
     }
     pub fn handle_std_help(&self, m: &clap::ArgMatches) -> Result<()> {
         if m.occurrences_of("std-help") > 0 {

@@ -9,7 +9,7 @@ fancier sort
 
 use crate::comp::Item;
 use crate::prelude::*;
-use crate::util::{copy, get_reader, is_cdx, make_header, HeaderChecker};
+use crate::util::{HeaderChecker, copy, get_reader, is_cdx, make_header};
 use binary_heap_plus::BinaryHeap;
 use std::cell::RefCell;
 //use std::mem;
@@ -201,13 +201,7 @@ impl SortConfig {
     }
 
     /// merge all the files into w
-    pub fn merge(
-        &self,
-        files: &[String],
-        cmp: &mut LineCompList,
-        w: impl Write,
-        unique: bool,
-    ) -> Result<()> {
+    pub fn merge(&self, files: &[String], cmp: &mut LineCompList, w: impl Write, unique: bool) -> Result<()> {
         let tmp = TempDir::new()?;
         if self.alt_merge {
             self.merge_t1(files, cmp, w, unique, &tmp)
@@ -289,13 +283,7 @@ impl SortConfig {
         }
     */
     /// Sort all the files together, into w
-    pub fn sort<W: Write>(
-        &self,
-        files: &[String],
-        cmp: LineCompList,
-        w: &mut W,
-        unique: bool,
-    ) -> Result<()> // maybe return some useful stats?
+    pub fn sort<W: Write>(&self, files: &[String], cmp: LineCompList, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
     {
         let mut s = Sorter::new(cmp, 500_000_000, unique);
         for fname in files {
@@ -383,11 +371,7 @@ impl Sorter {
             self.data.resize(nsize, 0);
         }
         let avail = self.avail();
-        if avail < n {
-            avail
-        } else {
-            n
-        }
+        if avail < n { avail } else { n }
     }
 
     /// add some more data to be sorted.
@@ -470,12 +454,10 @@ impl Sorter {
         if self.config.alt_sort {
             do_sort_lines(&self.data, &mut self.ptrs, &mut self.cmp);
         } else {
-            self.ptrs
-                .sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
+            self.ptrs.sort_by(|a, b| self.cmp.comp_items(&self.data, a, b));
         }
         if self.unique {
-            self.ptrs
-                .dedup_by(|a, b| self.cmp.equal_items(&self.data, a, b));
+            self.ptrs.dedup_by(|a, b| self.cmp.equal_items(&self.data, a, b));
         }
     }
     /// All files have been added, write final results
@@ -496,10 +478,7 @@ impl Sorter {
 
     #[allow(dead_code)]
     fn no_del(self) {
-        eprintln!(
-            "Not deleting {}",
-            self.tmp.keep().into_os_string().to_string_lossy()
-        );
+        eprintln!("Not deleting {}", self.tmp.keep().into_os_string().to_string_lossy());
     }
     /// add another file to be sorted
     pub fn add_file<W: Write>(&mut self, fname: &str, w: &mut W) -> Result<()> {

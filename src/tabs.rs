@@ -33,10 +33,7 @@ impl Rect {
                 height: (ws.ws_row - 1) as usize,
             }
         } else {
-            Self {
-                width: 100,
-                height: 24,
-            }
+            Self { width: 100, height: 24 }
         }
     }
 }

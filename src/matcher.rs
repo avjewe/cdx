@@ -59,11 +59,7 @@ pub trait LineMatch {
 }
 
 const fn not_str(negate: bool) -> &'static str {
-    if negate {
-        "not-"
-    } else {
-        ""
-    }
+    if negate { "not-" } else { "" }
 }
 
 /// Match against `str` or `&[u8]`
@@ -80,12 +76,7 @@ pub trait Match {
     fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
         let res = self.smatch(buff);
         if res != negate {
-            eprintln!(
-                "Failed to {}match {} against {}",
-                not_str(negate),
-                buff,
-                self.show()
-            );
+            eprintln!("Failed to {}match {} against {}", not_str(negate), buff, self.show());
         }
         res
     }
@@ -145,10 +136,9 @@ impl Thresh {
         if spec.contains('.') {
             Self::new_frac(spec.to_f64_whole(spec.as_bytes(), "Threshhold for Determiner")?)
         } else {
-            Ok(Self::new_count(spec.to_usize_whole(
-                spec.as_bytes(),
-                "Threshhold for Determiner",
-            )?))
+            Ok(Self::new_count(
+                spec.to_usize_whole(spec.as_bytes(), "Threshhold for Determiner")?,
+            ))
         }
     }
     /// new Count
@@ -271,8 +261,7 @@ impl Determiner {
     #[must_use]
     pub const fn match_mid(&self, yes: usize, no: usize) -> Tri {
         use Determiner::{
-            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll,
-            Some, Uniform,
+            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform,
         };
         match self {
             All => Tri::no_if(no > 0),
@@ -294,8 +283,7 @@ impl Determiner {
     #[must_use]
     pub fn match_final(&self, yes: usize, no: usize) -> bool {
         use Determiner::{
-            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll,
-            Some, Uniform,
+            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform,
         };
         let tot = yes + no;
         match self {
@@ -335,9 +323,7 @@ struct PrefixMatch {
 
 impl PrefixMatch {
     fn new(data: &str) -> Self {
-        Self {
-            data: data.to_string(),
-        }
+        Self { data: data.to_string() }
     }
 }
 impl Match for PrefixMatch {
@@ -452,9 +438,7 @@ struct SuffixMatch {
 }
 impl SuffixMatch {
     fn new(data: &str) -> Self {
-        Self {
-            data: data.to_string(),
-        }
+        Self { data: data.to_string() }
     }
 }
 impl Match for SuffixMatch {
@@ -584,9 +568,7 @@ struct ExactMatch {
 }
 impl ExactMatch {
     fn new(data: &str) -> Self {
-        Self {
-            data: data.to_string(),
-        }
+        Self { data: data.to_string() }
     }
 }
 impl Match for ExactMatch {
@@ -699,10 +681,7 @@ impl Match for FileExactMatchC {
         self.data.contains(&buff.new_lower()) // PERF allocation
     }
     fn show(&self) -> String {
-        format!(
-            "Case insensitive match of one line in file {}",
-            self.file_name
-        )
+        format!("Case insensitive match of one line in file {}", self.file_name)
     }
 }
 
@@ -845,10 +824,7 @@ impl Match for LengthMatch {
     }
     fn show(&self) -> String {
         if let Some(max) = self.max {
-            format!(
-                "String of at least {}, but no more than {}  bytes",
-                self.min, max
-            )
+            format!("String of at least {}, but no more than {}  bytes", self.min, max)
         } else if self.min == 0 {
             "Empty String".to_string()
         } else {
@@ -964,12 +940,7 @@ impl CompMatcher {
         }
         let (col, rest) = ColGroup::new_with(pattern)?;
         let comp = CompMaker::make_comp(rest)?;
-        Ok(Self {
-            target,
-            op,
-            col,
-            comp,
-        })
+        Ok(Self { target, op, col, comp })
     }
 }
 impl LineMatch for CompMatcher {
@@ -1022,8 +993,7 @@ impl LineMatch for WholeMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.matcher.negate
             ^ if self.matcher.string {
-                self.matcher
-                    .smatch(&String::from_utf8_lossy(line.line_nl()))
+                self.matcher.smatch(&String::from_utf8_lossy(line.line_nl()))
             } else {
                 self.matcher.umatch(line.line_nl())
             }
@@ -1107,8 +1077,7 @@ impl LineMatch for ColSetMatcher {
         let mut no = 0;
         for x in self.col.get_cols() {
             let did_match = if self.matcher.string {
-                self.matcher
-                    .smatch(&String::from_utf8_lossy(line.get(x.num)))
+                self.matcher.smatch(&String::from_utf8_lossy(line.get(x.num)))
             } else {
                 self.matcher.umatch(line.get(x.num))
             };
@@ -1158,8 +1127,7 @@ impl LineMatch for ColMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.matcher.negate
             ^ if self.matcher.string {
-                self.matcher
-                    .smatch(&String::from_utf8_lossy(line.get(self.col.num)))
+                self.matcher.smatch(&String::from_utf8_lossy(line.get(self.col.num)))
             } else {
                 self.matcher.umatch(line.get(self.col.num))
             }
@@ -1222,13 +1190,7 @@ impl LineMatcherList {
         }
     }
     /// `ok_verbose`, with supplied Combiner
-    pub fn ok_verbose_tagged(
-        &mut self,
-        line: &TextLine,
-        multi: Combiner,
-        line_num: usize,
-        fname: &str,
-    ) -> bool {
+    pub fn ok_verbose_tagged(&mut self, line: &TextLine, multi: Combiner, line_num: usize, fname: &str) -> bool {
         match multi {
             Combiner::And => self.ok_verbose_and(line, line_num, fname),
             Combiner::Or => self.ok_verbose_or(line, line_num, fname),
@@ -1439,12 +1401,7 @@ impl MatcherList {
     pub fn verbose_smatch(&self, buff: &str, negate: bool) -> bool {
         let res = self.smatch(buff);
         if res != negate {
-            eprintln!(
-                "Failed to {}match {} against {}",
-                not_str(negate),
-                buff,
-                self.show()
-            );
+            eprintln!("Failed to {}match {} against {}", not_str(negate), buff, self.show());
         }
         res
     }
@@ -1618,17 +1575,13 @@ impl MatchMaker {
         Self::do_add_alias("infix", "substr")?;
         Self::do_add_alias("infix", "substring")?;
         Self::do_add_alias("file-exact", "fileexact")?;
-        Self::do_push(
-            "prefix",
-            "Is the pattern a prefix of the target?",
-            |m, p| {
-                Ok(if m.case == Case::Insens {
-                    Box::new(PrefixMatchC::new(p))
-                } else {
-                    Box::new(PrefixMatch::new(p))
-                })
-            },
-        )?;
+        Self::do_push("prefix", "Is the pattern a prefix of the target?", |m, p| {
+            Ok(if m.case == Case::Insens {
+                Box::new(PrefixMatchC::new(p))
+            } else {
+                Box::new(PrefixMatch::new(p))
+            })
+        })?;
         Self::do_push("float", "Valid floating point number", |_m, _p| {
             Ok(Box::new(RegexMatch::new(
                 "^[-]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?$",
@@ -1641,26 +1594,22 @@ impl MatchMaker {
         Self::do_push(
             "number",
             "Valid number, with optional decimal, e.g. 42 or 1.23",
-            |_m, _p| {
-                Ok(Box::new(RegexMatch::new(
-                    "^[-]?[0-9]+(\\.[0-9]+)?$",
-                    Case::Sens,
-                )?))
-            },
+            |_m, _p| Ok(Box::new(RegexMatch::new("^[-]?[0-9]+(\\.[0-9]+)?$", Case::Sens)?)),
         )?;
         Self::do_push("ip", "Valid IPv4 address", |_m, _p| {
-            Ok(Box::new(RegexMatch::new("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$", Case::Sens)?))
+            Ok(Box::new(RegexMatch::new(
+                "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+                Case::Sens,
+            )?))
         })?;
         Self::do_push(
             "regex",
             "Interpret the pattern as a regex, as per the eponymous crate",
             |m, p| Ok(Box::new(RegexMatch::new(p, m.case)?)),
         )?;
-        Self::do_push(
-            "range",
-            "Match using a CompareOp and a Comparator",
-            |_m, p| Ok(Box::new(CheckBuff::new(p)?)),
-        )?;
+        Self::do_push("range", "Match using a CompareOp and a Comparator", |_m, p| {
+            Ok(Box::new(CheckBuff::new(p)?))
+        })?;
         Self::do_push(
             "file-exact",
             "Is the target exactly one one the lines in this file?",
@@ -1672,60 +1621,44 @@ impl MatchMaker {
                 })
             },
         )?;
-        Self::do_push(
-            "exact",
-            "Does the target exactly match the pattern",
-            |m, p| {
-                Ok(if m.case == Case::Insens {
-                    Box::new(ExactMatchC::new(p))
-                } else {
-                    Box::new(ExactMatch::new(p))
-                })
-            },
-        )?;
+        Self::do_push("exact", "Does the target exactly match the pattern", |m, p| {
+            Ok(if m.case == Case::Insens {
+                Box::new(ExactMatchC::new(p))
+            } else {
+                Box::new(ExactMatch::new(p))
+            })
+        })?;
         Self::do_push(
             "length",
             "For the pattern X,Y, length is between X and Y inclusive",
             |_m, p| Ok(Box::new(LengthMatch::new(p)?)),
         )?;
         Self::do_push("yes", "always matches", |_m, _p| Ok(Box::new(YesMatch {})))?;
-        Self::do_push(
-            "suffix",
-            "Is the pattern a suffix of the target?",
-            |m, p| {
-                Ok(if m.case == Case::Insens {
-                    Box::new(SuffixMatchC::new(p))
-                } else {
-                    Box::new(SuffixMatch::new(p))
-                })
-            },
-        )?;
-        Self::do_push(
-            "infix",
-            "Is the pattern a substring of the target?",
-            |m, p| {
-                Ok(if m.case == Case::Insens {
-                    Box::new(InfixMatchC::new(p))
-                } else {
-                    Box::new(InfixMatch::new(p))
-                })
-            },
-        )?;
+        Self::do_push("suffix", "Is the pattern a suffix of the target?", |m, p| {
+            Ok(if m.case == Case::Insens {
+                Box::new(SuffixMatchC::new(p))
+            } else {
+                Box::new(SuffixMatch::new(p))
+            })
+        })?;
+        Self::do_push("infix", "Is the pattern a substring of the target?", |m, p| {
+            Ok(if m.case == Case::Insens {
+                Box::new(InfixMatchC::new(p))
+            } else {
+                Box::new(InfixMatch::new(p))
+            })
+        })?;
         Self::do_push("glob", "Treat the pattern as a shell glob", |m, p| {
             Ok(Box::new(GlobMatch::new(p, m.case)))
         })?;
         Self::do_push("empty", "Is the target empty, i.e. zero bytes", |_m, _p| {
             Ok(Box::new(LengthMatch::new("0,0")?))
         })?;
-        Self::do_push(
-            "blank",
-            "Is the target made entirely of white space",
-            |m, _p| {
-                m.trim = true;
-                m.empty = true;
-                Ok(Box::new(NoMatch {}))
-            },
-        )?;
+        Self::do_push("blank", "Is the target made entirely of white space", |m, _p| {
+            m.trim = true;
+            m.empty = true;
+            Ok(Box::new(NoMatch {}))
+        })?;
         Self::do_push(
             "comment",
             "Is the target white space followed by the pattern?",
@@ -1744,15 +1677,11 @@ impl MatchMaker {
                 Ok(Box::new(PrefixMatch::new("#")))
             },
         )?;
-        Self::do_push(
-            "slash",
-            "Is the target white space followed by //",
-            |m, _p| {
-                m.trim = true;
-                m.empty = true;
-                Ok(Box::new(PrefixMatch::new("//")))
-            },
-        )
+        Self::do_push("slash", "Is the target white space followed by //", |m, _p| {
+            m.trim = true;
+            m.empty = true;
+            Ok(Box::new(PrefixMatch::new("//")))
+        })
     }
     /// Add a new matcher. If a Matcher already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -1778,9 +1707,7 @@ impl MatchMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!(
-                "You can't add an alias named {new_name} because that is reserved for a modifier"
-            );
+            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
         }
         let m = MatchMakerAlias { old_name, new_name };
         let mut mm = MATCH_ALIAS.lock().unwrap();
@@ -1799,9 +1726,7 @@ impl MatchMaker {
         F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!(
-                "You can't add a matcher named {tag} because that is reserved for a modifier"
-            );
+            return err!("You can't add a matcher named {tag} because that is reserved for a modifier");
         }
         let m = MatchMakerItem {
             tag,
@@ -1906,11 +1831,7 @@ impl MatchMaker {
         } else if cols.is_empty() {
             Ok(Box::new(WholeMatcher::new(method, pattern)?))
         } else if !cols.is_empty() && cols.first() == '[' {
-            Ok(Box::new(ColSetMatcher::new(
-                &cols[1..cols.len() - 1],
-                method,
-                pattern,
-            )?))
+            Ok(Box::new(ColSetMatcher::new(&cols[1..cols.len() - 1], method, pattern)?))
         } else {
             Ok(Box::new(ColMatcher::new(cols, method, pattern)?))
         }
@@ -1958,9 +1879,7 @@ struct ExprMatcher {
 impl ExprMatcher {
     /// new from expression
     fn new(ex: &str) -> Result<Self> {
-        Ok(Self {
-            con: Expr::new(ex)?,
-        })
+        Ok(Self { con: Expr::new(ex)? })
     }
 }
 
@@ -1986,10 +1905,7 @@ impl LineMatch for ExprMatcher {
     }
 
     fn show(&self) -> String {
-        format!(
-            "Floating Point Expression must be non-zero : {}",
-            self.con.expr()
-        )
+        format!("Floating Point Expression must be non-zero : {}", self.con.expr())
     }
 }
 

@@ -2,7 +2,7 @@
 
 use crate::matcher::{MatchMaker, Matcher};
 use crate::prelude::*;
-use crate::util::{get_reader, Infile};
+use crate::util::{Infile, get_reader};
 
 use fs_err as fs;
 use std::ffi::OsStr;
@@ -17,9 +17,15 @@ pub fn show_format() {
     println!("#stdin : followed by the input to the program. Default empty.");
     println!("#stdout : followed by the expected stdout output. Default empty.");
     println!("#stderr : followed by the expected stderr output. Default empty.");
-    println!("#infile Filename : followed by the contents of the named file. '#infile foo' means that the file $TMP/foo is available to the command.");
-    println!("#outfile Filename : followed by the contents of the named file. '#outfile foo' means that the file $TMP/foo must be created by the command, with exactly that contents.");
-    println!("#nonewline : must follow the contents of one of the above four. Removes the final newline from the input or expected output.");
+    println!(
+        "#infile Filename : followed by the contents of the named file. '#infile foo' means that the file $TMP/foo is available to the command."
+    );
+    println!(
+        "#outfile Filename : followed by the contents of the named file. '#outfile foo' means that the file $TMP/foo must be created by the command, with exactly that contents."
+    );
+    println!(
+        "#nonewline : must follow the contents of one of the above four. Removes the final newline from the input or expected output."
+    );
     println!("#status Number : the expected exit status. Default zero.");
     println!("'# ' : a line starting with # and a space is a comment, and is ignored");
 }
@@ -71,11 +77,7 @@ fn delete_file(s: &str, dir: &str) -> Result<()> {
 /// remove item from Vec and delete file
 fn nuke(v: &mut Vec<String>, s: &str, dir: &str, keep_files: bool) -> Result<()> {
     v.retain(|x| x != s);
-    if keep_files {
-        Ok(())
-    } else {
-        delete_file(s, dir)
-    }
+    if keep_files { Ok(()) } else { delete_file(s, dir) }
 }
 
 /// return directory as vec of file names
@@ -187,13 +189,7 @@ impl Test {
                 self.cmd = y.to_vec();
             } else if self.add_outfile("#stdout", &mut line, &mut reader, &mut need_read)?
                 || self.add_outfile("#stderr", &mut line, &mut reader, &mut need_read)?
-                || grab(
-                    b"#stdin",
-                    &mut self.stdin,
-                    &mut line,
-                    &mut reader,
-                    &mut need_read,
-                )?
+                || grab(b"#stdin", &mut self.stdin, &mut line, &mut reader, &mut need_read)?
             {
                 /* do nothing */
             } else if let Some(x) = line.strip_prefix(b"#status") {
@@ -233,10 +229,7 @@ impl Test {
             } else if line.starts_with(b"# ") {
                 // comment
             } else {
-                return err!(
-                    "Unexpected line in test file : {}",
-                    std::str::from_utf8(&line)?
-                );
+                return err!("Unexpected line in test file : {}", std::str::from_utf8(&line)?);
             }
             if need_read {
                 line.clear();
@@ -293,9 +286,7 @@ impl Test {
             //	    prerr(&[b"with arg ", x]);
             tmp_cmd.arg(OsStr::from_bytes(x));
         }
-        let res = tmp_cmd
-            .stdin(std::fs::File::open(&tmp_stdin).unwrap())
-            .output();
+        let res = tmp_cmd.stdin(std::fs::File::open(&tmp_stdin).unwrap()).output();
         let output = match res {
             Err(x) => {
                 prerr(&[b"Error trying to execute : ", &basecmd]);
@@ -322,21 +313,11 @@ impl Test {
         //	eprintln!("Got output {} {} {}", output.status.code().unwrap(), output.stdout.len(), output.stderr.len());
         if !self.stderr.matcher.do_match_safe(&output.stderr) {
             failed = true;
-            prerr(&[
-                b"Stderr was\n",
-                &output.stderr,
-                b"\ninstead of\n",
-                &self.stderr.content,
-            ]);
+            prerr(&[b"Stderr was\n", &output.stderr, b"\ninstead of\n", &self.stderr.content]);
         }
         if !self.stdout.matcher.do_match_safe(&output.stdout) {
             failed = true;
-            prerr(&[
-                b"Stdout was\n",
-                &output.stdout,
-                b"\ninstead of\n",
-                &self.stdout.content,
-            ]);
+            prerr(&[b"Stdout was\n", &output.stdout, b"\ninstead of\n", &self.stdout.content]);
         }
         for x in &self.out_files {
             let mut fname = tmp.clone();

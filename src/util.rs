@@ -67,10 +67,7 @@ impl fmt::Display for CdxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Error(s) => write!(f, "{s}")?,
-            Self::NeedLookup => write!(
-                f,
-                "ColumnSet.lookup() must be called before ColumnSet.select()"
-            )?,
+            Self::NeedLookup => write!(f, "ColumnSet.lookup() must be called before ColumnSet.select()")?,
             Self::Silent => write!(f, "Silent")?,
             Self::NoError => write!(f, "Not an error.")?,
         }
@@ -112,20 +109,12 @@ impl Tri {
     /// return Yes is x is true, else Maybe
     #[must_use]
     pub const fn yes_if(x: bool) -> Self {
-        if x {
-            Self::Yes
-        } else {
-            Self::Maybe
-        }
+        if x { Self::Yes } else { Self::Maybe }
     }
     /// return No if x is true, else Maybe
     #[must_use]
     pub const fn no_if(x: bool) -> Self {
-        if x {
-            Self::No
-        } else {
-            Self::Maybe
-        }
+        if x { Self::No } else { Self::Maybe }
     }
 }
 
@@ -297,7 +286,9 @@ impl TextFileMode {
             } else if ch == 'x' {
                 head_mode = HeadMode::Cdx;
             } else {
-                return err!("First char of text-fmt spec must be y (yes), n (no), m (maybe) s (skip) or x (cdx) not '{ch}'");
+                return err!(
+                    "First char of text-fmt spec must be y (yes), n (no), m (maybe) s (skip) or x (cdx) not '{ch}'"
+                );
             }
         }
         // 2nd char : delimiter.
@@ -482,10 +473,7 @@ impl FakeSlice {
             } else if begin > end {
                 err!("Invalid range, begin is greater than end")
             } else {
-                Ok(Self {
-                    begin: begin - 1,
-                    end,
-                })
+                Ok(Self { begin: begin - 1, end })
             }
         } else {
             let num = spec.to_usize_whole(spec.as_bytes(), "position")? as u32;
@@ -774,11 +762,7 @@ impl TextLine {
     /// whole line, with newline
     #[must_use]
     pub fn line(&self) -> &[u8] {
-        if self.orig.is_empty() {
-            &self.line
-        } else {
-            &self.orig
-        }
+        if self.orig.is_empty() { &self.line } else { &self.orig }
     }
     /// whole line, without newline
     #[must_use]
@@ -808,10 +792,7 @@ impl TextLine {
     /// Iterator over columns in the line
     #[must_use]
     pub const fn iter(&self) -> TextLineIter<'_> {
-        TextLineIter {
-            line: self,
-            index: 0,
-        }
+        TextLineIter { line: self, index: 0 }
     }
     /// empty the line
     pub fn clear(&mut self) {
@@ -880,10 +861,7 @@ impl StringLine {
     /// Iterator over columns in the line
     #[must_use]
     pub const fn iter(&self) -> StringLineIter<'_> {
-        StringLineIter {
-            line: self,
-            index: 0,
-        }
+        StringLineIter { line: self, index: 0 }
     }
     /// create a fake CDX header with columns c1,c2...
     pub fn fake(&mut self, num_cols: usize, delim: u8) {
@@ -949,11 +927,7 @@ impl StringLine {
     /// whole line, with newline
     #[must_use]
     pub fn line(&self) -> &str {
-        if self.orig.is_empty() {
-            &self.line
-        } else {
-            &self.orig
-        }
+        if self.orig.is_empty() { &self.line } else { &self.orig }
     }
 }
 
@@ -962,10 +936,7 @@ impl<'a> IntoIterator for &'a TextLine {
     type IntoIter = TextLineIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        TextLineIter {
-            line: self,
-            index: 0,
-        }
+        TextLineIter { line: self, index: 0 }
     }
 }
 
@@ -974,10 +945,7 @@ impl<'a> IntoIterator for &'a StringLine {
     type IntoIter = StringLineIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        StringLineIter {
-            line: self,
-            index: 0,
-        }
+        StringLineIter { line: self, index: 0 }
     }
 }
 
@@ -1034,9 +1002,7 @@ struct S3Reader {
 #[cfg(feature = "s3")]
 impl S3Reader {
     fn new(bucket: &str, key: &str) -> Result<Self> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
         let version = aws_config::BehaviorVersion::latest();
         let shared_config = rt.block_on(aws_config::load_defaults(version));
         let client = aws_sdk_s3::Client::new(&shared_config);
@@ -1382,9 +1348,7 @@ impl FileLocItem {
             Ok(Self::Name(0))
         } else if let Some((a, b)) = spec.split_once('.') {
             if a.eq_ignore_ascii_case("name") {
-                Ok(Self::Name(
-                    b.to_usize_whole(spec.as_bytes(), "File location")?,
-                ))
+                Ok(Self::Name(b.to_usize_whole(spec.as_bytes(), "File location")?))
             } else {
                 err!("File Loc must be once of Bytes, Line, Name : '{}'", spec)
             }
@@ -1466,12 +1430,7 @@ impl FileLocList {
         Ok(())
     }
     /// fill data with file loc data
-    pub fn write_data(
-        &mut self,
-        data: &mut impl Write,
-        delim: u8,
-        loc: &FileLocData,
-    ) -> Result<()> {
+    pub fn write_data(&mut self, data: &mut impl Write, delim: u8, loc: &FileLocData) -> Result<()> {
         for x in &mut self.v {
             x.write_data(data, loc)?;
             data.write_all(&[delim])?;
@@ -1567,11 +1526,7 @@ impl Reader {
         tmp.cont.read_header(&mut *tmp.file, &mut tmp.lines[0])?;
         tmp.loc.name = name.to_string();
         tmp.loc.line = 1;
-        tmp.loc.bytes = if tmp.has_header() {
-            tmp.header().line.len()
-        } else {
-            0
-        };
+        tmp.loc.bytes = if tmp.has_header() { tmp.header().line.len() } else { 0 };
         Ok(tmp)
     }
     /// get current line contents, without the trailing newline
@@ -1929,11 +1884,19 @@ fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {
             return err!("File {} has an empty column name", fname);
         }
         if !x.first().is_alphabetic() {
-            return err!("Header for file {} has column name {} which does not start with an alphabetic character.", fname, x);
+            return err!(
+                "Header for file {} has column name {} which does not start with an alphabetic character.",
+                fname,
+                x
+            );
         }
         for ch in x.chars() {
             if !ch.is_alphanumeric() && ch != '_' {
-                return err!("Header for file {} has column name {} which contains something other than alphanumeric and underscore.", fname, x);
+                return err!(
+                    "Header for file {} has column name {} which contains something other than alphanumeric and underscore.",
+                    fname,
+                    x
+                );
             }
         }
     }
@@ -1993,10 +1956,7 @@ impl HeaderChecker {
                         Ok(false)
                     } else {
                         if !self.head.is_empty() {
-                            return err!(
-                                "No CDX Header found in {}, but first file had one.",
-                                fname
-                            );
+                            return err!("No CDX Header found in {}, but first file had one.", fname);
                         }
                         Ok(true)
                     }
@@ -2116,12 +2076,7 @@ impl CompareOp {
         }
     }
     /// return (line OP value), writing to stderr if false
-    pub fn line_ok_verbose(
-        &self,
-        line: &TextLine,
-        comp: &mut LineCompList,
-        line_num: usize,
-    ) -> bool {
+    pub fn line_ok_verbose(&self, line: &TextLine, comp: &mut LineCompList, line_num: usize) -> bool {
         if self.invert().line_ok(line, comp) {
             true
         } else {
@@ -2163,16 +2118,12 @@ struct RangeSpec<'a> {
 
 impl<'a> RangeSpec<'a> {
     fn new(spec: &'a str) -> Result<Self> {
-        static RE1: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new("^(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap()
-        });
-        static RE2: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new("^(<|>|<=|>=|==|!=)(.+)$").unwrap());
-        static RE3: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new("^(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
-        });
-        static RE4: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new("^(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
+        static RE1: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("^(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap());
+        static RE2: LazyLock<Regex> = LazyLock::new(|| Regex::new("^(<|>|<=|>=|==|!=)(.+)$").unwrap());
+        static RE3: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("^(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
+        static RE4: LazyLock<Regex> = LazyLock::new(|| Regex::new("^(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
         if let Some(caps) = RE1.captures(spec) {
             Ok(Self {
                 op1: caps.get(1).unwrap().as_str(),
@@ -2206,17 +2157,12 @@ impl<'a> RangeSpec<'a> {
         }
     }
     fn new_trail(spec: &'a str) -> Result<(Self, usize)> {
-        static RE1: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)([^=].*)$").unwrap()
-        });
-        static RE2: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new("(^|,)(<|>|<=|>=|==|!=)([^=].*)$").unwrap());
-        static RE3: LazyLock<Regex> = LazyLock::new(|| {
-                Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
-        });
-        static RE4: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
-        });
+        static RE1: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)([^=].*)$").unwrap());
+        static RE2: LazyLock<Regex> = LazyLock::new(|| Regex::new("(^|,)(<|>|<=|>=|==|!=)([^=].*)$").unwrap());
+        static RE3: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
+        static RE4: LazyLock<Regex> = LazyLock::new(|| Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
         if let Some(caps) = RE1.captures(spec) {
             Ok((
                 Self {
@@ -2300,12 +2246,7 @@ impl CheckLine {
         self.set_with(&RangeSpec::new(spec)?)
     }
     /// compare line OP text, return true if matched, print to stderr if non-match
-    pub fn line_ok_verbose(
-        &self,
-        line: &TextLine,
-        comp: &mut LineCompList,
-        line_num: usize,
-    ) -> Result<bool> {
+    pub fn line_ok_verbose(&self, line: &TextLine, comp: &mut LineCompList, line_num: usize) -> Result<bool> {
         comp.set(self.val.as_bytes(), b',')?;
         Ok(self.op.line_ok_verbose(line, comp, line_num))
     }

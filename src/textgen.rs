@@ -69,11 +69,7 @@ impl DecimalGen {
 }
 impl Gen for DecimalGen {
     fn write(&mut self, w: &mut dyn Write, _loc: &Where) -> Result<()> {
-        let sign = if self.sign && fastrand::bool() {
-            "-"
-        } else {
-            ""
-        };
+        let sign = if self.sign && fastrand::bool() { "-" } else { "" };
         let post = self.post_size;
         if post == 0 {
             write!(w, "{sign}{}", fastrand::usize(..self.pre))?;
@@ -135,9 +131,7 @@ impl NormalDistGen {
                     1 => dev = x.to_f64_whole(spec.as_bytes(), "normal distribution")?,
                     2 => fmt = NumFormat::new(x)?,
                     _ => {
-                        return err!(
-                            "Normal Dist Spec must be no more than three comma delimited pieces"
-                        )
+                        return err!("Normal Dist Spec must be no more than three comma delimited pieces");
                     }
                 }
             }
@@ -196,13 +190,13 @@ pub struct TextGen {
     /// the spec
     pub spec: String,
     /// the Gen
-    pub gen: Box<dyn Gen>,
+    pub text_gen: Box<dyn Gen>,
 }
 impl Default for TextGen {
     fn default() -> Self {
         Self {
             spec: String::new(),
-            gen: Box::new(NullGen {}),
+            text_gen: Box::new(NullGen {}),
         }
     }
 }
@@ -259,7 +253,7 @@ impl GenList {
             }
             need_delim = true;
             self.tmp.clear();
-            x.gen.write(&mut self.tmp, &loc)?;
+            x.text_gen.write(&mut self.tmp, &loc)?;
             w.write_all(&self.tmp)?;
             loc.col += 1;
         }
@@ -298,14 +292,10 @@ impl GenMaker {
             return Ok(());
         }
         Self::do_add_alias("min", "minimum")?;
-        Self::do_push("null", "Produce empty column value", |_p| {
-            Ok(Box::new(NullGen {}))
+        Self::do_push("null", "Produce empty column value", |_p| Ok(Box::new(NullGen {})))?;
+        Self::do_push("expr", "'fmt,expr' e.g. plain,line*col OR just 'expr'", |p| {
+            Ok(Box::new(ExprGen::new(p)?))
         })?;
-        Self::do_push(
-            "expr",
-            "'fmt,expr' e.g. plain,line*col OR just 'expr'",
-            |p| Ok(Box::new(ExprGen::new(p)?)),
-        )?;
         Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
             Ok(Box::new(NormalDistGen::new(p)?))
         })?;
@@ -342,9 +332,7 @@ impl GenMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!(
-                "You can't add an alias named {new_name} because that is reserved for a modifier"
-            );
+            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
         }
         let m = GenMakerAlias { old_name, new_name };
         let mut mm = GEN_ALIAS.lock().unwrap();
@@ -409,7 +397,7 @@ impl GenMaker {
             if x.tag == name {
                 return Ok(TextGen {
                     spec: orig.to_string(),
-                    gen: (x.maker)(pattern)?,
+                    text_gen: (x.maker)(pattern)?,
                 });
             }
         }

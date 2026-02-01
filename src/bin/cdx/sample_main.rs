@@ -69,15 +69,12 @@ impl For {
                     return err!(
                         "No more than three comma delimited pieces in a For loop spec '{}'",
                         spec
-                    )
+                    );
                 }
             }
         }
         if f.by == 0 || f.from == 0 || f.to == 0 {
-            return err!(
-                "Nono of the pieces in a For loop spec can be zero '{}'",
-                spec
-            );
+            return err!("Nono of the pieces in a For loop spec can be zero '{}'", spec);
         }
         Ok(f)
     }

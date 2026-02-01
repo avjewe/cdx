@@ -465,9 +465,7 @@ impl ScopedValues {
     pub fn make_ints(&mut self) -> Result<()> {
         self.ints.clear();
         for i in 0..self.strings.len() {
-            self.ints[i] = self
-                .get(i)
-                .to_isize_whole(self.get(i).as_bytes(), "number")?;
+            self.ints[i] = self.get(i).to_isize_whole(self.get(i).as_bytes(), "number")?;
         }
         Ok(())
     }
@@ -1081,12 +1079,7 @@ impl ColumnSet {
     }
 
     /// write the appropriate selection from the given columns, but no trailing newline
-    pub fn write3(
-        &mut self,
-        w: &mut dyn Write,
-        cols: &TextLine,
-        text: &TextFileMode,
-    ) -> Result<()> {
+    pub fn write3(&mut self, w: &mut dyn Write, cols: &TextLine, text: &TextFileMode) -> Result<()> {
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
         }
@@ -1150,12 +1143,7 @@ impl ColumnSet {
     ///    s.select_sloppy(&v, &"extra", &mut res);
     ///    assert_eq!(res, vec!["Zeroth", "First", "Third", "extra"]);
     /// ```
-    pub fn select_sloppy<T: AsRef<str> + Clone>(
-        &self,
-        cols: &[T],
-        restval: &T,
-        result: &mut Vec<T>,
-    ) -> Result<()> {
+    pub fn select_sloppy<T: AsRef<str> + Clone>(&self, cols: &[T], restval: &T, result: &mut Vec<T>) -> Result<()> {
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
         }
@@ -1279,10 +1267,7 @@ impl ColumnClump {
         }
         let parts = spec.split_once(':');
         if parts.is_none() {
-            return err!(
-                "No colon found. Group format is DelimOutname:Columns : {}",
-                orig_spec
-            );
+            return err!("No colon found. Group format is DelimOutname:Columns : {}", orig_spec);
         }
         let parts = parts.unwrap();
         let mut g = ColumnSet::new();
@@ -1375,10 +1360,7 @@ impl Writer {
     /// new Writer
     #[must_use]
     pub fn new(text: TextFileMode) -> Self {
-        Self {
-            v: Vec::new(),
-            text,
-        }
+        Self { v: Vec::new(), text }
     }
     /// is it empty
     #[must_use]

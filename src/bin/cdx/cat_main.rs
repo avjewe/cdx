@@ -50,19 +50,12 @@ impl LineNumber {
         } else if "end".equal_insens_quick(third) {
             self.end = true;
         } else {
-            return err!(
-                "Where part must be 'begin' or 'end' was {} : {}",
-                third,
-                spec
-            );
+            return err!("Where part must be 'begin' or 'end' was {} : {}", third, spec);
         }
 
         let fourth = iter.next();
         if fourth.is_some() {
-            return err!(
-                "--number takes no more than three comma delimited parts : {}",
-                spec
-            );
+            return err!("--number takes no more than three comma delimited parts : {}", spec);
         }
         Ok(())
     }

@@ -3,7 +3,7 @@
 use crate::column::get_col;
 use crate::prelude::*;
 use crate::shunting_yard::to_rpn;
-use crate::tok2::{tokenize, BinaryOp, Token, UnaryOp};
+use crate::tok2::{BinaryOp, Token, UnaryOp, tokenize};
 use crate::util::find_close;
 use regex::Regex;
 use std::f64::consts;
@@ -22,11 +22,7 @@ pub fn calc(expr: &str) -> Result<f64> {
 pub fn parse_fmt_expr(dflt: NumFormat, spec: &str) -> (NumFormat, &str) {
     if let Some((a, b)) = spec.split_once(',') {
         let x = NumFormat::new(a);
-        if let Ok(f) = x {
-            (f, b)
-        } else {
-            (dflt, spec)
-        }
+        if let Ok(f) = x { (f, b) } else { (dflt, spec) }
     } else {
         (dflt, spec)
     }
@@ -234,12 +230,11 @@ const FUNCS: [FuncDef; 54] = [
 
 const fn min_args(f: FuncOp) -> usize {
     use FuncOp::{
-        Atan2, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Nextafter, Pow,
-        Remainder, Scalbn, Yn,
+        Atan2, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Nextafter, Pow, Remainder, Scalbn, Yn,
     };
     match f {
-        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
-        | Remainder | Scalbn | Pow | Yn => 2,
+        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter | Remainder | Scalbn | Pow
+        | Yn => 2,
         Fma | If => 3,
         _ => 1,
     }
@@ -247,12 +242,12 @@ const fn min_args(f: FuncOp) -> usize {
 
 const fn max_args(f: FuncOp) -> usize {
     use FuncOp::{
-        Atan2, Avg, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Max, Min,
-        Nextafter, Pow, Remainder, Scalbn, Yn,
+        Atan2, Avg, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Max, Min, Nextafter, Pow, Remainder,
+        Scalbn, Yn,
     };
     match f {
-        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
-        | Remainder | Scalbn | Pow | Yn => 2,
+        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter | Remainder | Scalbn | Pow
+        | Yn => 2,
         Fma | If => 3,
         Min | Max | Avg => 0,
         _ => 1,
@@ -295,11 +290,7 @@ pub struct Expr {
 }
 
 const fn to_f(x: bool) -> f64 {
-    if x {
-        1.0
-    } else {
-        0.0
-    }
+    if x { 1.0 } else { 0.0 }
 }
 
 fn apply_unary(op: UnaryOp, x: f64) -> f64 {
@@ -314,10 +305,9 @@ fn apply_unary(op: UnaryOp, x: f64) -> f64 {
 #[allow(clippy::cast_precision_loss)]
 fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
     use FuncOp::{
-        Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh,
-        Erf, Exp, Exp10, Exp2, Expm1, Fabs, Fdim, Floor, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn,
-        Ldexp, Lgamma, Log, Log10, Log1p, Log2, Max, Min, Nextafter, Pow, Remainder, Round, Scalbn,
-        Sin, Sinh, Sqrt, Tan, Tanh, Tgamma, Trunc, Yn, J0, J1, Y0, Y1,
+        Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh, Erf, Exp, Exp2, Exp10,
+        Expm1, Fabs, Fdim, Floor, Fma, Fmax, Fmin, Fmod, Hypot, If, J0, J1, Jn, Ldexp, Lgamma, Log, Log1p, Log2, Log10,
+        Max, Min, Nextafter, Pow, Remainder, Round, Scalbn, Sin, Sinh, Sqrt, Tan, Tanh, Tgamma, Trunc, Y0, Y1, Yn,
     };
     match op {
         Acos => args[0].abs(),
@@ -483,9 +473,7 @@ impl Expr {
         let start_vars = self.vars.len();
         self.parse(&n)?;
         'outer: for y in self.vars.iter_mut().skip(start_vars) {
-            static CN: LazyLock<Regex> = LazyLock::new(|| {
-                Regex::new("^c([0-9]+)$").unwrap()
-            });
+            static CN: LazyLock<Regex> = LazyLock::new(|| Regex::new("^c([0-9]+)$").unwrap());
             for (i, x) in fieldnames.iter().enumerate() {
                 if *x == y.name {
                     y.col = Some(i);
@@ -538,12 +526,12 @@ impl Expr {
             match x {
                 Token::Binary(op) => {
                     let top = e.len() - 1;
-                    if let Node::Value(right) = e[top] {
-                        if let Node::Value(left) = e[top - 1] {
-                            e[top - 1] = Node::Value(apply_binary(*op, left, right));
-                            e.pop();
-                            continue;
-                        }
+                    if let Node::Value(right) = e[top]
+                        && let Node::Value(left) = e[top - 1]
+                    {
+                        e[top - 1] = Node::Value(apply_binary(*op, left, right));
+                        e.pop();
+                        continue;
                     }
                     e.push(Node::Binary(*op));
                 }
@@ -578,11 +566,11 @@ impl Expr {
                         if (max > 0) && (*n > max) {
                             return err!("Function {} takes no more than {} parameters", name, max);
                         }
-                        if *n == 1 {
-                            if let Node::Value(v) = e.last_mut().unwrap() {
-                                *v = apply_func(f, &[*v]);
-                                continue;
-                            }
+                        if *n == 1
+                            && let Node::Value(v) = e.last_mut().unwrap()
+                        {
+                            *v = apply_func(f, &[*v]);
+                            continue;
                         }
                         // FIXME -- hndle N args somehow?
                         e.push(Node::Func(f, *n));
@@ -645,11 +633,7 @@ fn factorial(x: f64) -> f64 {
         return 0.0;
     }
     let pos = x.round() as usize;
-    if pos > 170 {
-        f64::INFINITY
-    } else {
-        FACTORIAL[pos]
-    }
+    if pos > 170 { f64::INFINITY } else { FACTORIAL[pos] }
 }
 
 const FACTORIAL: [f64; 171] = [

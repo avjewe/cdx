@@ -186,13 +186,14 @@ pub fn parse(
     }
     // values_of_os
     let mut files: Vec<String> = Vec::new();
-    if prog.files != FileCount::Zero {
-        if let Some(arg) = m.values_of("input_files") {
-            for f in arg {
-                files.push(f.to_string());
-            }
+    if prog.files != FileCount::Zero
+        && let Some(arg) = m.values_of("input_files")
+    {
+        for f in arg {
+            files.push(f.to_string());
         }
     }
+
     if prog.files != FileCount::Zero && files.is_empty() {
         files.push("-".to_string());
     }

@@ -6,9 +6,9 @@
 //!
 //! [RPN]: https://en.wikipedia.org/wiki/Reverse_Polish_notation
 //! [shunting]: https://en.wikipedia.org/wiki/Shunting-yard_algorithm
-use self::Associativity::{Left, Right, NA};
+use self::Associativity::{Left, NA, Right};
 use crate::prelude::*;
-use crate::tok2::BinaryOp::{Div, Minus, Plus, Pow, Rem, Times, EQ, GE, GT, LE, LT, NE};
+use crate::tok2::BinaryOp::{Div, EQ, GE, GT, LE, LT, Minus, NE, Plus, Pow, Rem, Times};
 use crate::tok2::Token;
 use crate::tok2::Token::{Binary, Comma, Func, LParen, Number, RParen, Unary, Var};
 use crate::tok2::UnaryOp;
@@ -189,21 +189,8 @@ mod tests {
             ]
         );
         assert_eq!(
-            to_rpn(&[
-                Number(3.),
-                Binary(Minus),
-                Number(1.),
-                Binary(Times),
-                Number(2.)
-            ])
-            .unwrap(),
-            vec![
-                Number(3.),
-                Number(1.),
-                Number(2.),
-                Binary(Times),
-                Binary(Minus)
-            ]
+            to_rpn(&[Number(3.), Binary(Minus), Number(1.), Binary(Times), Number(2.)]).unwrap(),
+            vec![Number(3.), Number(1.), Number(2.), Binary(Times), Binary(Minus)]
         );
         assert_eq!(
             to_rpn(&[
@@ -216,13 +203,7 @@ mod tests {
                 Number(2.)
             ])
             .unwrap(),
-            vec![
-                Number(3.),
-                Number(1.),
-                Binary(Minus),
-                Number(2.),
-                Binary(Times)
-            ]
+            vec![Number(3.), Number(1.), Binary(Minus), Number(2.), Binary(Times)]
         );
         assert_eq!(
             to_rpn(&[

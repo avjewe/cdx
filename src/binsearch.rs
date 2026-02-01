@@ -239,18 +239,9 @@ mod tests {
         let mut comp = LineCompList::new();
         comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
-        assert_eq!(
-            equal_range(b"aaa\nbbb\nbbb\nbbb\nccc\n", &mut comp),
-            b"bbb\nbbb\nbbb\n"
-        );
-        assert_eq!(
-            equal_range(b"bbb\nbbb\nbbb\nccc\n", &mut comp),
-            b"bbb\nbbb\nbbb\n"
-        );
-        assert_eq!(
-            equal_range(b"aaa\nbbb\nbbb\nbbb\n", &mut comp),
-            b"bbb\nbbb\nbbb\n"
-        );
+        assert_eq!(equal_range(b"aaa\nbbb\nbbb\nbbb\nccc\n", &mut comp), b"bbb\nbbb\nbbb\n");
+        assert_eq!(equal_range(b"bbb\nbbb\nbbb\nccc\n", &mut comp), b"bbb\nbbb\nbbb\n");
+        assert_eq!(equal_range(b"aaa\nbbb\nbbb\nbbb\n", &mut comp), b"bbb\nbbb\nbbb\n");
         assert_eq!(equal_range(b"", &mut comp), b"");
         assert_eq!(equal_range(b"aaa\n", &mut comp), b"");
         assert_eq!(equal_range(b"ccc\n", &mut comp), b"");

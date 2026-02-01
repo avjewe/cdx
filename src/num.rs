@@ -65,11 +65,7 @@ macro_rules! jv {
     ($e:ty) => {
         impl JunkValue for $e {
             fn val(j: JunkVal) -> Self {
-                if j == JunkVal::Min {
-                    Self::MIN
-                } else {
-                    Self::MAX
-                }
+                if j == JunkVal::Min { Self::MIN } else { Self::MAX }
             }
         }
     };
@@ -223,21 +219,9 @@ impl NumFormat {
         loop {
             if num < (999.0 * curr_exp) {
                 if num >= (10.0 * curr_exp) {
-                    write!(
-                        w,
-                        "{}{:.0}{}",
-                        sign,
-                        num / curr_exp,
-                        letters[exp_num] as char
-                    )?;
+                    write!(w, "{}{:.0}{}", sign, num / curr_exp, letters[exp_num] as char)?;
                 } else if num >= (1.1 * curr_exp) {
-                    write!(
-                        w,
-                        "{}{:.1}{}",
-                        sign,
-                        num / curr_exp,
-                        letters[exp_num] as char
-                    )?;
+                    write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[exp_num] as char)?;
                 } else {
                     write!(w, "{}1{}", sign, letters[exp_num] as char)?;
                 }

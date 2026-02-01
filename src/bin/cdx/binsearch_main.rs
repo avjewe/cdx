@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::prelude::*;
-use cdx::binsearch::{equal_range_n, find_end, find_prev, MemMap};
+use cdx::binsearch::{MemMap, equal_range_n, find_end, find_prev};
 use cdx::prelude::*;
 use cdx::util::write_all_nl;
 

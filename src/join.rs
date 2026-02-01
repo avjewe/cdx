@@ -102,10 +102,7 @@ struct OneOutCol {
 
 impl OneOutCol {
     fn new(file: usize, col: &OutCol) -> Self {
-        Self {
-            file,
-            col: col.clone(),
-        }
+        Self { file, col: col.clone() }
     }
     const fn new_plain(file: usize, col: usize) -> Self {
         Self {
@@ -161,10 +158,7 @@ impl Joiner {
     }
     fn join(&mut self, config: &JoinConfig) -> Result<()> {
         if config.infiles.len() < 2 {
-            return err!(
-                "Join requires at least two input files, {} found",
-                config.infiles.len()
-            );
+            return err!("Join requires at least two input files, {} found", config.infiles.len());
         }
 
         for x in &config.infiles {
@@ -248,9 +242,7 @@ impl Joiner {
     }
     fn join_quick(&mut self, config: &JoinConfig) -> Result<()> {
         if !self.r[0].is_done() && !self.r[1].is_done() {
-            let mut cmp = self
-                .comp
-                .comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+            let mut cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
             'outer: loop {
                 match cmp {
                     Ordering::Equal => loop {
@@ -264,16 +256,12 @@ impl Joiner {
                             self.r[1].getline()?;
                             break 'outer;
                         }
-                        cmp = self
-                            .comp
-                            .comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                        cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
                         if cmp != Ordering::Equal {
                             if self.r[1].getline()? {
                                 break 'outer;
                             }
-                            cmp = self
-                                .comp
-                                .comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                            cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
                             break;
                         }
                     },
@@ -284,9 +272,7 @@ impl Joiner {
                         if self.r[0].getline()? {
                             break;
                         }
-                        cmp = self
-                            .comp
-                            .comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                        cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
                     }
                     Ordering::Greater => {
                         if let Some(x) = &mut self.no_match[1] {
@@ -295,9 +281,7 @@ impl Joiner {
                         if self.r[1].getline()? {
                             break;
                         }
-                        cmp = self
-                            .comp
-                            .comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                        cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
                     }
                 }
             }

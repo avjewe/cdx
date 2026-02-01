@@ -2,8 +2,8 @@
 
 use crate::prelude::*;
 use crate::util::FakeSlice;
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use std::sync::Mutex;
 
 /// Transform a value to another value, in the context of a (typically unused) `TextLine`
@@ -78,9 +78,7 @@ struct LowerUtfTrans {
 }
 impl Trans for LowerUtfTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
-        String::from_utf8_lossy(src)
-            .as_ref()
-            .assign_lower(&mut self.tmp);
+        String::from_utf8_lossy(src).as_ref().assign_lower(&mut self.tmp);
         dst.extend(self.tmp.as_bytes());
         Ok(())
     }
@@ -93,9 +91,7 @@ struct UpperUtfTrans {
 }
 impl Trans for UpperUtfTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
-        String::from_utf8_lossy(src)
-            .as_ref()
-            .assign_upper(&mut self.tmp);
+        String::from_utf8_lossy(src).as_ref().assign_upper(&mut self.tmp);
         dst.extend(self.tmp.as_bytes());
         Ok(())
     }
@@ -231,11 +227,7 @@ impl TransList {
                 use_1 = false;
             }
         }
-        if use_1 {
-            Ok(&self.tmp1)
-        } else {
-            Ok(&self.tmp2)
-        }
+        if use_1 { Ok(&self.tmp1) } else { Ok(&self.tmp2) }
     }
 
     /// Resolve any named columns
@@ -335,9 +327,7 @@ impl TransMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!(
-                "You can't add an alias named {new_name} because that is reserved for a modifier"
-            );
+            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
         }
         let m = TransMakerAlias { old_name, new_name };
         let mut mm = TRANS_ALIAS.lock().unwrap();
@@ -356,9 +346,7 @@ impl TransMaker {
         F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!(
-                "You can't add a trans named {tag} because that is reserved for a modifier"
-            );
+            return err!("You can't add a trans named {tag} because that is reserved for a modifier");
         }
         let m = TransMakerItem {
             tag,
