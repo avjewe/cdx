@@ -44,11 +44,7 @@ struct OutFile {
 }
 impl Default for OutFile {
     fn default() -> Self {
-        Self {
-            name: String::new(),
-            content: Vec::new(),
-            matcher: MatchMaker::make("empty").unwrap(),
-        }
+        Self { name: String::new(), content: Vec::new(), matcher: MatchMaker::make("empty").unwrap() }
     }
 }
 
@@ -197,10 +193,7 @@ impl Test {
                 self.code = y.to_isize_whole(&line, "status")? as i32;
             } else if let Some(x) = line.strip_prefix(b"#infile") {
                 let y = x.trimw_start();
-                let mut f = InFile {
-                    name: String::from_utf8(y.to_vec())?,
-                    ..Default::default()
-                };
+                let mut f = InFile { name: String::from_utf8(y.to_vec())?, ..Default::default() };
                 line.clear();
                 grab(b"", &mut f.content, &mut line, &mut reader, &mut need_read)?;
                 self.in_files.push(f);
@@ -263,17 +256,10 @@ impl Test {
         let mut tmp_stdin = tmp.clone();
         tmp_stdin.push_str("stdin");
         {
-            let mut w = std::fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(&tmp_stdin)?;
+            let mut w = std::fs::OpenOptions::new().write(true).create(true).truncate(true).open(&tmp_stdin)?;
             w.write_all(&self.stdin)?;
         }
-        let ncmd = String::from_utf8_lossy(&self.cmd)
-            .replace("$TMP", &tmp)
-            .as_bytes()
-            .to_vec();
+        let ncmd = String::from_utf8_lossy(&self.cmd).replace("$TMP", &tmp).as_bytes().to_vec();
         //        prerr(&[b"About to run ", &ncmd]);
         let cmd: Vec<&[u8]> = ncmd.split(|num| num <= &b' ').collect();
         if cmd.is_empty() {
@@ -332,14 +318,7 @@ impl Test {
                     f.read_to_end(&mut body)?;
                     if !x.matcher.do_match_safe(&body) {
                         failed = true;
-                        prerr(&[
-                            b"File ",
-                            x.name.as_bytes(),
-                            b" was\n",
-                            &body,
-                            b" but should have been\n",
-                            &x.content,
-                        ]);
+                        prerr(&[b"File ", x.name.as_bytes(), b" was\n", &body, b" but should have been\n", &x.content]);
                     }
                 }
             }
@@ -385,13 +364,7 @@ pub struct Config {
 impl Config {
     /// new
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            pass: 0,
-            fail: 0,
-            bindir: "./".to_string(),
-            tmpdir: String::new(),
-            tmp: TempDir::new()?,
-        })
+        Ok(Self { pass: 0, fail: 0, bindir: "./".to_string(), tmpdir: String::new(), tmp: TempDir::new()? })
     }
     /// set tmp dir
     pub fn tmp(&mut self, path: &str) -> Result<()> {
@@ -411,17 +384,8 @@ impl Config {
     }
     /// report
     pub fn report(&self) -> Result<()> {
-        println!(
-            "{} test run, {} pass, {} failed",
-            self.pass + self.fail,
-            self.pass,
-            self.fail
-        );
-        if self.fail > 0 {
-            cdx_err(CdxError::Silent)
-        } else {
-            Ok(())
-        }
+        println!("{} test run, {} pass, {} failed", self.pass + self.fail, self.pass, self.fail);
+        if self.fail > 0 { cdx_err(CdxError::Silent) } else { Ok(()) }
     }
     fn do_run(&self, file: &str) -> Result<bool> {
         let mut t = Test::new();

@@ -50,21 +50,8 @@ impl DecimalGen {
                 }
             }
         }
-        eprintln!(
-            "{:?}",
-            Self {
-                sign,
-                pre,
-                post,
-                post_size
-            }
-        );
-        Self {
-            sign,
-            pre,
-            post,
-            post_size,
-        }
+        eprintln!("{:?}", Self { sign, pre, post, post_size });
+        Self { sign, pre, post, post_size }
     }
 }
 impl Gen for DecimalGen {
@@ -74,12 +61,7 @@ impl Gen for DecimalGen {
         if post == 0 {
             write!(w, "{sign}{}", fastrand::usize(..self.pre))?;
         } else {
-            write!(
-                w,
-                "{sign}{}.{:0post$}",
-                fastrand::usize(..self.pre),
-                fastrand::usize(..self.post)
-            )?;
+            write!(w, "{sign}{}.{:0post$}", fastrand::usize(..self.pre), fastrand::usize(..self.post))?;
         }
         Ok(())
     }
@@ -98,12 +80,7 @@ impl ExprGen {
         let mut expr = Expr::new(expr_spec)?;
         let col_pos = expr.find_var("col");
         let line_pos = expr.find_var("line");
-        Ok(Self {
-            expr,
-            fmt,
-            col_pos,
-            line_pos,
-        })
+        Ok(Self { expr, fmt, col_pos, line_pos })
     }
 }
 impl Gen for ExprGen {
@@ -136,10 +113,7 @@ impl NormalDistGen {
                 }
             }
         }
-        Ok(Self {
-            fmt,
-            norm: Normal::new(mean, dev).unwrap(),
-        })
+        Ok(Self { fmt, norm: Normal::new(mean, dev).unwrap() })
     }
 }
 impl Gen for NormalDistGen {
@@ -169,13 +143,7 @@ struct CountGen {
 }
 impl CountGen {
     fn new(spec: &str) -> Result<Self> {
-        Ok(Self {
-            start: if spec.is_empty() {
-                0
-            } else {
-                spec.to_isize_whole(spec.as_bytes(), "count generator")?
-            },
-        })
+        Ok(Self { start: if spec.is_empty() { 0 } else { spec.to_isize_whole(spec.as_bytes(), "count generator")? } })
     }
 }
 impl Gen for CountGen {
@@ -194,10 +162,7 @@ pub struct TextGen {
 }
 impl Default for TextGen {
     fn default() -> Self {
-        Self {
-            spec: String::new(),
-            text_gen: Box::new(NullGen {}),
-        }
+        Self { spec: String::new(), text_gen: Box::new(NullGen {}) }
     }
 }
 impl fmt::Debug for TextGen {
@@ -242,10 +207,7 @@ impl GenList {
     /// Write full line of Gens
     pub fn write(&mut self, w: &mut impl Write, delim: u8) -> Result<()> {
         self.line += 1;
-        let mut loc = Where {
-            col: 1,
-            line: self.line,
-        };
+        let mut loc = Where { col: 1, line: self.line };
         let mut need_delim = false;
         for x in &mut self.v {
             if need_delim {
@@ -293,19 +255,11 @@ impl GenMaker {
         }
         Self::do_add_alias("min", "minimum")?;
         Self::do_push("null", "Produce empty column value", |_p| Ok(Box::new(NullGen {})))?;
-        Self::do_push("expr", "'fmt,expr' e.g. plain,line*col OR just 'expr'", |p| {
-            Ok(Box::new(ExprGen::new(p)?))
-        })?;
-        Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
-            Ok(Box::new(NormalDistGen::new(p)?))
-        })?;
-        Self::do_push("decimal", "Decimal number. Pattern is [-]NNN[.NNN]", |p| {
-            Ok(Box::new(DecimalGen::new(p)))
-        })?;
+        Self::do_push("expr", "'fmt,expr' e.g. plain,line*col OR just 'expr'", |p| Ok(Box::new(ExprGen::new(p)?)))?;
+        Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| Ok(Box::new(NormalDistGen::new(p)?)))?;
+        Self::do_push("decimal", "Decimal number. Pattern is [-]NNN[.NNN]", |p| Ok(Box::new(DecimalGen::new(p))))?;
         Self::do_push("grid", "Produce line_col", |_p| Ok(Box::new(GridGen {})))?;
-        Self::do_push("count", "Count up from starting place", |p| {
-            Ok(Box::new(CountGen::new(p)?))
-        })?;
+        Self::do_push("count", "Count up from starting place", |p| Ok(Box::new(CountGen::new(p)?)))?;
         Ok(())
     }
     /// Add a new Gen. If an Gen already exists by that name, replace it.
@@ -353,11 +307,7 @@ impl GenMaker {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");
         }
-        let m = GenMakerItem {
-            tag,
-            help,
-            maker: Box::new(maker),
-        };
+        let m = GenMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = GEN_MAKER.lock().unwrap();
         for x in mm.iter_mut() {
             if x.tag == m.tag {
@@ -395,20 +345,13 @@ impl GenMaker {
         }
         for x in &*GEN_MAKER.lock().unwrap() {
             if x.tag == name {
-                return Ok(TextGen {
-                    spec: orig.to_string(),
-                    text_gen: (x.maker)(pattern)?,
-                });
+                return Ok(TextGen { spec: orig.to_string(), text_gen: (x.maker)(pattern)? });
             }
         }
         err!("No Gen found with name '{}'", name)
     }
     /// Create an Gen from a full spec, i.e. "Gen,Pattern"
     pub fn make(spec: &str) -> Result<TextGen> {
-        if let Some((a, b)) = spec.split_once(',') {
-            Self::make2(a, b, spec)
-        } else {
-            Self::make2(spec, "", spec)
-        }
+        if let Some((a, b)) = spec.split_once(',') { Self::make2(a, b, spec) } else { Self::make2(spec, "", spec) }
     }
 }

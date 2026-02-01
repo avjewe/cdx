@@ -21,17 +21,9 @@ impl Rect {
     /// get screen size
     #[must_use]
     pub fn from_screen() -> Self {
-        let mut ws = libc::winsize {
-            ws_row: 0,
-            ws_col: 0,
-            ws_xpixel: 0,
-            ws_ypixel: 0,
-        };
+        let mut ws = libc::winsize { ws_row: 0, ws_col: 0, ws_xpixel: 0, ws_ypixel: 0 };
         if unsafe { libc::ioctl(2, libc::TIOCGWINSZ, &mut ws) } >= 0 {
-            Self {
-                width: ws.ws_col as usize,
-                height: (ws.ws_row - 1) as usize,
-            }
+            Self { width: ws.ws_col as usize, height: (ws.ws_row - 1) as usize }
         } else {
             Self { width: 100, height: 24 }
         }

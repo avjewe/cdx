@@ -271,11 +271,7 @@ struct VarMap {
 }
 impl VarMap {
     fn new(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            val: 0.0,
-            col: None,
-        }
+        Self { name: name.to_string(), val: 0.0, col: None }
     }
 }
 
@@ -424,10 +420,7 @@ fn apply_binary(op: BinaryOp, left: f64, right: f64) -> f64 {
 impl Expr {
     /// create Expr from expression
     pub fn new(expr: &str) -> Result<Self> {
-        Ok(Self {
-            expr_str: expr.to_string(),
-            ..Self::default()
-        })
+        Ok(Self { expr_str: expr.to_string(), ..Self::default() })
     }
     /// which columns are in use
     pub fn used_cols(&self, v: &mut Vec<usize>) {

@@ -272,35 +272,17 @@ impl TransMaker {
         Self::do_add_alias("lower", "lowercase")?;
         Self::do_add_alias("upper", "uppercase")?;
         Self::do_push("normspace", "normalize white space", |c, _p| {
-            if c.utf8 {
-                Ok(Box::<NormSpaceUtf8>::default())
-            } else {
-                Ok(Box::new(NormSpace {}))
-            }
+            if c.utf8 { Ok(Box::<NormSpaceUtf8>::default()) } else { Ok(Box::new(NormSpace {})) }
         })?;
         Self::do_push("lower", "make lower case", |c, _p| {
-            if c.utf8 {
-                Ok(Box::<LowerUtfTrans>::default())
-            } else {
-                Ok(Box::new(LowerTrans {}))
-            }
+            if c.utf8 { Ok(Box::<LowerUtfTrans>::default()) } else { Ok(Box::new(LowerTrans {})) }
         })?;
         Self::do_push("upper", "make upper case", |c, _p| {
-            if c.utf8 {
-                Ok(Box::<UpperUtfTrans>::default())
-            } else {
-                Ok(Box::new(UpperTrans {}))
-            }
+            if c.utf8 { Ok(Box::<UpperUtfTrans>::default()) } else { Ok(Box::new(UpperTrans {})) }
         })?;
-        Self::do_push("from_base64", "decode base64 encoding", |_c, _p| {
-            Ok(Box::new(Base64Trans::new(false)))
-        })?;
-        Self::do_push("to_base64", "encode base64 encoding", |_c, _p| {
-            Ok(Box::new(Base64Trans::new(true)))
-        })?;
-        Self::do_push("bytes", "Select bytes from value", |_c, p| {
-            Ok(Box::new(BytesTrans::new(p)?))
-        })?;
+        Self::do_push("from_base64", "decode base64 encoding", |_c, _p| Ok(Box::new(Base64Trans::new(false))))?;
+        Self::do_push("to_base64", "encode base64 encoding", |_c, _p| Ok(Box::new(Base64Trans::new(true))))?;
+        Self::do_push("bytes", "Select bytes from value", |_c, p| Ok(Box::new(BytesTrans::new(p)?)))?;
         Ok(())
     }
     /// Add a new trans. If a Trans already exists by that name, replace it.
@@ -348,11 +330,7 @@ impl TransMaker {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a trans named {tag} because that is reserved for a modifier");
         }
-        let m = TransMakerItem {
-            tag,
-            help,
-            maker: Box::new(maker),
-        };
+        let m = TransMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = TRANS_MAKER.lock().unwrap();
         for x in mm.iter_mut() {
             if x.tag == m.tag {
@@ -392,11 +370,7 @@ impl TransMaker {
             }
             kind = Self::resolve_alias(kind);
         }
-        Ok(Transform {
-            spec,
-            conf,
-            trans: Self::make_box(kind, &conf, pattern)?,
-        })
+        Ok(Transform { spec, conf, trans: Self::make_box(kind, &conf, pattern)? })
     }
     /// make a dyn Trans from a named trans and a pattern
     pub fn make_box(kind: &str, conf: &TransSettings, pattern: &str) -> Result<Box<dyn Trans>> {
@@ -411,10 +385,6 @@ impl TransMaker {
 
     /// Create a trans from a full spec, i.e. "Trans,Pattern"
     pub fn make(spec: &str) -> Result<Transform> {
-        if let Some((a, b)) = spec.split_once(',') {
-            Self::make2(a, b)
-        } else {
-            Self::make2(spec, "")
-        }
+        if let Some((a, b)) = spec.split_once(',') { Self::make2(a, b) } else { Self::make2(spec, "") }
     }
 }

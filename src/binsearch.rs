@@ -35,12 +35,7 @@ impl MemMap {
         }
         header.split(delim);
         header.parts.remove(0);
-        Ok(Self {
-            map,
-            header_len,
-            header,
-            delim,
-        })
+        Ok(Self { map, header_len, header, delim })
     }
     /// get underlying memmap data
     #[must_use]
@@ -126,11 +121,7 @@ pub fn equal_range<'a>(data: &'a [u8], comp: &mut LineCompList) -> &'a [u8] {
 /// `LineCompList` holds the value against which we are comparing
 pub fn equal_range_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
     let (start1, stop1) = lower_bound_n(data, comp);
-    if start1 == stop1 {
-        (start1, stop1)
-    } else {
-        (start1, upper_bound_n(data, comp))
-    }
+    if start1 == stop1 { (start1, stop1) } else { (start1, upper_bound_n(data, comp)) }
 }
 
 /// return first line that matches (with newline) or empty slice if none
@@ -141,11 +132,7 @@ pub fn lower_bound_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
     let mut end: usize = data.len(); // end of range under consideration
     while begin < end {
         // find start and stop of a line in the middle
-        let mut start = if trapped {
-            begin
-        } else {
-            find_end(data, (end + begin - 1) / 2)
-        };
+        let mut start = if trapped { begin } else { find_end(data, (end + begin - 1) / 2) };
 
         // if we hit end of buffer, back up from middle instead
         let stop = if start == end {
@@ -221,18 +208,9 @@ mod tests {
         assert_eq!(lower_bound(b"aaa\nbbb", &mut comp), b"bbb");
         assert_eq!(lower_bound(b"aaa\nccc", &mut comp), b"");
 
-        assert_eq!(
-            lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp),
-            b"bbb\t1\n"
-        );
-        assert_eq!(
-            lower_bound(b"bbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp),
-            b"bbb\t1\n"
-        );
-        assert_eq!(
-            lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4", &mut comp),
-            b"bbb\t1\n"
-        );
+        assert_eq!(lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), b"bbb\t1\n");
+        assert_eq!(lower_bound(b"bbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), b"bbb\t1\n");
+        assert_eq!(lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4", &mut comp), b"bbb\t1\n");
     }
     #[test]
     fn test_lower2() {
@@ -248,14 +226,8 @@ mod tests {
         assert_eq!(equal_range(b"aaa\nccc\n", &mut comp), b"");
 
         assert_eq!(upper_bound_n(b"aaa\nccc\n", &mut comp), 4);
-        assert_eq!(
-            lower_bound_n(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp),
-            (4, 10)
-        );
-        assert_eq!(
-            upper_bound_n(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp),
-            28
-        );
+        assert_eq!(lower_bound_n(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), (4, 10));
+        assert_eq!(upper_bound_n(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), 28);
 
         assert_eq!(lower_bound(b"\n\naaa\nbbb\nccc", &mut comp), b"bbb\n");
         assert_eq!(lower_bound(b"\n\nbbb\nccc", &mut comp), b"bbb\n");

@@ -38,10 +38,7 @@ impl NoMatch {
     /// new
     #[must_use]
     pub fn new(file_num: usize, file_name: &str) -> Self {
-        Self {
-            file_num,
-            file_name: file_name.to_string(),
-        }
+        Self { file_num, file_name: file_name.to_string() }
     }
 }
 
@@ -105,10 +102,7 @@ impl OneOutCol {
         Self { file, col: col.clone() }
     }
     const fn new_plain(file: usize, col: usize) -> Self {
-        Self {
-            file,
-            col: OutCol::from_num(col),
-        }
+        Self { file, col: OutCol::from_num(col) }
     }
     fn write(&self, mut w: impl Write, f: &[Reader]) -> Result<()> {
         w.write_all(f[self.file].curr().get(self.col.num))?;
@@ -124,12 +118,7 @@ impl JoinConfig {
     /// create new `JoinConfig`. Note that derived 'default' is sub-optimal
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            match_out: "-".to_string(),
-            out_delim: b'\t',
-            lookback_limit: 100,
-            ..Self::default()
-        }
+        Self { match_out: "-".to_string(), out_delim: b'\t', lookback_limit: 100, ..Self::default() }
     }
     /// perform the join
     pub fn join(&self) -> Result<()> {
@@ -210,11 +199,7 @@ impl Joiner {
             for x in &config.col_specs {
                 let mut x = x.clone();
                 if x.file >= self.r.len() {
-                    return err!(
-                        "{} input files, but file {} referred to as an output column",
-                        self.r.len(),
-                        x.file
-                    );
+                    return err!("{} input files, but file {} referred to as an output column", self.r.len(), x.file);
                 }
                 x.cols.lookup(&self.r[x.file].names())?;
                 for y in x.cols.get_cols() {
@@ -234,11 +219,7 @@ impl Joiner {
             }
             self.yes_match.0.write_all(b"\n")?;
         }
-        if config.jtype == JoinType::Quick {
-            self.join_quick(config)
-        } else {
-            err!("Only quick supported")
-        }
+        if config.jtype == JoinType::Quick { self.join_quick(config) } else { err!("Only quick supported") }
     }
     fn join_quick(&mut self, config: &JoinConfig) -> Result<()> {
         if !self.r[0].is_done() && !self.r[1].is_done() {

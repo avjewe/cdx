@@ -4,42 +4,21 @@ use cdx::prelude::*;
 #[macro_export]
 macro_rules! arg {
     ($a:expr,$b:expr,$c:expr,$d:expr) => {
-        args::ArgSpec {
-            name: $a,
-            short: $b,
-            value: $c,
-            help: $d,
-            values: &[],
-            positional: false,
-        }
+        args::ArgSpec { name: $a, short: $b, value: $c, help: $d, values: &[], positional: false }
     };
 }
 
 #[macro_export]
 macro_rules! arg_pos {
     ($a:expr,$c:expr,$d:expr) => {
-        args::ArgSpec {
-            name: $a,
-            short: "",
-            value: $c,
-            help: $d,
-            values: &[],
-            positional: true,
-        }
+        args::ArgSpec { name: $a, short: "", value: $c, help: $d, values: &[], positional: true }
     };
 }
 
 #[macro_export]
 macro_rules! arg_enum {
     ($a:expr,$b:expr,$c:expr,$d:expr,$e:expr) => {
-        args::ArgSpec {
-            name: $a,
-            short: $b,
-            value: $c,
-            help: $d,
-            values: $e,
-            positional: false,
-        }
+        args::ArgSpec { name: $a, short: $b, value: $c, help: $d, values: $e, positional: false }
     };
 }
 
@@ -70,12 +49,7 @@ pub fn version() -> String {
 }
 impl ProgSpec {
     pub fn new(help: &str, files: FileCount) -> Self {
-        Self {
-            help: help.to_string(),
-            files,
-            author: "avjewe@gmail.com".to_string(),
-            version: version(),
-        }
+        Self { help: help.to_string(), files, author: "avjewe@gmail.com".to_string(), version: version() }
     }
 }
 
@@ -98,11 +72,7 @@ pub struct ArgValue {
 
 impl ArgValue {
     pub fn new(name: &str, value: &str, index: usize) -> Self {
-        Self {
-            name: name.to_string(),
-            value: value.to_string(),
-            index,
-        }
+        Self { name: name.to_string(), value: value.to_string(), index }
     }
 }
 pub fn add_arg<'t>(a: clap::Command<'t>, x: &ArgSpec, hide_help: bool) -> clap::Command<'t> {
@@ -166,11 +136,7 @@ pub fn parse(
             a = a.arg(clap::Arg::new("input_files").takes_value(true));
         }
         FileCount::Many => {
-            a = a.arg(
-                clap::Arg::new("input_files")
-                    .multiple_occurrences(true)
-                    .takes_value(true),
-            );
+            a = a.arg(clap::Arg::new("input_files").multiple_occurrences(true).takes_value(true));
         }
     }
     let m = a.get_matches_from(argv);

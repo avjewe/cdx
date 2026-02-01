@@ -22,9 +22,7 @@ struct MergeContext<'a> {
 }
 impl MergeContext<'_> {
     fn compare(&mut self, a: usize, b: usize) -> Ordering {
-        self.cmp
-            .comp_cols(self.open[a].curr_line(), self.open[b].curr_line())
-            .reverse()
+        self.cmp.comp_cols(self.open[a].curr_line(), self.open[b].curr_line()).reverse()
     }
     fn equal(&mut self, a: &TextLine, b: usize) -> bool {
         self.cmp.equal_cols(a, self.open[b].curr_line())
@@ -74,10 +72,7 @@ impl SortConfig {
             let r = get_reader(&in_files[0])?;
             return copy(r.0, w);
         }
-        let mc = Rc::new(RefCell::new(MergeContext {
-            open: Vec::with_capacity(in_files.len()),
-            cmp,
-        }));
+        let mc = Rc::new(RefCell::new(MergeContext { open: Vec::with_capacity(in_files.len()), cmp }));
         let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| mc.borrow_mut().compare(*a, *b));
         {
             let mut mcm = mc.borrow_mut();
@@ -470,8 +465,7 @@ impl Sorter {
             }
         } else {
             self.write_tmp()?;
-            self.config
-                .merge_t(&self.tmp_files, &mut self.cmp, w, self.unique, &self.tmp)?;
+            self.config.merge_t(&self.tmp_files, &mut self.cmp, w, self.unique, &self.tmp)?;
         }
         Ok(())
     }
@@ -511,12 +505,7 @@ struct NodeData {
 }
 impl NodeData {
     const fn new(left: NodeType, right: NodeType) -> Self {
-        Self {
-            left,
-            right,
-            left_data: None,
-            right_data: None,
-        }
+        Self { left, right, left_data: None, right_data: None }
     }
     fn left_cols<'a>(&self, files: &'a [Reader]) -> &'a TextLine {
         files[self.left_data.unwrap()].curr_line()
@@ -543,20 +532,14 @@ impl MergeTreeItem {
             Self::new_leaf(nums[0])
         } else {
             let mid = nums.len() / 2;
-            Self::new_node(
-                Box::new(Self::new_tree(&nums[..mid])),
-                Box::new(Self::new_tree(&nums[mid..])),
-            )
+            Self::new_node(Box::new(Self::new_tree(&nums[..mid])), Box::new(Self::new_tree(&nums[mid..])))
         }
     }
     const fn new_node(left: NodeType, right: NodeType) -> Self {
         Self::Node(NodeData::new(left, right))
     }
     const fn new_leaf(r: usize) -> Self {
-        Self::Leaf(LeafData {
-            file_num: r,
-            first: true,
-        })
+        Self::Leaf(LeafData { file_num: r, first: true })
     }
     fn next(&mut self, cmp: &mut LineCompList, files: &mut [Reader]) -> Result<Option<usize>> {
         match self {

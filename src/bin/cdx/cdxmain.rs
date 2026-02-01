@@ -16,11 +16,7 @@ impl fmt::Debug for OneMain {
 
 macro_rules! proc {
     ($a:expr,$b:expr,$c:expr) => {
-        OneMain {
-            name: $a,
-            help: $b,
-            proc: $c,
-        }
+        OneMain { name: $a, help: $b, proc: $c }
     };
 }
 

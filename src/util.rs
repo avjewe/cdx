@@ -249,13 +249,7 @@ pub struct TextFileMode {
 }
 impl Default for TextFileMode {
     fn default() -> Self {
-        Self {
-            head_mode: HeadMode::Maybe,
-            col_mode: QuoteMode::Plain,
-            delim: b'\t',
-            line_break: b'\n',
-            repl: b' ',
-        }
+        Self { head_mode: HeadMode::Maybe, col_mode: QuoteMode::Plain, delim: b'\t', line_break: b'\n', repl: b' ' }
     }
 }
 impl TextFileMode {
@@ -319,13 +313,7 @@ impl TextFileMode {
             let ch = spec.take_first();
             line_break = auto_escape(ch);
         }
-        Ok(Self {
-            head_mode,
-            col_mode,
-            delim,
-            line_break,
-            repl,
-        })
+        Ok(Self { head_mode, col_mode, delim, line_break, repl })
     }
 
     /// print the help for `TextFileMode`
@@ -480,10 +468,7 @@ impl FakeSlice {
             if num == 0 {
                 err!("Invalid offset, must be greater than zero")
             } else {
-                Ok(Self {
-                    begin: num - 1,
-                    end: num,
-                })
+                Ok(Self { begin: num - 1, end: num })
             }
         }
     }
@@ -783,11 +768,7 @@ impl TextLine {
     /// make a new `TextLine`
     #[must_use]
     pub const fn new() -> Self {
-        Self {
-            line: Vec::new(),
-            parts: Vec::new(),
-            orig: Vec::new(),
-        }
+        Self { line: Vec::new(), parts: Vec::new(), orig: Vec::new() }
     }
     /// Iterator over columns in the line
     #[must_use]
@@ -852,11 +833,7 @@ impl StringLine {
     /// make a new `StringLine`
     #[must_use]
     pub const fn new() -> Self {
-        Self {
-            line: String::new(),
-            parts: Vec::new(),
-            orig: String::new(),
-        }
+        Self { line: String::new(), parts: Vec::new(), orig: String::new() }
     }
     /// Iterator over columns in the line
     #[must_use]
@@ -1277,13 +1254,7 @@ pub fn make_header(line: &[u8]) -> StringLine {
 impl InfileContext {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     const fn new(text_in: &TextFileMode) -> Self {
-        Self {
-            header: StringLine::new(),
-            is_done: true,
-            is_empty: true,
-            has_header: false,
-            text: *text_in,
-        }
+        Self { header: StringLine::new(), is_done: true, is_empty: true, has_header: false, text: *text_in }
     }
     fn read_header(&mut self, file: &mut impl BufRead, line: &mut TextLine) -> Result<()> {
         self.is_empty = self.text.read_header(file, &mut self.header.line)?;
@@ -1389,16 +1360,10 @@ struct FileLoc {
 impl FileLoc {
     fn new(spec: &str) -> Result<Self> {
         if let Some((a, b)) = spec.split_once(':') {
-            Ok(Self {
-                col_name: a.to_string(),
-                item: FileLocItem::new(b)?,
-            })
+            Ok(Self { col_name: a.to_string(), item: FileLocItem::new(b)? })
         } else {
             let item = FileLocItem::new(spec)?;
-            Ok(Self {
-                col_name: item.dflt_name().to_string(),
-                item,
-            })
+            Ok(Self { col_name: item.dflt_name().to_string(), item })
         }
     }
     fn write_data(&mut self, data: &mut impl Write, loc: &FileLocData) -> Result<()> {
@@ -1592,11 +1557,7 @@ impl Reader {
     pub fn getline(&mut self) -> Result<bool> {
         self.loc.bytes += self.curr().line.len();
         self.incr();
-        if self
-            .cont
-            .text
-            .read_line(&mut *self.file, &mut self.lines[self.curr].line)?
-        {
+        if self.cont.text.read_line(&mut *self.file, &mut self.lines[self.curr].line)? {
             self.cont.is_done = true;
         } else if self.do_split {
             self.cont.text.split(&mut self.lines[self.curr]);
@@ -1830,10 +1791,7 @@ impl FromStr for HeaderMode {
         } else if spec.eq_ignore_ascii_case("ignore") {
             Ok(Self::Ignore)
         } else {
-            err!(
-                "Input Header Mode must be one of Match, Require, Strip, None or Trust : {}",
-                spec
-            )
+            err!("Input Header Mode must be one of Match, Require, Strip, None or Trust : {}", spec)
         }
     }
 }
@@ -1912,10 +1870,7 @@ impl HeaderChecker {
     /// new with mode
     #[must_use]
     pub fn from_mode(mode: HeaderMode) -> Self {
-        Self {
-            mode,
-            ..Self::default()
-        }
+        Self { mode, ..Self::default() }
     }
     /// call for the first line of every input file
     /// return true if the header should be written
@@ -2053,10 +2008,7 @@ impl FromStr for CompareOp {
         } else if s.eq_ignore_ascii_case("!=") {
             Ok(Self::NE)
         } else {
-            err!(
-                "Invalid CompareOp, should be one of LT,<,GT,>,LE,<=,GE,>=,EQ,==,NE,!= : '{}'",
-                s
-            )
+            err!("Invalid CompareOp, should be one of LT,<,GT,>,LE,<=,GE,>=,EQ,==,NE,!= : '{}'", s)
         }
     }
 }
@@ -2132,12 +2084,7 @@ impl<'a> RangeSpec<'a> {
                 val2: Some(caps.get(4).unwrap().as_str()),
             })
         } else if let Some(caps) = RE2.captures(spec) {
-            Ok(Self {
-                op1: caps.get(1).unwrap().as_str(),
-                val1: caps.get(2).unwrap().as_str(),
-                op2: None,
-                val2: None,
-            })
+            Ok(Self { op1: caps.get(1).unwrap().as_str(), val1: caps.get(2).unwrap().as_str(), op2: None, val2: None })
         } else if let Some(caps) = RE3.captures(spec) {
             Ok(Self {
                 op1: caps.get(1).unwrap().as_str(),
@@ -2146,12 +2093,7 @@ impl<'a> RangeSpec<'a> {
                 val2: Some(caps.get(4).unwrap().as_str()),
             })
         } else if let Some(caps) = RE4.captures(spec) {
-            Ok(Self {
-                op1: caps.get(1).unwrap().as_str(),
-                val1: caps.get(2).unwrap().as_str(),
-                op2: None,
-                val2: None,
-            })
+            Ok(Self { op1: caps.get(1).unwrap().as_str(), val1: caps.get(2).unwrap().as_str(), op2: None, val2: None })
         } else {
             err!("Not valid range spec '{}'", spec)
         }
@@ -2175,12 +2117,7 @@ impl<'a> RangeSpec<'a> {
             ))
         } else if let Some(caps) = RE2.captures(spec) {
             Ok((
-                Self {
-                    op1: caps.get(2).unwrap().as_str(),
-                    val1: caps.get(3).unwrap().as_str(),
-                    op2: None,
-                    val2: None,
-                },
+                Self { op1: caps.get(2).unwrap().as_str(), val1: caps.get(3).unwrap().as_str(), op2: None, val2: None },
                 caps.get(0).unwrap().start(),
             ))
         } else if let Some(caps) = RE3.captures(spec) {
@@ -2195,12 +2132,7 @@ impl<'a> RangeSpec<'a> {
             ))
         } else if let Some(caps) = RE4.captures(spec) {
             Ok((
-                Self {
-                    op1: caps.get(2).unwrap().as_str(),
-                    val1: caps.get(3).unwrap().as_str(),
-                    op2: None,
-                    val2: None,
-                },
+                Self { op1: caps.get(2).unwrap().as_str(), val1: caps.get(3).unwrap().as_str(), op2: None, val2: None },
                 caps.get(0).unwrap().start(),
             ))
         } else {
@@ -2229,16 +2161,8 @@ impl CheckLine {
     fn set_with(&mut self, r: &RangeSpec<'_>) -> Result<()> {
         self.op = r.op1.parse::<CompareOp>()?;
         r.val1.clone_into(&mut self.val);
-        self.op2 = if let Some(item) = r.op2 {
-            Some(item.parse::<CompareOp>()?)
-        } else {
-            None
-        };
-        self.val2 = if r.val2.is_none() {
-            None
-        } else {
-            Some(r.op2.unwrap().to_owned())
-        };
+        self.op2 = if let Some(item) = r.op2 { Some(item.parse::<CompareOp>()?) } else { None };
+        self.val2 = if r.val2.is_none() { None } else { Some(r.op2.unwrap().to_owned()) };
         Ok(())
     }
     /// set from spec OP,Text
@@ -2297,11 +2221,7 @@ impl CheckBuff {
                 c.set(r.val1.as_bytes());
                 c
             },
-            op2: if let Some(item) = r.op2 {
-                Some(item.parse::<CompareOp>()?)
-            } else {
-                None
-            },
+            op2: if let Some(item) = r.op2 { Some(item.parse::<CompareOp>()?) } else { None },
             val2: if let Some(item) = r.val2 {
                 let mut c = CompMaker::make_comp_box(comp_spec)?;
                 c.set(item.as_bytes());

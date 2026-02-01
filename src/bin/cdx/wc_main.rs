@@ -12,10 +12,7 @@ struct NamedAgg {
 }
 impl NamedAgg {
     fn new(name: &str, agg: AggList) -> Self {
-        Self {
-            name: name.to_string(),
-            agg,
-        }
+        Self { name: name.to_string(), agg }
     }
 }
 

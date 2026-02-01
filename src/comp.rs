@@ -407,27 +407,20 @@ impl LineCompare for LineCompCol {
     }
     /// compare lines
     fn comp_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> Ordering {
-        self.comp
-            .comp(left.get(self.cols[left_file].num), right.get(self.cols[right_file].num))
+        self.comp.comp(left.get(self.cols[left_file].num), right.get(self.cols[right_file].num))
     }
     /// compare lines
     fn equal_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> bool {
-        self.comp
-            .equal(left.get(self.cols[left_file].num), right.get(self.cols[right_file].num))
+        self.comp.equal(left.get(self.cols[left_file].num), right.get(self.cols[right_file].num))
     }
     /// compare lines
     fn comp_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> Ordering {
-        self.comp.comp(
-            get_col(left, self.cols[left_file].num, delim),
-            get_col(right, self.cols[right_file].num, delim),
-        )
+        self.comp.comp(get_col(left, self.cols[left_file].num, delim), get_col(right, self.cols[right_file].num, delim))
     }
     /// compare lines
     fn equal_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> bool {
-        self.comp.equal(
-            get_col(left, self.cols[left_file].num, delim),
-            get_col(right, self.cols[right_file].num, delim),
-        )
+        self.comp
+            .equal(get_col(left, self.cols[left_file].num, delim), get_col(right, self.cols[right_file].num, delim))
     }
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
     fn lookup(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()> {
@@ -441,8 +434,7 @@ impl LineCompare for LineCompCol {
     }
 
     fn fill_cache_line(&mut self, item: &mut Item, value: &[u8], delim: u8) {
-        self.comp
-            .fill_cache(item, get_col(item.get(value), self.cols[0].num, delim));
+        self.comp.fill_cache(item, get_col(item.get(value), self.cols[0].num, delim));
     }
 
     fn set(&mut self, value: &[u8]) {
@@ -544,23 +536,11 @@ fn frac_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
         b = &b[1..];
     }
     if a.is_empty() {
-        if b.is_empty() || !b[0].is_ascii_digit() {
-            Ordering::Equal
-        } else {
-            Ordering::Less
-        }
+        if b.is_empty() || !b[0].is_ascii_digit() { Ordering::Equal } else { Ordering::Less }
     } else if b.is_empty() {
-        if a[0].is_ascii_digit() {
-            Ordering::Greater
-        } else {
-            Ordering::Equal
-        }
+        if a[0].is_ascii_digit() { Ordering::Greater } else { Ordering::Equal }
     } else if a[0].is_ascii_digit() {
-        if b[0].is_ascii_digit() {
-            a[0].cmp(&b[0])
-        } else {
-            Ordering::Greater
-        }
+        if b[0].is_ascii_digit() { a[0].cmp(&b[0]) } else { Ordering::Greater }
     } else if b[0].is_ascii_digit() {
         Ordering::Less
     } else {
@@ -757,29 +737,17 @@ impl CompMaker {
         Self::do_add_alias("numeric", "num")?;
         Self::do_add_alias("length", "len")?;
         Self::do_add_alias("plain", "")?;
-        Self::do_push_line("expr", "Sort by value of expr", |p| {
-            Ok(Box::new(LineCompExpr::new(&p.pattern)?))
-        })?;
-        Self::do_push("length", "Sort by length of string", |_p| {
-            Ok(Box::new(CompareLen::new()))
-        })?;
+        Self::do_push_line("expr", "Sort by value of expr", |p| Ok(Box::new(LineCompExpr::new(&p.pattern)?)))?;
+        Self::do_push("length", "Sort by length of string", |_p| Ok(Box::new(CompareLen::new())))?;
         Self::do_push("random", "Sort randomly", |_p| Ok(Box::new(CompareRandom::new())))?;
-        Self::do_push("ip", "Sort as IP address or 1.2.3 section numbers", |_p| {
-            Ok(Box::new(CompareIP::new()))
-        })?;
+        Self::do_push("ip", "Sort as IP address or 1.2.3 section numbers", |_p| Ok(Box::new(CompareIP::new())))?;
         Self::do_push("plain", "Sort the plain bytes", |_p| Ok(Box::new(ComparePlain::new())))?;
-        Self::do_push("lower", "Sort as the ascii lowercase of the string", |_p| {
-            Ok(Box::new(CompareLower::new()))
-        })?;
+        Self::do_push("lower", "Sort as the ascii lowercase of the string", |_p| Ok(Box::new(CompareLower::new())))?;
         Self::do_push("float", "Convert to floating point, and sort the result.", |_p| {
             Ok(Box::new(Comparef64::new()))
         })?;
-        Self::do_push("numeric", "Convert NNN.nnn of arbitrary length.", |_p| {
-            Ok(Box::new(CompareNumeric::new()))
-        })?;
-        Self::do_push("equal", "Everything always compares equal.", |_p| {
-            Ok(Box::new(CompareEqual {}))
-        })?;
+        Self::do_push("numeric", "Convert NNN.nnn of arbitrary length.", |_p| Ok(Box::new(CompareNumeric::new())))?;
+        Self::do_push("equal", "Everything always compares equal.", |_p| Ok(Box::new(CompareEqual {})))?;
         Ok(())
     }
     /// Add a new Compare. If a Compare already exists by that name, replace it.
@@ -836,11 +804,7 @@ impl CompMaker {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a matcher named {tag} because that is reserved for a modifier");
         }
-        let m = CompMakerItem {
-            tag,
-            help,
-            maker: Box::new(maker),
-        };
+        let m = CompMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = COMP_MAKER.lock().unwrap();
         for x in mm.iter_mut() {
             if x.tag == m.tag {
@@ -859,11 +823,7 @@ impl CompMaker {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a matcher named {tag} because that is reserved for a modifier");
         }
-        let m = LineCompMakerItem {
-            tag,
-            help,
-            maker: Box::new(maker),
-        };
+        let m = LineCompMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = LINE_MAKER.lock().unwrap();
         for x in mm.iter_mut() {
             if x.tag == m.tag {
@@ -1069,11 +1029,7 @@ impl CompList {
         } else {
             let values: Vec<&[u8]> = value.split(|ch| *ch == delim).collect();
             if values.len() != self.c.len() {
-                return err!(
-                    "Tried to use a {} part value for a {} part Comparison",
-                    values.len(),
-                    self.c.len()
-                );
+                return err!("Tried to use a {} part value for a {} part Comparison", values.len(), self.c.len());
             }
             for (n, x) in self.c.iter_mut().enumerate() {
                 x.set(values[n]);
@@ -1265,11 +1221,7 @@ impl LineCompList {
         } else {
             let values: Vec<&[u8]> = value.split(|ch| *ch == delim).collect();
             if values.len() != self.c.len() {
-                return err!(
-                    "Tried to use a {} part value for a {} part Comparison",
-                    values.len(),
-                    self.c.len()
-                );
+                return err!("Tried to use a {} part value for a {} part Comparison", values.len(), self.c.len());
             }
             for (n, x) in self.c.iter_mut().enumerate() {
                 x.set(values[n]);
@@ -1324,11 +1276,7 @@ impl CompareRandom {
         Self::default()
     }
     fn ord() -> Ordering {
-        if fastrand::bool() {
-            Ordering::Less
-        } else {
-            Ordering::Greater
-        }
+        if fastrand::bool() { Ordering::Less } else { Ordering::Greater }
     }
 }
 impl Compare for CompareRandom {
@@ -1583,11 +1531,7 @@ impl Item {
     /// new item
     #[must_use]
     pub const fn new() -> Self {
-        Self {
-            offset: 0,
-            size_plus: 0,
-            cache: 0,
-        }
+        Self { offset: 0, size_plus: 0, cache: 0 }
     }
     /// return line as slice
     #[must_use]
@@ -1684,10 +1628,7 @@ struct LineCompExpr {
 
 impl LineCompExpr {
     fn new(expr: &str) -> Result<Self> {
-        Ok(Self {
-            exprs: vec![Expr::new(expr)?],
-            value: 0.0,
-        })
+        Ok(Self { exprs: vec![Expr::new(expr)?], value: 0.0 })
     }
 }
 

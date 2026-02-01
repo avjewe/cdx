@@ -81,10 +81,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         } else {
             num_live += 1;
         }
-        rngs.push(std::ops::Range {
-            start: curr_cols,
-            end: curr_cols + f.header().len(),
-        });
+        rngs.push(std::ops::Range { start: curr_cols, end: curr_cols + f.header().len() });
         curr_cols += f.header().len();
         fds.push(f);
     }

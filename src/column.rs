@@ -42,10 +42,7 @@ struct NameMap {
 impl NameMap {
     fn new(spec: &str) -> Result<Self> {
         if let Some((a, b)) = spec.split_once('.') {
-            Ok(Self {
-                from: a.to_string(),
-                to: b.to_string(),
-            })
+            Ok(Self { from: a.to_string(), to: b.to_string() })
         } else {
             err!("Format for rename is 'old.new' not '{spec}'")
         }
@@ -74,11 +71,7 @@ pub fn is_valid_column_name(name: &str) -> bool {
 
 /// throw an error is name is not a valid column name
 pub fn validate_column_name(name: &str) -> Result<()> {
-    if is_valid_column_name(name) {
-        Ok(())
-    } else {
-        err!("Invalid column name {}", name)
-    }
+    if is_valid_column_name(name) { Ok(()) } else { err!("Invalid column name {}", name) }
 }
 
 /// extract column from line
@@ -86,11 +79,7 @@ pub fn validate_column_name(name: &str) -> Result<()> {
 pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
     for (n, s) in data.split(|ch| *ch == delim).enumerate() {
         if n == col {
-            return if !s.is_empty() && s.last().unwrap() == &b'\n' {
-                &s[0..s.len() - 1]
-            } else {
-                s
-            };
+            return if !s.is_empty() && s.last().unwrap() == &b'\n' { &s[0..s.len() - 1] } else { s };
         }
     }
     &data[0..0]
@@ -316,10 +305,7 @@ struct ColSetPart {
 }
 impl ColSetPart {
     fn new(spec: &str, trans: Option<usize>) -> Self {
-        Self {
-            val: spec.to_string(),
-            trans,
-        }
+        Self { val: spec.to_string(), trans }
     }
 }
 
@@ -338,38 +324,22 @@ impl OutCol {
     /// new
     #[must_use]
     pub fn new(num: usize, name: &str) -> Self {
-        Self {
-            num,
-            name: name.to_string(),
-            trans: None,
-        }
+        Self { num, name: name.to_string(), trans: None }
     }
     /// new with name and trans
     #[must_use]
     pub fn new_trans(num: usize, name: &str, trans: usize) -> Self {
-        Self {
-            num,
-            name: name.to_string(),
-            trans: Some(trans),
-        }
+        Self { num, name: name.to_string(), trans: Some(trans) }
     }
     /// new with empty name
     #[must_use]
     pub const fn from_num(num: usize) -> Self {
-        Self {
-            num,
-            name: String::new(),
-            trans: None,
-        }
+        Self { num, name: String::new(), trans: None }
     }
     /// new with empty name but a trans
     #[must_use]
     pub const fn from_num_trans(num: usize, trans: usize) -> Self {
-        Self {
-            num,
-            name: String::new(),
-            trans: Some(trans),
-        }
+        Self { num, name: String::new(), trans: Some(trans) }
     }
 }
 
@@ -491,38 +461,22 @@ impl ScopedValues {
     /// get appropriate value for the column
     #[must_use]
     pub fn get(&self, col: usize) -> &str {
-        if col < self.strings.len() {
-            &self.strings[col]
-        } else {
-            self.strings.last().unwrap()
-        }
+        if col < self.strings.len() { &self.strings[col] } else { self.strings.last().unwrap() }
     }
     /// get appropriate int value for the column
     #[must_use]
     pub fn get_int(&self, col: usize) -> isize {
-        if col < self.ints.len() {
-            self.ints[col]
-        } else {
-            *self.ints.last().unwrap()
-        }
+        if col < self.ints.len() { self.ints[col] } else { *self.ints.last().unwrap() }
     }
     /// get appropriate int value for the column
     #[must_use]
     pub fn get_float(&self, col: usize) -> f64 {
-        if col < self.floats.len() {
-            self.floats[col]
-        } else {
-            *self.floats.last().unwrap()
-        }
+        if col < self.floats.len() { self.floats[col] } else { *self.floats.last().unwrap() }
     }
     /// has this column been assigned a value?
     #[must_use]
     pub fn has_value(&self, col: usize) -> bool {
-        if col < self.has_value.len() {
-            self.has_value[col]
-        } else {
-            false
-        }
+        if col < self.has_value.len() { self.has_value[col] } else { false }
     }
     /// Have any column been assigned values?
     #[must_use]
@@ -552,15 +506,9 @@ impl ColumnExpr {
     /// new from Expr or Name:Expr
     pub fn new(spec: &str) -> Result<Self> {
         if let Some((a, b)) = spec.split_once(':') {
-            Ok(Self {
-                name: a.to_string(),
-                expr: Expr::new(b)?,
-            })
+            Ok(Self { name: a.to_string(), expr: Expr::new(b)? })
         } else {
-            Ok(Self {
-                name: String::new(),
-                expr: Expr::new(spec)?,
-            })
+            Ok(Self { name: String::new(), expr: Expr::new(spec)? })
         }
     }
 }
@@ -591,27 +539,17 @@ impl ColumnSingle {
     /// new from `NamedCol`
     #[must_use]
     pub fn with_named_col(col: &NamedCol) -> Self {
-        Self {
-            col: col.clone(),
-            new_name: String::new(),
-        }
+        Self { col: col.clone(), new_name: String::new() }
     }
     /// new from name
     pub fn with_name(col: &str) -> Result<Self> {
-        Ok(Self {
-            col: NamedCol::new_from(col)?,
-            new_name: String::new(),
-        })
+        Ok(Self { col: NamedCol::new_from(col)?, new_name: String::new() })
     }
 }
 
 impl ColumnFun for ColumnSingle {
     fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
-        if self.new_name.is_empty() {
-            w.push(&head[self.col.num])
-        } else {
-            w.push(&self.new_name)
-        }
+        if self.new_name.is_empty() { w.push(&head[self.col.num]) } else { w.push(&self.new_name) }
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
@@ -656,10 +594,7 @@ impl ColumnCount {
     /// new
     #[must_use]
     pub fn new(num: isize, name: &str) -> Self {
-        Self {
-            num,
-            name: name.to_string(),
-        }
+        Self { num, name: name.to_string() }
     }
 }
 
@@ -691,10 +626,7 @@ impl ColumnLiteral {
     /// new
     #[must_use]
     pub fn new(value: &[u8], name: &str) -> Self {
-        Self {
-            value: value.to_vec(),
-            name: name.to_string(),
-        }
+        Self { value: value.to_vec(), name: name.to_string() }
     }
 }
 
@@ -850,20 +782,12 @@ impl ColumnSet {
         if let Some(stripped) = colname.strip_prefix('+') {
             let n = stripped.to_usize_whole(colname.as_bytes(), "column")?;
             let len = fieldnames.len();
-            if n > len {
-                err!("Column {} out of bounds", colname)
-            } else {
-                Ok(len - n)
-            }
+            if n > len { err!("Column {} out of bounds", colname) } else { Ok(len - n) }
         } else {
             let ch = colname.first();
             if ch.is_ascii_digit() && ch != '0' {
                 let n = colname.to_usize_whole(colname.as_bytes(), "column")?;
-                if n < 1 {
-                    err!("Column {} out of bounds", colname)
-                } else {
-                    Ok(n - 1)
-                }
+                if n < 1 { err!("Column {} out of bounds", colname) } else { Ok(n - 1) }
             } else {
                 Self::lookup_col(fieldnames, colname)
             }
@@ -909,10 +833,7 @@ impl ColumnSet {
 
         let ch = range.first();
         if ch == '(' {
-            return Ok(Self::to_outcols(
-                &Self::match_range(fieldnames, &range[1..range.len() - 1])?,
-                name,
-            ));
+            return Ok(Self::to_outcols(&Self::match_range(fieldnames, &range[1..range.len() - 1])?, name));
         }
         let mut parts: Vec<&str> = range.split('-').collect();
         if parts.len() > 2 {
@@ -1009,11 +930,7 @@ impl ColumnSet {
             if x.num < cols.len() {
                 result.push(cols[x.num].clone());
             } else {
-                return err!(
-                    "Line has only {} columns, but column {} was requested.",
-                    cols.len(),
-                    x.num + 1
-                );
+                return err!("Line has only {} columns, but column {} was requested.", cols.len(), x.num + 1);
             }
         }
         Ok(())
@@ -1036,11 +953,7 @@ impl ColumnSet {
                     if x.num < cols.len() {
                         w.write_all(cols[x.num].as_bytes())?;
                     } else {
-                        return err!(
-                            "Line has only {} columns, but column {} was requested.",
-                            cols.len(),
-                            x.num + 1
-                        );
+                        return err!("Line has only {} columns, but column {} was requested.", cols.len(), x.num + 1);
                     }
                 }
             }
@@ -1218,11 +1131,7 @@ impl ColumnSet {
         s.add_yes(spec)?;
         s.lookup(names)?;
         if s.get_cols().len() != 1 {
-            return err!(
-                "Spec {} resolves to {} columns, rather than a single column",
-                spec,
-                s.get_cols().len()
-            );
+            return err!("Spec {} resolves to {} columns, rather than a single column", spec, s.get_cols().len());
         }
         Ok(s.get_cols_num()[0])
     }
@@ -1244,15 +1153,8 @@ impl ColumnClump {
     /// new `ColumnClump` from parts
     #[must_use]
     pub fn new(cols: Box<dyn ColumnFun>, name: &str, delim: u8) -> Self {
-        let text = TextFileMode {
-            delim,
-            ..Default::default()
-        };
-        Self {
-            cols,
-            name: name.to_string(),
-            text,
-        }
+        let text = TextFileMode { delim, ..Default::default() };
+        Self { cols, name: name.to_string(), text }
     }
     /// new `ColumnClump` from spec : DelimOutcol:Columns
     /// e.g. ,group:1-3
@@ -1273,15 +1175,8 @@ impl ColumnClump {
         let mut g = ColumnSet::new();
         g.add_yes(parts.1)?;
         let cols = Box::new(ReaderColumns::new(g));
-        let text = TextFileMode {
-            delim: delim as u8,
-            ..Default::default()
-        };
-        Ok(Self {
-            cols,
-            name: parts.0.to_string(),
-            text,
-        })
+        let text = TextFileMode { delim: delim as u8, ..Default::default() };
+        Ok(Self { cols, name: parts.0.to_string(), text })
     }
 }
 
@@ -1437,11 +1332,7 @@ impl NamedCol {
     pub fn new_from(spec: &str) -> Result<Self> {
         let mut x = Self::default();
         let rest = x.parse(spec)?;
-        if rest.is_empty() {
-            Ok(x)
-        } else {
-            err!("Extra stuff {} at the end of column spec {}", rest, spec)
-        }
+        if rest.is_empty() { Ok(x) } else { err!("Extra stuff {} at the end of column spec {}", rest, spec) }
     }
     /// Resolve the column name
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -1449,11 +1340,7 @@ impl NamedCol {
             self.num = ColumnSet::lookup_col(fieldnames, &self.name)?;
         } else if self.from_end > 0 {
             if self.from_end > fieldnames.len() {
-                return err!(
-                    "Requested column +{}, but there are only {} columns",
-                    self.from_end,
-                    fieldnames.len()
-                );
+                return err!("Requested column +{}, but there are only {} columns", self.from_end, fieldnames.len());
             }
             self.num = fieldnames.len() - self.from_end;
         }
@@ -1645,17 +1532,9 @@ mod tests {
     #[test]
     fn range() -> Result<()> {
         let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
-        let res: [OutCol; 5] = [
-            OutCol::from_num(0),
-            OutCol::from_num(1),
-            OutCol::from_num(2),
-            OutCol::from_num(3),
-            OutCol::from_num(4),
-        ];
-        assert_eq!(
-            ColumnSet::range(&f, "(range,<p)")?,
-            [OutCol::from_num(1), OutCol::from_num(4)]
-        );
+        let res: [OutCol; 5] =
+            [OutCol::from_num(0), OutCol::from_num(1), OutCol::from_num(2), OutCol::from_num(3), OutCol::from_num(4)];
+        assert_eq!(ColumnSet::range(&f, "(range,<p)")?, [OutCol::from_num(1), OutCol::from_num(4)]);
         assert_eq!(ColumnSet::range(&f, "2-+2")?, res[1..=3]);
         assert_eq!(ColumnSet::range(&f, "-")?, res);
         assert_eq!(ColumnSet::range(&f, "2-")?, res[1..]);

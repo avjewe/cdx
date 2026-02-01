@@ -86,11 +86,7 @@ impl Count {
         Ok(())
     }
     fn get_which(&mut self, spec: &str) -> Result<()> {
-        if let Some((a, b)) = spec.split_once(',') {
-            self.get_which2(a, b)
-        } else {
-            self.get_which2(spec, "")
-        }
+        if let Some((a, b)) = spec.split_once(',') { self.get_which2(a, b) } else { self.get_which2(spec, "") }
     }
     fn get_count(&mut self, spec: &str) -> Result<()> {
         if let Some((a, b)) = spec.split_once(',') {

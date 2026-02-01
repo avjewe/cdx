@@ -27,14 +27,7 @@ impl Smooth {
         for _ in 0..large {
             data.push(Vec::new());
         }
-        Self {
-            small,
-            large,
-            data,
-            jump: 1,
-            pos: 0,
-            size: 0,
-        }
+        Self { small, large, data, jump: 1, pos: 0, size: 0 }
     }
     fn verify(&self) -> bool {
         debug_assert!(self.data.len() == self.large);
@@ -62,11 +55,7 @@ impl Smooth {
             self.data[self.size - 1].extend(x);
             self.pos += 1;
             debug_assert!(self.verify());
-            let limit = if self.size == self.large {
-                2 * self.jump
-            } else {
-                self.jump
-            };
+            let limit = if self.size == self.large { 2 * self.jump } else { self.jump };
             if self.pos >= limit {
                 self.pos = 0;
             }
