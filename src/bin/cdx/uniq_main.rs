@@ -16,8 +16,7 @@ use cdx::prelude::*;
 
 // rename Count and count
 
-#[derive(PartialEq, Debug)]
-#[derive(Default)]
+#[derive(PartialEq, Debug, Default)]
 enum CountPos {
     #[default]
     None,
@@ -25,8 +24,7 @@ enum CountPos {
     End,
 }
 
-#[derive(PartialEq, Debug)]
-#[derive(Default)]
+#[derive(PartialEq, Debug, Default)]
 enum Which {
     #[default]
     First,

@@ -4,7 +4,6 @@ use crate::prelude::*;
 use crate::util::FakeSlice;
 use base64::engine::general_purpose;
 use base64::Engine;
-use lazy_static::lazy_static;
 use std::sync::Mutex;
 
 /// Transform a value to another value, in the context of a (typically unused) `TextLine`
@@ -44,8 +43,8 @@ struct Base64Trans {
     encode: bool,
 }
 impl Base64Trans {
-    const fn new(encode: bool) -> Result<Self> {
-        Ok(Self { encode })
+    const fn new(encode: bool) -> Self {
+        Self { encode }
     }
 }
 impl Trans for Base64Trans {
@@ -266,12 +265,10 @@ struct TransMakerAlias {
 
 static TRANS_MAKER: Mutex<Vec<TransMakerItem>> = Mutex::new(Vec::new());
 static TRANS_ALIAS: Mutex<Vec<TransMakerAlias>> = Mutex::new(Vec::new());
-lazy_static! {
-    static ref MODIFIERS: Vec<&'static str> = vec!["utf8"];
-}
+const MODIFIERS: &[&str] = &["utf8"];
 
 /// Makes a [Trans]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
 pub struct TransMaker {}
 
 impl TransMaker {
@@ -304,10 +301,10 @@ impl TransMaker {
             }
         })?;
         Self::do_push("from_base64", "decode base64 encoding", |_c, _p| {
-            Ok(Box::new(Base64Trans::new(false)?))
+            Ok(Box::new(Base64Trans::new(false)))
         })?;
         Self::do_push("to_base64", "encode base64 encoding", |_c, _p| {
-            Ok(Box::new(Base64Trans::new(true)?))
+            Ok(Box::new(Base64Trans::new(true)))
         })?;
         Self::do_push("bytes", "Select bytes from value", |_c, p| {
             Ok(Box::new(BytesTrans::new(p)?))

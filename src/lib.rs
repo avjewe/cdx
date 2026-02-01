@@ -42,8 +42,8 @@
 
     // clippy::restriction,
     clippy::create_dir,
-    clippy::exhaustive_enums,
-    clippy::exhaustive_structs,
+    // clippy::exhaustive_enums,
+    // clippy::exhaustive_structs,
     clippy::little_endian_bytes,
     clippy::missing_asserts_for_indexing,
     clippy::mixed_read_write_in_expression,
@@ -71,7 +71,10 @@
 #![allow(clippy::missing_errors_doc)] // REMOVE
 #![allow(clippy::too_many_lines)] // disagree
 #![allow(unused_crate_dependencies)] // broken
-
+#![allow(clippy::items_after_statements)] // disagree
+#![allow(clippy::match_same_arms)] // disagree
+#![allow(clippy::float_cmp)] // I promise to be careful
+#![allow(clippy::same_name_method)] // I'm not sure if this is really an issue.
 // #[allow(lint_name, reason = "Your explanation here")]
 // #[warn(clippy::allow_attributes_without_reason)] // REPLACE
 

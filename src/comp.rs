@@ -22,12 +22,11 @@
 //! assert_eq!(comp.comp_cols(reader.prev_line(2), reader.prev_line(1)), std::cmp::Ordering::Less);
 //! # Ok::<(), cdx::util::Error>(())
 //! ```
-#![allow(clippy::float_cmp)]
-use crate::column::{get_col, NamedCol};
+
+use crate::column::get_col;
 use crate::num::{fcmp, ulp_to_ulong, Junk, JunkType, JunkVal};
 use crate::prelude::*;
 use crate::util::prerr_n;
-use lazy_static::lazy_static;
 use std::sync::Mutex;
 
 /// method of comparing two slices
@@ -110,14 +109,14 @@ pub trait LineCompare {
 #[allow(missing_debug_implementations)]
 pub struct Comp {
     /// junk allowed, responsibiltiy of inner Compare
-    junk: Junk,
+    pub junk: Junk,
     /// optional arg to comparison, responsibiltiy of inner Compare
     pub pattern: String,
 
     /// type of comparison
     pub ctype: String,
     /// reverse comparison?
-    reverse: bool,
+    pub reverse: bool,
     /// the thing that compares
     pub comp: Box<dyn Compare>,
 }
@@ -190,11 +189,11 @@ impl Comp {
 /// Settings for one Compare object
 #[allow(missing_debug_implementations)]
 pub struct LineComp {
-    /// junk allowed, responsibiltiy of inner LineCompare
-    junk: Junk,
-    /// optional arg to comparison, responsibiltiy of inner LineCompare
+    /// junk allowed, responsibiltiy of inner `LineCompare`
+    pub junk: Junk,
+    /// optional arg to comparison, responsibiltiy of inner `LineCompare`
     pub pattern: String,
-    /// period delimited list of columns, responsibiltiy of inner LineCompare
+    /// period delimited list of columns, responsibiltiy of inner `LineCompare`
     pub cols: String,
 
     /// type of comparison
@@ -756,9 +755,8 @@ fn num_cmp_signed(mut a: &[u8], mut b: &[u8]) -> Ordering {
     if left_minus {
         if right_minus {
             return num_cmp_unsigned(b, a);
-        } else {
-            return Ordering::Less;
         }
+        return Ordering::Less;
     }
     if right_minus {
         return Ordering::Greater;
@@ -831,7 +829,7 @@ const _: () = assert!(size_of::<Item>() == 16);
 type MakerBox = Box<dyn Fn(&Comp) -> Result<Box<dyn Compare>> + Send>;
 /// A named constructor for a [Compare], used by [`CompMaker`]
 struct CompMakerItem {
-    /// matched against Comparator::ctype
+    /// matched against `Comparator::ctype`
     tag: &'static str,
     /// what this matcher does
     help: &'static str,
@@ -842,7 +840,7 @@ struct CompMakerItem {
 type LineMakerBox = Box<dyn Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send>;
 /// A named constructor for a [`LineCompare`], used by [`CompMaker`]
 struct LineCompMakerItem {
-    /// matched against Comparator::ctype
+    /// matched against `Comparator::ctype`
     tag: &'static str,
     /// what this matcher does
     help: &'static str,
@@ -858,12 +856,10 @@ struct CompMakerAlias {
 static COMP_MAKER: Mutex<Vec<CompMakerItem>> = Mutex::new(Vec::new());
 static LINE_MAKER: Mutex<Vec<LineCompMakerItem>> = Mutex::new(Vec::new());
 static COMP_ALIAS: Mutex<Vec<CompMakerAlias>> = Mutex::new(Vec::new());
-lazy_static! {
-    static ref MODIFIERS: Vec<&'static str> = vec!["rev", "strict", "trail", "low"];
-}
+const MODIFIERS: &[&str] = &["rev", "strict", "trail", "low"];
 
 /// Makes a [Compare or `LineComp`]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
 pub struct CompMaker {}
 
 impl CompMaker {
@@ -1477,7 +1473,7 @@ impl CompareRandom {
     fn new() -> Self {
         Self::default()
     }
-    fn ord(&self) -> Ordering {
+    fn ord() -> Ordering {
         if fastrand::bool() {
             Ordering::Less
         } else {
@@ -1487,7 +1483,7 @@ impl CompareRandom {
 }
 impl Compare for CompareRandom {
     fn comp(&self, _left: &[u8], _right: &[u8]) -> Ordering {
-        self.ord()
+        Self::ord()
     }
     fn equal(&self, _left: &[u8], _right: &[u8]) -> bool {
         fastrand::bool()
@@ -1495,7 +1491,7 @@ impl Compare for CompareRandom {
     fn fill_cache(&self, _item: &mut Item, _value: &[u8]) {}
     fn set(&mut self, _value: &[u8]) {}
     fn comp_self(&self, _right: &[u8]) -> Ordering {
-        self.ord()
+        Self::ord()
     }
     fn equal_self(&self, _right: &[u8]) -> bool {
         fastrand::bool()

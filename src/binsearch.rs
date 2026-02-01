@@ -2,8 +2,6 @@
 
 use crate::prelude::*;
 use crate::util::is_cdx;
-use memmap2;
-use std::cmp::Ordering;
 use std::fs;
 
 // lower - first that is not less
@@ -172,7 +170,7 @@ pub fn lower_bound_n(data: &[u8], comp: &mut LineCompList) -> (usize, usize) {
             Ordering::Greater => {
                 begin = stop;
             }
-        };
+        }
     }
     (begin, end)
 }

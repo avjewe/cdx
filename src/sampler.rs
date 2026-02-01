@@ -76,6 +76,7 @@ impl Smooth {
 
     // crunch down to self.small elements
     // maintain first and last, spread the rest evenly.
+    #[allow(clippy::cast_precision_loss)]
     fn collapse(&mut self) {
         debug_assert!(self.verify());
         let old_size = self.size;

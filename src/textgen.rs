@@ -6,7 +6,7 @@ use rand_distr::{Distribution, Normal};
 use std::sync::Mutex;
 
 /// location context for Gen
-#[derive(Debug, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
 pub struct Where {
     /// 1-based column number
     pub col: usize,
@@ -29,7 +29,7 @@ struct DecimalGen {
 }
 impl DecimalGen {
     // [-]NNN[.NNNN]
-    fn new(spec: &str) -> Result<Self> {
+    fn new(spec: &str) -> Self {
         let mut sign = false;
         let mut pre = 10000;
         let mut post = 0;
@@ -59,12 +59,12 @@ impl DecimalGen {
                 post_size
             }
         );
-        Ok(Self {
+        Self {
             sign,
             pre,
             post,
             post_size,
-        })
+        }
     }
 }
 impl Gen for DecimalGen {
@@ -111,6 +111,7 @@ impl ExprGen {
     }
 }
 impl Gen for ExprGen {
+    #[allow(clippy::cast_precision_loss)]
     fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
         self.expr.set_var(self.col_pos, loc.col as f64);
         self.expr.set_var(self.line_pos, loc.line as f64);
@@ -185,7 +186,7 @@ impl CountGen {
 }
 impl Gen for CountGen {
     fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
-        write!(w, "{}", loc.line as isize + self.start - 1)?;
+        write!(w, "{}", loc.line.cast_signed() + self.start - 1)?;
         Ok(())
     }
 }
@@ -285,10 +286,10 @@ struct GenMakerAlias {
 
 static GEN_MAKER: Mutex<Vec<GenMakerItem>> = Mutex::new(Vec::new());
 static GEN_ALIAS: Mutex<Vec<GenMakerAlias>> = Mutex::new(Vec::new());
-static MODIFIERS: Vec<&'static str> = vec![];
+const MODIFIERS: Vec<&'static str> = vec![];
 
 /// Makes an [`TextGen`]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
 pub struct GenMaker {}
 
 impl GenMaker {
@@ -309,7 +310,7 @@ impl GenMaker {
             Ok(Box::new(NormalDistGen::new(p)?))
         })?;
         Self::do_push("decimal", "Decimal number. Pattern is [-]NNN[.NNN]", |p| {
-            Ok(Box::new(DecimalGen::new(p)?))
+            Ok(Box::new(DecimalGen::new(p)))
         })?;
         Self::do_push("grid", "Produce line_col", |_p| Ok(Box::new(GridGen {})))?;
         Self::do_push("count", "Count up from starting place", |p| {

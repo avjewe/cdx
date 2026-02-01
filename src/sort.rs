@@ -638,17 +638,7 @@ fn merge_lines(
 ) {
     let mut dst_pos = 0;
     loop {
-        if cmp.comp_items(data, &low[0], &dst[hi_start]) != Ordering::Greater {
-            dst[dst_pos] = low[0];
-            dst_pos += 1;
-            low = &low[1..];
-            if low.is_empty() {
-                /* HI - NHI equalled T - (NLO + NHI) when this function
-                began.  Therefore HI must equal T now, and there is no
-                need to copy from HI to T.  */
-                break;
-            }
-        } else {
+        if cmp.comp_items(data, &low[0], &dst[hi_start]) == Ordering::Greater {
             dst[dst_pos] = dst[hi_start];
             dst_pos += 1;
             hi_start += 1;
@@ -660,6 +650,16 @@ fn merge_lines(
                 }
                 break;
             }
+        } else {
+            dst[dst_pos] = low[0];
+            dst_pos += 1;
+            low = &low[1..];
+            if low.is_empty() {
+                /* HI - NHI equalled T - (NLO + NHI) when this function
+                began.  Therefore HI must equal T now, and there is no
+                need to copy from HI to T.  */
+                break;
+            }
         }
     }
 }
@@ -667,10 +667,12 @@ fn merge_lines(
 #[allow(dead_code)]
 fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
+        assert!(items.len() == 2);
         if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
             items.swap(0, 1);
         }
     } else {
+        assert!(items.len() > 2);
         let low = items.len() / 2;
         sort_lines(data, &mut items[low..], temp, cmp);
         if low == 1 {
@@ -686,6 +688,8 @@ fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut Line
 #[allow(dead_code)]
 fn sort_lines_temp(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
+        assert!(items.len() == 2);
+        assert!(temp.len() == 2);
         if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
             temp[0] = items[1];
             temp[1] = items[0];
@@ -694,6 +698,7 @@ fn sort_lines_temp(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut
             temp[1] = items[1];
         }
     } else {
+        assert!(items.len() > 2);
         let low = items.len() / 2;
         let items_len = items.len();
         sort_lines_temp(data, &mut items[low..], &mut temp[low..items_len], cmp);

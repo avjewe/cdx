@@ -8,8 +8,7 @@ use std::collections::HashSet;
 use std::str;
 
 /// What to do if there would be duplicate column names
-#[derive(Debug, Copy, Clone)]
-#[derive(Default)]
+#[derive(Debug, Copy, Clone, Default)]
 pub enum DupColHandling {
     /// Fail if there are duplicate columns names
     #[default]
@@ -34,7 +33,6 @@ impl DupColHandling {
         }
     }
 }
-
 
 #[derive(Default, Clone, Debug)]
 struct NameMap {
@@ -76,10 +74,10 @@ pub fn is_valid_column_name(name: &str) -> bool {
 
 /// throw an error is name is not a valid column name
 pub fn validate_column_name(name: &str) -> Result<()> {
-    if !is_valid_column_name(name) {
-        err!("Invalid column name {}", name)
-    } else {
+    if is_valid_column_name(name) {
         Ok(())
+    } else {
+        err!("Invalid column name {}", name)
     }
 }
 
@@ -247,6 +245,7 @@ impl ColumnHeader {
         self.cols.iter().map(String::len).sum::<usize>() + self.cols.len() - 1
     }
     /// append column names, joined
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     fn add_head(&self, res: &mut String, text: &TextFileMode) {
         if self.cols.is_empty() {
             return;
@@ -331,8 +330,8 @@ pub struct OutCol {
     pub num: usize,
     /// column name, might be empty if no name available
     pub name: String,
-    /// which TransList to use
-    trans: Option<usize>,
+    /// which `TransList` to use
+    pub trans: Option<usize>,
 }
 
 impl OutCol {
@@ -777,9 +776,8 @@ impl ColumnSet {
             if last_was_plus {
                 if x.is_alphabetic() {
                     return Some((&spec[0..i - 1], &spec[i..]));
-                } else {
-                    last_was_plus = false;
                 }
+                last_was_plus = false;
             } else if x == '+' {
                 last_was_plus = true;
             }
@@ -787,9 +785,9 @@ impl ColumnSet {
         None
     }
     /// Add a list or ranges, "yes" or "no" based on a flag.
-    pub fn add(&mut self, spec: &str, negate: bool) -> Result<()> {
-        let mut spc = spec;
-        let trans = if let Some((a, b)) = Self::find_trans(spec) {
+    pub fn add(&mut self, in_spec: &str, negate: bool) -> Result<()> {
+        let mut spc = in_spec;
+        let trans = if let Some((a, b)) = Self::find_trans(in_spec) {
             spc = a;
             self.trans.push(TransList::new(b)?);
             Some(self.trans.len() - 1)
@@ -1048,7 +1046,7 @@ impl ColumnSet {
                     }
                 }
             }
-        };
+        }
         w.write_all(b"\n")?;
         Ok(())
     }
@@ -1068,7 +1066,7 @@ impl ColumnSet {
                     w.write_all(cols.get(x.num))?;
                 }
             }
-        };
+        }
         w.write_all(b"\n")?;
         Ok(())
     }
@@ -1118,7 +1116,7 @@ impl ColumnSet {
                     w.write_all(cols.get(x.num).as_bytes())?;
                 }
             }
-        };
+        }
         Ok(())
     }
 
@@ -1417,7 +1415,7 @@ impl Writer {
                     x.write(w, line, &self.text)?;
                 }
             }
-        };
+        }
         w.write_all(b"\n")?;
         Ok(())
     }
@@ -1430,7 +1428,7 @@ pub struct NamedCol {
     pub name: String,
     /// the columnn number, either as originally set or after lookup
     pub num: usize,
-    /// if non-zero, input was "+2" so num should be calculated as (num_cols - from_end)
+    /// if non-zero, input was "+2" so num should be calculated as (`num_cols` - `from_end`)
     pub from_end: usize,
 }
 
@@ -1587,6 +1585,7 @@ impl CompositeColumn {
     }
     /// configure from spec
     pub fn set(&mut self, spec: &str) -> Result<()> {
+        const TAG: char = '^';
         let name = spec.split_once(':');
         if name.is_none() {
             return err!("Composite Column Spec must start with ColName: : {}", spec);
@@ -1596,7 +1595,6 @@ impl CompositeColumn {
         let mut curr = name.1;
         self.suffix.clear();
         self.parts.clear();
-        const TAG: char = '^';
         while !curr.is_empty() {
             let ch = curr.take_first();
             if ch == TAG {

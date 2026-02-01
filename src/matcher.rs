@@ -34,7 +34,6 @@ use crate::comp::{Comp, CompMaker};
 use crate::num;
 use crate::prelude::*;
 use crate::util::{self, CheckBuff, CompareOp};
-use lazy_static::lazy_static;
 use memchr::memmem::find;
 use regex::Regex;
 use std::collections::HashSet;
@@ -159,10 +158,10 @@ impl Thresh {
     }
     /// new Frac
     pub fn new_frac(c: f64) -> Result<Self> {
-        if !(0.0..=1.0).contains(&c) {
-            err!("Value {c} must be between 0 and 1 inclusive")
-        } else {
+        if (0.0..=1.0).contains(&c) {
             Ok(Self::Frac(c))
+        } else {
+            err!("Value {c} must be between 0 and 1 inclusive")
         }
     }
     /// we've seen this many, with more to come. Are we done yet?
@@ -170,7 +169,7 @@ impl Thresh {
     pub const fn at_most_mid(&self, n: usize) -> Tri {
         match self {
             Self::Count(c) => Tri::no_if(n > *c),
-            _ => Tri::Maybe,
+            Self::Frac(_) => Tri::Maybe,
         }
     }
     /// we've seen this many, with more to come. Are we done yet?
@@ -178,7 +177,7 @@ impl Thresh {
     pub const fn at_least_mid(&self, n: usize) -> Tri {
         match self {
             Self::Count(c) => Tri::yes_if(n >= *c),
-            _ => Tri::Maybe,
+            Self::Frac(_) => Tri::Maybe,
         }
     }
     /// we've seen this many, is that a match?
@@ -208,8 +207,7 @@ impl Thresh {
 }
 
 /// Given some YES's and some NO's, do we match?
-#[derive(Copy, Clone, Debug, PartialEq)]
-#[derive(Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
 pub enum Determiner {
     /// no occurrences of NO
     All,
@@ -536,11 +534,11 @@ impl InfixMatch {
     }
 }
 impl Match for InfixMatch {
-    fn smatch(&self, haystack: &str) -> bool {
-        find(haystack.as_bytes(), self.needle.as_bytes()).is_some()
+    fn smatch(&self, buff: &str) -> bool {
+        find(buff.as_bytes(), self.needle.as_bytes()).is_some()
     }
-    fn umatch(&self, haystack: &[u8]) -> bool {
-        find(haystack, self.needle.as_bytes()).is_some()
+    fn umatch(&self, buff: &[u8]) -> bool {
+        find(buff, self.needle.as_bytes()).is_some()
     }
     fn show(&self) -> String {
         format!("Substring Match of {}", self.needle)
@@ -743,11 +741,11 @@ struct ExactMatchC {
 }
 
 impl ExactMatchC {
-    fn new(data: &str) -> Result<Self> {
-        Ok(Self {
+    fn new(data: &str) -> Self {
+        Self {
             s_data: data.new_lower(),
             u_data: data.as_bytes().new_lower(),
-        })
+        }
     }
 }
 impl Match for ExactMatchC {
@@ -860,8 +858,7 @@ impl Match for LengthMatch {
 }
 
 /// Mode for combining parts of a multi-match
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-#[derive(Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default)]
 pub enum Combiner {
     /// matches if any match
     Or,
@@ -877,7 +874,6 @@ impl fmt::Display for Combiner {
         }
     }
 }
-
 
 // single column (title,foo), whole line (,foo) or column set with determiner
 // [this-that],foo or [all,this-that],foo
@@ -1471,6 +1467,8 @@ impl Match for MatcherList {
 
 /// Match a pattern against a target, i.e. a Match with some context.
 #[derive(Debug)]
+#[allow(clippy::struct_field_names)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Matcher {
     /// general type, e.g. "regex"
     ctype: String,
@@ -1590,7 +1588,7 @@ impl Matcher {
 type MakerBox = Box<dyn Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send>;
 /// A named constructor for a [Match], used by [`MatchMaker`]
 struct MatchMakerItem {
-    /// matched against Matcher::ctype
+    /// matched against `Matcher::ctype`
     tag: &'static str,
     /// what this matcher does
     help: &'static str,
@@ -1605,13 +1603,10 @@ struct MatchMakerAlias {
 
 static MATCH_MAKER: Mutex<Vec<MatchMakerItem>> = Mutex::new(Vec::new());
 static MATCH_ALIAS: Mutex<Vec<MatchMakerAlias>> = Mutex::new(Vec::new());
-lazy_static! {
-    static ref MODIFIERS: Vec<&'static str> =
-        vec!["utf8", "not", "trim", "null", "case", "and", "or"];
-}
+const MODIFIERS: &[&str] = &["utf8", "not", "trim", "null", "case", "and", "or"];
 
 /// Makes a [Matcher]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
 pub struct MatchMaker {}
 
 impl MatchMaker {
@@ -1682,7 +1677,7 @@ impl MatchMaker {
             "Does the target exactly match the pattern",
             |m, p| {
                 Ok(if m.case == Case::Insens {
-                    Box::new(ExactMatchC::new(p)?)
+                    Box::new(ExactMatchC::new(p))
                 } else {
                     Box::new(ExactMatch::new(p))
                 })
@@ -1895,18 +1890,18 @@ impl MatchMaker {
     /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
     pub fn make_line3(cols: &str, method: &str, pattern: &str) -> Result<Box<dyn LineMatch>> {
         if method == "expr" {
-            if !cols.is_empty() {
-                err!("'expr' matcher spec only works on whole lines")
-            } else {
+            if cols.is_empty() {
                 Ok(Box::new(ExprMatcher::new(pattern)?))
+            } else {
+                err!("'expr' matcher spec only works on whole lines")
             }
         } else if method == "comp" {
             Ok(Box::new(CompMatcher::new(cols, pattern)?))
         } else if method == "count" {
-            if !cols.is_empty() {
-                err!("'count' matcher spec only works on whole lines")
-            } else {
+            if cols.is_empty() {
                 Ok(Box::new(CountMatcher::new(pattern)?))
+            } else {
+                err!("'count' matcher spec only works on whole lines")
             }
         } else if cols.is_empty() {
             Ok(Box::new(WholeMatcher::new(method, pattern)?))

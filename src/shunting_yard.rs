@@ -130,7 +130,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
             Var(_) | Number(_) => n_operands += 1,
             Unary(_) => (),
             Binary(_) => n_operands -= 1,
-            Func(_, Some(n_args)) => n_operands -= n_args as isize - 1,
+            Func(_, Some(n_args)) => n_operands -= n_args.cast_signed() - 1,
             _ => panic!("Nothing else should be here"),
         }
         if n_operands <= 0 {
@@ -149,7 +149,6 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tok2::UnaryOp;
 
     #[test]
     fn test_to_rpn() {

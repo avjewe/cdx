@@ -51,7 +51,7 @@ pub(crate) enum Token {
 impl Token {
     fn make_func(&mut self) -> bool {
         if let Self::Var(s) = self {
-            *self = Self::Func((*s).to_string(), None);
+            *self = Self::Func((*s).clone(), None);
             true
         } else {
             false
@@ -87,13 +87,13 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
         };
         match ch {
             '(' => {
-                if !res.is_empty() {
+                if res.is_empty() {
+                    res.push(Token::LParen);
+                } else {
                     let last = res.len() - 1;
                     if !res[last].make_func() {
                         res.push(Token::LParen);
                     }
-                } else {
-                    res.push(Token::LParen);
                 }
             }
             ')' => res.push(Token::RParen),

@@ -272,13 +272,11 @@ impl Counter for Swords {
         let mut ret = 0;
         if self.utf8 {
             for x in String::from_utf8_lossy(data).chars() {
-                if !x.is_whitespace() {
-                    if saw_space {
-                        ret += 1;
-                        saw_space = false;
-                    }
-                } else {
+                if x.is_whitespace() {
                     saw_space = true;
+                } else if saw_space {
+                    ret += 1;
+                    saw_space = false;
                 }
             }
         } else {
@@ -349,7 +347,6 @@ pub enum AggType {
     Append(String),
 }
 
-
 /// An Agg with a source column and an output designation
 #[derive(Clone, Debug)]
 struct AggCol {
@@ -414,8 +411,7 @@ impl ColumnFun for LineAgger {
     fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
         match &self.out {
             AggType::Replace => w.push(self.agg.borrow().replace(head)),
-            AggType::Prefix(s) => w.push(s),
-            AggType::Append(s) => w.push(s),
+            AggType::Prefix(s) | AggType::Append(s) => w.push(s),
         }
     }
     /// write the column values (called many times)
@@ -811,6 +807,7 @@ impl Agg for Merge {
             });
         }
         if self.do_count {
+            #[allow(clippy::cast_precision_loss)]
             fmt.print(self.data.parts().len() as f64, w)?;
         } else {
             let mut num_written = 0;
@@ -956,12 +953,14 @@ impl ASum {
 }
 
 impl Agg for ASum {
+    #[allow(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val += self.cnt.counter(data);
     }
+    #[allow(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -985,12 +984,14 @@ impl AMin {
 }
 
 impl Agg for AMin {
+    #[allow(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::min(self.val, self.cnt.counter(data));
     }
+    #[allow(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -1014,12 +1015,14 @@ impl AMax {
 }
 
 impl Agg for AMax {
+    #[allow(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::max(self.val, self.cnt.counter(data));
     }
+    #[allow(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -1045,6 +1048,7 @@ impl AMean {
 }
 
 impl Agg for AMean {
+    #[allow(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         if self.num > 0 {
             self.val as f64 / self.num as f64
@@ -1056,6 +1060,7 @@ impl Agg for AMean {
         self.val += self.cnt.counter(data);
         self.num += 1;
     }
+    #[allow(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -1222,6 +1227,7 @@ impl Count {
 }
 
 impl Agg for Count {
+    #[allow(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }
@@ -1266,10 +1272,10 @@ struct AggMakerAlias {
 static COUNTER_MAKER: Mutex<Vec<CounterMakerItem>> = Mutex::new(Vec::new());
 static AGG_MAKER: Mutex<Vec<AggMakerItem>> = Mutex::new(Vec::new());
 static AGG_ALIAS: Mutex<Vec<AggMakerAlias>> = Mutex::new(Vec::new());
-static MODIFIERS: Vec<&'static str> = vec![];
+const MODIFIERS: Vec<&'static str> = vec![];
 
 /// Makes an [Agg] or a [Counter]
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
 pub struct AggMaker {}
 
 impl AggMaker {

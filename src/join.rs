@@ -6,13 +6,12 @@ use crate::prelude::*;
 use crate::util::Outfile;
 
 /// How to search and combine input files
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum JoinType {
     /// All files sorted. Files 2-N never have repeated keys
     #[default]
     Quick,
-    /// All files sorted. Files 2-N may have repeated keys up to "limit", giving NxM output lines
+    /// All files sorted. Files 2-N may have repeated keys up to "limit", giving `NxM` output lines
     Full,
     /// All files sorted. Files 2-N never have repeated keys.
     /// One output line per unique key from any file
@@ -26,13 +25,12 @@ pub enum JoinType {
     Hash,
 }
 
-
 /// An output file name, matched to an input file number
 #[derive(Debug, Clone, Default)]
 pub struct NoMatch {
     /// zero-based file number, i.e. index into infiles
     pub file_num: usize,
-    /// file name, should be OsString
+    /// file name, should be `OsString`
     pub file_name: String,
 }
 
@@ -84,7 +82,7 @@ pub struct JoinConfig {
     pub skip_check: bool,
     /// output delimiter, default tab
     pub out_delim: u8,
-    /// lookback limit for JoinType::Full. Default 100.
+    /// lookback limit for `JoinType::Full`. Default 100.
     pub lookback_limit: u32,
     /// Comparator - default is "1", that is first column plain comparison
     pub keys: Vec<String>,

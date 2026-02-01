@@ -14,9 +14,8 @@ keywords = ["cli", "terminal", "text", "sort", "join"]
 
 [dependencies]
 regex = "1"
-lazy_static = "1" 
 flate2 = "1"
-fs-err = "2"
+fs-err = "3"
 libm = "0"
 memchr = "2"
 clap = "3"
@@ -24,13 +23,14 @@ tempfile = "3"
 memmap2 = "0"
 libc = "0"
 unicode-width = "0"
-unicode-truncate = "1"
+unicode-truncate = "2"
 rand = "0"
 rand_distr = "0"
 fastrand = "2"
 
-aws-config = "1"
-aws-sdk-s3 = "1"
+aws-sdk-s3 = { version = "1", optional = true }
+aws-config = { version = "1", optional = true }
+
 tokio = { version = "1", features = ["full"] }
 bytes = "1"
 base64 = "0" # TODO make this "0"
@@ -39,3 +39,6 @@ anyhow = "1"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
+
+[features]
+s3 = ["aws-config", "aws-sdk-s3"]

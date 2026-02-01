@@ -6,8 +6,7 @@ use crate::prelude::*;
 use std::ops::Range;
 
 /// Case Sensitive or not
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum Case {
     /// Case Sensitive
     #[default]
@@ -99,14 +98,14 @@ pub trait Text {
     /// `to_usize`, but fail if any text remains
     fn to_usize_whole(&self, spec: &[u8], what: &str) -> Result<usize> {
         let (val, rest) = self.to_usize();
-        if !rest.is_empty() {
+        if rest.is_empty() {
+            Ok(val)
+        } else {
             err!(
                 "Malformed unsigned integer '{}' trying to make '{what}' from '{}'",
                 self.to_str(),
                 String::from_utf8_lossy(spec)
             )
-        } else {
-            Ok(val)
         }
     }
     /// `bytes_to_d`, returning junk value as appropriate
@@ -115,10 +114,10 @@ pub trait Text {
         match junk.junk_type {
             JunkType::Any => val,
             JunkType::Trailing => {
-                if self.len() != rest.len() {
-                    val
-                } else {
+                if self.len() == rest.len() {
                     junk.val()
+                } else {
+                    val
                 }
             }
             JunkType::None => {
@@ -139,14 +138,14 @@ pub trait Text {
     /// `to_isize`, but fail if any text remains
     fn to_isize_whole(&self, spec: &[u8], what: &str) -> Result<isize> {
         let (val, rest) = self.to_isize();
-        if !rest.is_empty() {
+        if rest.is_empty() {
+            Ok(val)
+        } else {
             err!(
                 "Malformed signed integer '{}' trying to make '{what}' from '{}'",
                 self.to_str(),
                 String::from_utf8_lossy(spec)
             )
-        } else {
-            Ok(val)
         }
     }
     /// `bytes_to_d`, returning junk value as appropriate
@@ -155,10 +154,10 @@ pub trait Text {
         match junk.junk_type {
             JunkType::Any => val,
             JunkType::Trailing => {
-                if self.len() != rest.len() {
-                    val
-                } else {
+                if self.len() == rest.len() {
                     junk.val()
+                } else {
+                    val
                 }
             }
             JunkType::None => {
@@ -179,14 +178,14 @@ pub trait Text {
     /// `to_f64`, but fail if any text remains
     fn to_f64_whole(&self, spec: &[u8], what: &str) -> Result<f64> {
         let (val, rest) = self.to_f64();
-        if !rest.is_empty() {
+        if rest.is_empty() {
+            Ok(val)
+        } else {
             err!(
                 "Malformed float '{}' trying to make '{what}' from '{}'",
                 self.to_str(),
                 String::from_utf8_lossy(spec)
             )
-        } else {
-            Ok(val)
         }
     }
     /// `bytes_to_d`, returning junk value as appropriate
@@ -195,10 +194,10 @@ pub trait Text {
         match junk.junk_type {
             JunkType::Any => val,
             JunkType::Trailing => {
-                if self.len() != rest.len() {
-                    val
-                } else {
+                if self.len() == rest.len() {
                     junk.val()
+                } else {
+                    val
                 }
             }
             JunkType::None => {
@@ -469,10 +468,12 @@ impl Text for str {
     }
 }
 
+#[allow(clippy::missing_asserts_for_indexing)] // false positive
 const fn is_exp(buf: &[u8]) -> bool {
     if buf.len() < 2 {
         return false;
     }
+    assert!(buf.len() > 1);
     if buf[0] != b'e' && buf[0] != b'E' {
         return false;
     }
@@ -485,6 +486,7 @@ const fn is_exp(buf: &[u8]) -> bool {
     if buf.len() < 3 {
         return false;
     }
+    assert!(buf.len() > 2);
     buf[2].is_ascii_digit()
 }
 
@@ -516,9 +518,8 @@ impl Text for [u8] {
     }
 
     fn trimw(&self) -> &Self {
-        let from = match self.iter().position(|x| *x > b' ') {
-            Some(i) => i,
-            None => return &self[0..0],
+        let Some(from) = self.iter().position(|x| *x > b' ') else {
+            return &self[0..0];
         };
         let to = self.iter().rposition(|x| *x > b' ').unwrap();
         &self[from..=to]
@@ -663,7 +664,7 @@ impl Text for [u8] {
         if !curr.is_empty() {
             if let Some(mul) = suffix_valu(curr[0]) {
                 curr = &curr[1..];
-                ret *= mul as isize;
+                ret *= mul.cast_signed();
             }
         }
         ret *= neg;

@@ -1,12 +1,10 @@
 //! Misc utility stuff
 //#![allow(dead_code)]
-use crate::column::ColumnHeader;
 use crate::comp::{CompMaker, Compare};
 use crate::prelude::*;
 use anyhow;
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
-use lazy_static::lazy_static;
 use regex::Regex;
 use std::cmp;
 use std::error;
@@ -14,6 +12,7 @@ use std::fmt::Write as _;
 use std::io;
 use std::ops::{Deref, DerefMut};
 use std::str;
+use std::sync::LazyLock;
 // use tokio_stream::StreamExt;
 
 /// Shorthand for returning an error Result
@@ -338,9 +337,9 @@ impl TextFileMode {
         })
     }
 
-    /// print the help for TextFileMode
+    /// print the help for `TextFileMode`
     pub fn text_help() {
-        println!("{}", TEXT_HELP_STRING);
+        println!("{TEXT_HELP_STRING}");
     }
 
     /// write a column value, properly escaped
@@ -660,10 +659,9 @@ pub fn split_quotes(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, 
                     tmp.push(*ch);
                     end += 1;
                     continue;
-                } else {
-                    in_quote = false;
-                    // not continue
                 }
+                in_quote = false;
+                // not continue
             } else if *ch == b'"' {
                 last_was_quote = true;
                 continue;
@@ -721,8 +719,8 @@ pub struct StringLine {
     pub line: String,
     /// the individual columns
     pub parts: Vec<FakeSlice>,
-    // the original input line, if any decoding was necessary
-    pub(crate) orig: String,
+    /// the original input line, if any decoding was necessary
+    pub orig: String,
 }
 
 impl fmt::Display for TextLine {
@@ -745,15 +743,15 @@ impl fmt::Display for StringLine {
 
 impl std::ops::Index<usize> for TextLine {
     type Output = [u8];
-    fn index(&self, pos: usize) -> &Self::Output {
-        self.get(pos)
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index)
     }
 }
 
 impl std::ops::Index<usize> for StringLine {
     type Output = str;
-    fn index(&self, pos: usize) -> &Self::Output {
-        self.get(pos)
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index)
     }
 }
 
@@ -1025,6 +1023,7 @@ impl<'a> Iterator for StringLineIter<'a> {
     }
 }
 
+#[cfg(feature = "s3")]
 struct S3Reader {
     //    name : String,
     rt: tokio::runtime::Runtime,
@@ -1032,6 +1031,7 @@ struct S3Reader {
     f: aws_sdk_s3::operation::get_object::GetObjectOutput,
     left: Option<bytes::Bytes>,
 }
+#[cfg(feature = "s3")]
 impl S3Reader {
     fn new(bucket: &str, key: &str) -> Result<Self> {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -1061,6 +1061,8 @@ impl S3Reader {
         }
     }
 }
+
+#[cfg(feature = "s3")]
 impl Read for S3Reader {
     fn read(&mut self, buf: &mut [u8]) -> std::result::Result<usize, io::Error> {
         if let Some(bytes) = &self.left {
@@ -1238,6 +1240,19 @@ fn unescape_vec(data: &[u8]) -> Vec<u8> {
     ret
 }
 
+#[cfg(feature = "s3")]
+fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
+    Ok(Box::new(S3Reader::new_path(name)?))
+}
+#[cfg(not(feature = "s3"))]
+fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
+    err!("S3 feature not enabled, cannot read '{}'", name)
+}
+
+#[cfg(feature = "s3")]
+fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
+    Ok(Box::new(S3Reader::new_path(name)?))
+}
 /// Make an Infile from a file name
 pub fn get_reader(name: &str) -> Result<Infile> {
     let inner: Box<dyn Read> = {
@@ -1245,7 +1260,7 @@ pub fn get_reader(name: &str) -> Result<Infile> {
             //	    unsafe { Box::new(std::fs::File::from_raw_fd(1)) }
             Box::new(io::stdin())
         } else if name.starts_with("s3://") {
-            Box::new(S3Reader::new_path(name)?)
+            new_s3_reader(name)?
         } else if let Some(stripped) = name.strip_prefix("<<") {
             Box::new(io::Cursor::new(unescape_vec(stripped.as_bytes())))
         } else {
@@ -1294,6 +1309,7 @@ pub fn make_header(line: &[u8]) -> StringLine {
 // if CDX and specified and different, then strip header
 /// Reader header line, if any, and first line of text
 impl InfileContext {
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     const fn new(text_in: &TextFileMode) -> Self {
         Self {
             header: StringLine::new(),
@@ -1826,8 +1842,7 @@ pub fn sglob(mut wild: &str, mut buff: &str, ic: bool) -> bool {
 }
 */
 /// How to combine headers from multiple sources
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum HeaderMode {
     /// First can be anything, others must match
     #[default]
@@ -1868,16 +1883,15 @@ impl FromStr for HeaderMode {
     }
 }
 
-
 /// Object to enforce `HeaderMode`
 #[derive(Debug, Default, Clone)]
 pub struct HeaderChecker {
     /// the mode to enforce
     pub mode: HeaderMode,
     /// the first header seen
-    head: Vec<u8>,
+    pub head: Vec<u8>,
     /// true after first header has been processed
-    saw_one: bool,
+    pub saw_one: bool,
 }
 
 /// Is this line a CDX header?
@@ -2034,8 +2048,7 @@ pub fn copy(mut r: impl Read, mut w: impl Write) -> Result<()> {
 }
 
 /// comparison
-#[derive(Debug, Copy, Clone)]
-#[derive(Default)]
+#[derive(Debug, Copy, Clone, Default)]
 pub enum CompareOp {
     /// less than
     #[default]
@@ -2109,15 +2122,15 @@ impl CompareOp {
         comp: &mut LineCompList,
         line_num: usize,
     ) -> bool {
-        if !self.invert().line_ok(line, comp) {
+        if self.invert().line_ok(line, comp) {
+            true
+        } else {
             eprint!("Line {line_num} : ");
             prerr_n(&[&line.line]);
             eprint!("should have been {self:?} ");
             prerr_n(&[comp.get_value()]);
             eprintln!(" but wasn't");
             false
-        } else {
-            true
         }
     }
     /// return (line OP value)
@@ -2150,14 +2163,16 @@ struct RangeSpec<'a> {
 
 impl<'a> RangeSpec<'a> {
     fn new(spec: &'a str) -> Result<Self> {
-        lazy_static! {
-            static ref RE1: Regex =
-                Regex::new("^(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap();
-            static ref RE2: Regex = Regex::new("^(<|>|<=|>=|==|!=)(.+)$").unwrap();
-            static ref RE3: Regex =
-                Regex::new("^(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
-            static ref RE4: Regex = Regex::new("^(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
-        }
+        static RE1: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("^(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap()
+        });
+        static RE2: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("^(<|>|<=|>=|==|!=)(.+)$").unwrap());
+        static RE3: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("^(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
+        });
+        static RE4: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("^(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
         if let Some(caps) = RE1.captures(spec) {
             Ok(Self {
                 op1: caps.get(1).unwrap().as_str(),
@@ -2191,14 +2206,17 @@ impl<'a> RangeSpec<'a> {
         }
     }
     fn new_trail(spec: &'a str) -> Result<(Self, usize)> {
-        lazy_static! {
-            static ref RE1: Regex =
-                Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)([^=].*)$").unwrap();
-            static ref RE2: Regex = Regex::new("(^|,)(<|>|<=|>=|==|!=)([^=].*)$").unwrap();
-            static ref RE3: Regex =
-                Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
-            static ref RE4: Regex = Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap();
-        }
+        static RE1: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)([^=].*)$").unwrap()
+        });
+        static RE2: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("(^|,)(<|>|<=|>=|==|!=)([^=].*)$").unwrap());
+        static RE3: LazyLock<Regex> = LazyLock::new(|| {
+                Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
+        });
+        static RE4: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
+        });
         if let Some(caps) = RE1.captures(spec) {
             Ok((
                 Self {
@@ -2409,9 +2427,8 @@ pub fn chomp(mut x: &[u8]) -> &[u8] {
         let len = x.len() - 1;
         if x[len] != b'\n' && x[len] != b'\r' {
             break;
-        } else {
-            x = &x[..len];
         }
+        x = &x[..len];
     }
     x
 }

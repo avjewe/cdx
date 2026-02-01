@@ -118,9 +118,8 @@ fn grab(
                     *need_read = false;
                 }
                 break;
-            } else {
-                buff.extend(&*line);
             }
+            buff.extend(&*line);
         }
         Ok(true)
     } else {
@@ -310,17 +309,14 @@ impl Test {
             nuke(&mut files, &x.name, &tmp, keep_files)?;
         }
         let mut failed = false;
-        match output.status.code() {
-            Some(code) => {
-                if code != self.code {
-                    failed = true;
-                    eprintln!("Exited with status code: {} instead of {}", code, self.code);
-                }
-            }
-            None => {
+        if let Some(code) = output.status.code() {
+            if code != self.code {
                 failed = true;
-                eprintln!("Process terminated by signal");
+                eprintln!("Exited with status code: {} instead of {}", code, self.code);
             }
+        } else {
+            failed = true;
+            eprintln!("Process terminated by signal");
         }
         //	eprintln!("Got input {} {} {}", self.code, self.stdout.len(), self.stderr.len());
         //	eprintln!("Got output {} {} {}", output.status.code().unwrap(), output.stdout.len(), output.stderr.len());

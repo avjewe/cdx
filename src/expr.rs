@@ -1,16 +1,14 @@
 //! Floating Point expressions
-#![allow(clippy::float_cmp)]
 
 use crate::column::get_col;
 use crate::prelude::*;
 use crate::shunting_yard::to_rpn;
 use crate::tok2::{tokenize, BinaryOp, Token, UnaryOp};
 use crate::util::find_close;
-use lazy_static::lazy_static;
-use libm;
 use regex::Regex;
 use std::f64::consts;
 use std::fmt::Write;
+use std::sync::LazyLock;
 
 /// evaluate a constant arithmetic expression
 pub fn calc(expr: &str) -> Result<f64> {
@@ -288,6 +286,7 @@ impl VarMap {
 
 #[derive(Default, Debug)]
 /// A floating point expression
+#[allow(clippy::struct_field_names)]
 pub struct Expr {
     expr_str: String,
     expr: Vec<Node>,
@@ -311,6 +310,8 @@ fn apply_unary(op: UnaryOp, x: f64) -> f64 {
     }
 }
 
+#[allow(clippy::missing_asserts_for_indexing)]
+#[allow(clippy::cast_precision_loss)]
 fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
     use FuncOp::{
         Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh,
@@ -404,10 +405,10 @@ fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
             v / (args.len() as f64)
         }
         If => {
-            if args[0] != 0.0 {
-                args[1]
-            } else {
+            if args[0] == 0.0 {
                 args[2]
+            } else {
+                args[1]
             }
         }
     }
@@ -482,15 +483,18 @@ impl Expr {
         let start_vars = self.vars.len();
         self.parse(&n)?;
         'outer: for y in self.vars.iter_mut().skip(start_vars) {
+            static CN: LazyLock<Regex> = LazyLock::new(|| {
+                Regex::new("^c([0-9]+)$").unwrap()
+            });
             for (i, x) in fieldnames.iter().enumerate() {
                 if *x == y.name {
                     y.col = Some(i);
                     continue 'outer;
                 }
             }
-            lazy_static! {
-                static ref CN: Regex = Regex::new("^c([0-9]+)$").unwrap();
-            }
+            // lazy_static! {
+            //     static ref CN: Regex = Regex::new("^c([0-9]+)$").unwrap();
+            // }
             if let Some(cn) = CN.captures(&y.name) {
                 y.col = Some(cn.get(1).unwrap().as_str().to_usize_whole(b"", "").unwrap() - 1);
                 continue;
@@ -561,7 +565,7 @@ impl Expr {
                         e.push(Node::Value(con));
                     } else {
                         e.push(Node::Var(self.find_var(name)));
-                    };
+                    }
                 }
                 Token::Func(name, num) => {
                     if let Some(n) = num {
