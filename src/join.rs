@@ -118,7 +118,12 @@ impl JoinConfig {
     /// create new `JoinConfig`. Note that derived 'default' is sub-optimal
     #[must_use]
     pub fn new() -> Self {
-        Self { match_out: "-".to_string(), out_delim: b'\t', lookback_limit: 100, ..Self::default() }
+        Self {
+            match_out: "-".to_string(),
+            out_delim: b'\t',
+            lookback_limit: 100,
+            ..Self::default()
+        }
     }
     /// perform the join
     pub fn join(&self) -> Result<()> {
@@ -199,7 +204,11 @@ impl Joiner {
             for x in &config.col_specs {
                 let mut x = x.clone();
                 if x.file >= self.r.len() {
-                    return err!("{} input files, but file {} referred to as an output column", self.r.len(), x.file);
+                    return err!(
+                        "{} input files, but file {} referred to as an output column",
+                        self.r.len(),
+                        x.file
+                    );
                 }
                 x.cols.lookup(&self.r[x.file].names())?;
                 for y in x.cols.get_cols() {
@@ -219,7 +228,11 @@ impl Joiner {
             }
             self.yes_match.0.write_all(b"\n")?;
         }
-        if config.jtype == JoinType::Quick { self.join_quick(config) } else { err!("Only quick supported") }
+        if config.jtype == JoinType::Quick {
+            self.join_quick(config)
+        } else {
+            err!("Only quick supported")
+        }
     }
     fn join_quick(&mut self, config: &JoinConfig) -> Result<()> {
         if !self.r[0].is_done() && !self.r[1].is_done() {

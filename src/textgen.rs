@@ -61,7 +61,12 @@ impl Gen for DecimalGen {
         if post == 0 {
             write!(w, "{sign}{}", fastrand::usize(..self.pre))?;
         } else {
-            write!(w, "{sign}{}.{:0post$}", fastrand::usize(..self.pre), fastrand::usize(..self.post))?;
+            write!(
+                w,
+                "{sign}{}.{:0post$}",
+                fastrand::usize(..self.pre),
+                fastrand::usize(..self.post)
+            )?;
         }
         Ok(())
     }
@@ -108,7 +113,9 @@ impl NormalDistGen {
                     1 => dev = x.to_f64_whole(spec.as_bytes(), "normal distribution")?,
                     2 => fmt = NumFormat::new(x)?,
                     _ => {
-                        return err!("Normal Dist Spec must be no more than three comma delimited pieces");
+                        return err!(
+                            "Normal Dist Spec must be no more than three comma delimited pieces"
+                        );
                     }
                 }
             }
@@ -143,7 +150,13 @@ struct CountGen {
 }
 impl CountGen {
     fn new(spec: &str) -> Result<Self> {
-        Ok(Self { start: if spec.is_empty() { 0 } else { spec.to_isize_whole(spec.as_bytes(), "count generator")? } })
+        Ok(Self {
+            start: if spec.is_empty() {
+                0
+            } else {
+                spec.to_isize_whole(spec.as_bytes(), "count generator")?
+            },
+        })
     }
 }
 impl Gen for CountGen {
@@ -255,11 +268,19 @@ impl GenMaker {
         }
         Self::do_add_alias("min", "minimum")?;
         Self::do_push("null", "Produce empty column value", |_p| Ok(Box::new(NullGen {})))?;
-        Self::do_push("expr", "'fmt,expr' e.g. plain,line*col OR just 'expr'", |p| Ok(Box::new(ExprGen::new(p)?)))?;
-        Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| Ok(Box::new(NormalDistGen::new(p)?)))?;
-        Self::do_push("decimal", "Decimal number. Pattern is [-]NNN[.NNN]", |p| Ok(Box::new(DecimalGen::new(p))))?;
+        Self::do_push("expr", "'fmt,expr' e.g. plain,line*col OR just 'expr'", |p| {
+            Ok(Box::new(ExprGen::new(p)?))
+        })?;
+        Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
+            Ok(Box::new(NormalDistGen::new(p)?))
+        })?;
+        Self::do_push("decimal", "Decimal number. Pattern is [-]NNN[.NNN]", |p| {
+            Ok(Box::new(DecimalGen::new(p)))
+        })?;
         Self::do_push("grid", "Produce line_col", |_p| Ok(Box::new(GridGen {})))?;
-        Self::do_push("count", "Count up from starting place", |p| Ok(Box::new(CountGen::new(p)?)))?;
+        Self::do_push("count", "Count up from starting place", |p| {
+            Ok(Box::new(CountGen::new(p)?))
+        })?;
         Ok(())
     }
     /// Add a new Gen. If an Gen already exists by that name, replace it.
@@ -286,7 +307,9 @@ impl GenMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = GenMakerAlias { old_name, new_name };
         let mut mm = GEN_ALIAS.lock().unwrap();
@@ -352,6 +375,10 @@ impl GenMaker {
     }
     /// Create an Gen from a full spec, i.e. "Gen,Pattern"
     pub fn make(spec: &str) -> Result<TextGen> {
-        if let Some((a, b)) = spec.split_once(',') { Self::make2(a, b, spec) } else { Self::make2(spec, "", spec) }
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::make2(a, b, spec)
+        } else {
+            Self::make2(spec, "", spec)
+        }
     }
 }

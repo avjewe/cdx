@@ -85,7 +85,13 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if f.is_done() {
             continue;
         }
-        if first.is_some() && !first.as_ref().unwrap().line_ok_verbose(f.curr_line(), &mut comp, f.line_number())? {
+        if first.is_some()
+            && !first.as_ref().unwrap().line_ok_verbose(
+                f.curr_line(),
+                &mut comp,
+                f.line_number(),
+            )?
+        {
             fails += 1;
         }
         let num_cols = f.names().len();
@@ -105,7 +111,11 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
             if f.getline()? {
                 if last.is_some()
-                    && !last.as_ref().unwrap().line_ok_verbose(f.prev_line(1), &mut comp, f.line_number() - 1)?
+                    && !last.as_ref().unwrap().line_ok_verbose(
+                        f.prev_line(1),
+                        &mut comp,
+                        f.line_number() - 1,
+                    )?
                 {
                     fails += 1;
                 }

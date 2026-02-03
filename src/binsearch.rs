@@ -208,7 +208,10 @@ mod tests {
         assert_eq!(lower_bound(b"aaa\nbbb", &mut comp), b"bbb");
         assert_eq!(lower_bound(b"aaa\nccc", &mut comp), b"");
 
-        assert_eq!(lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), b"bbb\t1\n");
+        assert_eq!(
+            lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp),
+            b"bbb\t1\n"
+        );
         assert_eq!(lower_bound(b"bbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), b"bbb\t1\n");
         assert_eq!(lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4", &mut comp), b"bbb\t1\n");
     }
@@ -226,7 +229,10 @@ mod tests {
         assert_eq!(equal_range(b"aaa\nccc\n", &mut comp), b"");
 
         assert_eq!(upper_bound_n(b"aaa\nccc\n", &mut comp), 4);
-        assert_eq!(lower_bound_n(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), (4, 10));
+        assert_eq!(
+            lower_bound_n(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp),
+            (4, 10)
+        );
         assert_eq!(upper_bound_n(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), 28);
 
         assert_eq!(lower_bound(b"\n\naaa\nbbb\nccc", &mut comp), b"bbb\n");

@@ -84,7 +84,12 @@ pub trait Match {
     fn verbose_umatch(&self, buff: &[u8], negate: bool) -> bool {
         let res = self.umatch(buff);
         if res != negate {
-            eprintln!("Failed to {}match {} against {}", not_str(negate), String::from_utf8_lossy(buff), self.show());
+            eprintln!(
+                "Failed to {}match {} against {}",
+                not_str(negate),
+                String::from_utf8_lossy(buff),
+                self.show()
+            );
         }
         res
     }
@@ -141,7 +146,11 @@ impl Thresh {
     }
     /// new Frac
     pub fn new_frac(c: f64) -> Result<Self> {
-        if (0.0..=1.0).contains(&c) { Ok(Self::Frac(c)) } else { err!("Value {c} must be between 0 and 1 inclusive") }
+        if (0.0..=1.0).contains(&c) {
+            Ok(Self::Frac(c))
+        } else {
+            err!("Value {c} must be between 0 and 1 inclusive")
+        }
     }
     /// we've seen this many, with more to come. Are we done yet?
     #[must_use]
@@ -250,7 +259,8 @@ impl Determiner {
     #[must_use]
     pub const fn match_mid(&self, yes: usize, no: usize) -> Tri {
         use Determiner::{
-            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform,
+            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll,
+            Some, Uniform,
         };
         match self {
             All => Tri::no_if(no > 0),
@@ -272,7 +282,8 @@ impl Determiner {
     #[must_use]
     pub fn match_final(&self, yes: usize, no: usize) -> bool {
         use Determiner::{
-            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll, Some, Uniform,
+            All, AtLeast, AtLeastNo, AtMost, AtMostNo, Exactly, ExactlyNo, Mixed, None, NotAll,
+            Some, Uniform,
         };
         let tot = yes + no;
         match self {
@@ -391,7 +402,8 @@ fn scase_suffix(haystack: &str, needle: &str) -> bool {
         return false;
     }
     let mut needle_it = needle.chars();
-    let mut haystack_it = haystack.chars().flat_map(char::to_lowercase).skip(haystack_len - needle_len);
+    let mut haystack_it =
+        haystack.chars().flat_map(char::to_lowercase).skip(haystack_len - needle_len);
 
     // at this monent, needle_it.chars().count() == haystack_it.chars().count()
     for _ in 0..needle_len {
@@ -514,8 +526,12 @@ struct RegexMatch {
 impl RegexMatch {
     fn new(data: &str, case: Case) -> Result<Self> {
         Ok(Self {
-            s_data: regex::RegexBuilder::new(data).case_insensitive(case == Case::Insens).build()?,
-            u_data: regex::bytes::RegexBuilder::new(data).case_insensitive(case == Case::Insens).build()?,
+            s_data: regex::RegexBuilder::new(data)
+                .case_insensitive(case == Case::Insens)
+                .build()?,
+            u_data: regex::bytes::RegexBuilder::new(data)
+                .case_insensitive(case == Case::Insens)
+                .build()?,
             pattern: data.to_string(),
         })
     }
@@ -832,11 +848,28 @@ impl ColGroup {
             let len = util::find_close(spec)?;
             let cols = &spec[1..len];
             let rest = &spec[(len + 1)..];
-            Ok((Self { col: ColumnSet::from_spec(cols)?, det: Determiner::default(), has_col: true }, rest))
+            Ok((
+                Self {
+                    col: ColumnSet::from_spec(cols)?,
+                    det: Determiner::default(),
+                    has_col: true,
+                },
+                rest,
+            ))
         } else if let Some((a, b)) = spec.split_once(',') {
-            Ok((Self { col: ColumnSet::from_spec(a)?, det: Determiner::default(), has_col: true }, b))
+            Ok((
+                Self { col: ColumnSet::from_spec(a)?, det: Determiner::default(), has_col: true },
+                b,
+            ))
         } else {
-            Ok((Self { col: ColumnSet::from_spec(spec)?, det: Determiner::default(), has_col: true }, ""))
+            Ok((
+                Self {
+                    col: ColumnSet::from_spec(spec)?,
+                    det: Determiner::default(),
+                    has_col: true,
+                },
+                "",
+            ))
         }
     }
 }
@@ -967,7 +1000,13 @@ impl LineMatch for CountMatcher {
     fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         let ret = self.ok(line);
         if !ret {
-            eprintln!("Line {} of {} had {} columns where {} were expected.", line_num, fname, line.len(), self.count);
+            eprintln!(
+                "Line {} of {} had {} columns where {} were expected.",
+                line_num,
+                fname,
+                line.len(),
+                self.count
+            );
         }
         ret
     }
@@ -1106,7 +1145,13 @@ impl LineMatcherList {
         }
     }
     /// `ok_verbose`, with supplied Combiner
-    pub fn ok_verbose_tagged(&mut self, line: &TextLine, multi: Combiner, line_num: usize, fname: &str) -> bool {
+    pub fn ok_verbose_tagged(
+        &mut self,
+        line: &TextLine,
+        multi: Combiner,
+        line_num: usize,
+        fname: &str,
+    ) -> bool {
         match multi {
             Combiner::And => self.ok_verbose_and(line, line_num, fname),
             Combiner::Or => self.ok_verbose_or(line, line_num, fname),
@@ -1421,7 +1466,11 @@ impl Matcher {
     }
     /// umatch or smatch, depending on self.string
     pub fn do_match(&self, buff: &[u8]) -> Result<bool> {
-        if self.string { Ok(self.smatch(std::str::from_utf8(buff)?)) } else { Ok(self.umatch(buff)) }
+        if self.string {
+            Ok(self.smatch(std::str::from_utf8(buff)?))
+        } else {
+            Ok(self.umatch(buff))
+        }
     }
 
     /// umatch or smatch, depending on self.string ;
@@ -1470,46 +1519,81 @@ impl MatchMaker {
         Self::do_add_alias("infix", "substring")?;
         Self::do_add_alias("file-exact", "fileexact")?;
         Self::do_push("prefix", "Is the pattern a prefix of the target?", |m, p| {
-            Ok(if m.case == Case::Insens { Box::new(PrefixMatchC::new(p)) } else { Box::new(PrefixMatch::new(p)) })
+            Ok(if m.case == Case::Insens {
+                Box::new(PrefixMatchC::new(p))
+            } else {
+                Box::new(PrefixMatch::new(p))
+            })
+        })?;
+        Self::do_push("solve", "Does the target match the given solver pattern?", |_m, p| {
+            Ok(Box::new(crate::solve::SolverMatch::new(p)?))
         })?;
         Self::do_push("float", "Valid floating point number", |_m, _p| {
             Ok(Box::new(RegexMatch::new("^[-]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?$", Case::Sens)?))
         })?;
-        Self::do_push("integer", "Valid integer", |_m, _p| Ok(Box::new(RegexMatch::new("^[-]?[0-9]+$", Case::Sens)?)))?;
-        Self::do_push("number", "Valid number, with optional decimal, e.g. 42 or 1.23", |_m, _p| {
-            Ok(Box::new(RegexMatch::new("^[-]?[0-9]+(\\.[0-9]+)?$", Case::Sens)?))
+        Self::do_push("integer", "Valid integer", |_m, _p| {
+            Ok(Box::new(RegexMatch::new("^[-]?[0-9]+$", Case::Sens)?))
         })?;
+        Self::do_push(
+            "number",
+            "Valid number, with optional decimal, e.g. 42 or 1.23",
+            |_m, _p| Ok(Box::new(RegexMatch::new("^[-]?[0-9]+(\\.[0-9]+)?$", Case::Sens)?)),
+        )?;
         Self::do_push("ip", "Valid IPv4 address", |_m, _p| {
             Ok(Box::new(RegexMatch::new(
                 "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
                 Case::Sens,
             )?))
         })?;
-        Self::do_push("regex", "Interpret the pattern as a regex, as per the eponymous crate", |m, p| {
-            Ok(Box::new(RegexMatch::new(p, m.case)?))
+        Self::do_push(
+            "regex",
+            "Interpret the pattern as a regex, as per the eponymous crate",
+            |m, p| Ok(Box::new(RegexMatch::new(p, m.case)?)),
+        )?;
+        Self::do_push("range", "Match using a CompareOp and a Comparator", |_m, p| {
+            Ok(Box::new(CheckBuff::new(p)?))
         })?;
-        Self::do_push("range", "Match using a CompareOp and a Comparator", |_m, p| Ok(Box::new(CheckBuff::new(p)?)))?;
-        Self::do_push("file-exact", "Is the target exactly one one the lines in this file?", |m, p| {
+        Self::do_push(
+            "file-exact",
+            "Is the target exactly one one the lines in this file?",
+            |m, p| {
+                Ok(if m.case == Case::Insens {
+                    Box::new(FileExactMatchC::new(p, m.string)?)
+                } else {
+                    Box::new(FileExactMatch::new(p)?)
+                })
+            },
+        )?;
+        Self::do_push("exact", "Does the target exactly match the pattern", |m, p| {
             Ok(if m.case == Case::Insens {
-                Box::new(FileExactMatchC::new(p, m.string)?)
+                Box::new(ExactMatchC::new(p))
             } else {
-                Box::new(FileExactMatch::new(p)?)
+                Box::new(ExactMatch::new(p))
             })
         })?;
-        Self::do_push("exact", "Does the target exactly match the pattern", |m, p| {
-            Ok(if m.case == Case::Insens { Box::new(ExactMatchC::new(p)) } else { Box::new(ExactMatch::new(p)) })
-        })?;
-        Self::do_push("length", "For the pattern X,Y, length is between X and Y inclusive", |_m, p| {
-            Ok(Box::new(LengthMatch::new(p)?))
-        })?;
+        Self::do_push(
+            "length",
+            "For the pattern X,Y, length is between X and Y inclusive",
+            |_m, p| Ok(Box::new(LengthMatch::new(p)?)),
+        )?;
         Self::do_push("yes", "always matches", |_m, _p| Ok(Box::new(YesMatch {})))?;
         Self::do_push("suffix", "Is the pattern a suffix of the target?", |m, p| {
-            Ok(if m.case == Case::Insens { Box::new(SuffixMatchC::new(p)) } else { Box::new(SuffixMatch::new(p)) })
+            Ok(if m.case == Case::Insens {
+                Box::new(SuffixMatchC::new(p))
+            } else {
+                Box::new(SuffixMatch::new(p))
+            })
         })?;
         Self::do_push("infix", "Is the pattern a substring of the target?", |m, p| {
-            Ok(if m.case == Case::Insens { Box::new(InfixMatchC::new(p)) } else { Box::new(InfixMatch::new(p)) })
+            Ok(if m.case == Case::Insens {
+                Box::new(InfixMatchC::new(p))
+            } else {
+                Box::new(InfixMatch::new(p))
+            })
         })?;
-        Self::do_push("glob", "Treat the pattern as a shell glob", |m, p| Ok(Box::new(GlobMatch::new(p, m.case))))?;
+        Self::do_push("glob", "Treat the pattern as a shell glob", |m, p| {
+            Ok(Box::new(GlobMatch::new(p, m.case)))
+        })?;
         Self::do_push("empty", "Is the target empty, i.e. zero bytes", |_m, _p| {
             Ok(Box::new(LengthMatch::new("0,0")?))
         })?;
@@ -1558,7 +1642,9 @@ impl MatchMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = MatchMakerAlias { old_name, new_name };
         let mut mm = MATCH_ALIAS.lock().unwrap();
@@ -1577,7 +1663,9 @@ impl MatchMaker {
         F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!("You can't add a matcher named {tag} because that is reserved for a modifier");
+            return err!(
+                "You can't add a matcher named {tag} because that is reserved for a modifier"
+            );
         }
         let m = MatchMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = MATCH_MAKER.lock().unwrap();
@@ -1653,7 +1741,11 @@ impl MatchMaker {
     }
     /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
     pub fn make(spec: &str) -> Result<Matcher> {
-        if let Some((a, b)) = spec.split_once(',') { Self::make2(a, b) } else { Self::make2(spec, "") }
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::make2(a, b)
+        } else {
+            Self::make2(spec, "")
+        }
     }
     /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
     pub fn make_line3(cols: &str, method: &str, pattern: &str) -> Result<Box<dyn LineMatch>> {
@@ -1691,7 +1783,11 @@ impl MatchMaker {
                 Self::make_line3(cols, rest, "")
             }
         } else if let Some((a, b)) = spec.split_once(',') {
-            if let Some((c, d)) = b.split_once(',') { Self::make_line3(a, c, d) } else { Self::make_line3(a, b, "") }
+            if let Some((c, d)) = b.split_once(',') {
+                Self::make_line3(a, c, d)
+            } else {
+                Self::make_line3(a, b, "")
+            }
         } else {
             Self::make_line3(spec, "", "")
         }
@@ -1728,7 +1824,12 @@ impl LineMatch for ExprMatcher {
     }
     fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         if self.con.eval(line) == 0.0 {
-            eprintln!("For line {} of {} the value of {} was zero", line_num, fname, self.con.expr());
+            eprintln!(
+                "For line {} of {} the value of {} was zero",
+                line_num,
+                fname,
+                self.con.expr()
+            );
             false
         } else {
             true

@@ -166,7 +166,12 @@ impl LineAgger {
     }
     /// new `LineAgger`
     pub fn new2(out: AggType, rep: &str, spec: &str) -> Result<Self> {
-        Ok(Self { spec: spec.to_string(), agg: AggMaker::make_line(rep)?, out, fmt: NumFormat::default() })
+        Ok(Self {
+            spec: spec.to_string(),
+            agg: AggMaker::make_line(rep)?,
+            out,
+            fmt: NumFormat::default(),
+        })
     }
 }
 
@@ -454,7 +459,11 @@ impl Agger {
 
     /// new replace
     pub fn new(spec: &str) -> Result<Self> {
-        if let Some((a, b)) = spec.split_once(',') { Self::new2(a, b, spec) } else { Self::new2("", spec, spec) }
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::new2(a, b, spec)
+        } else {
+            Self::new2("", spec, spec)
+        }
     }
     /// new from `AggType` and spec
     pub fn new2(name: &str, spec: &str, orig: &str) -> Result<Self> {
@@ -773,10 +782,14 @@ impl Agg for Merge {
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         split_plain(&mut self.data.parts, &self.data.line, self.delim);
         if self.do_sort {
-            self.data.parts.sort_by(|a, b| self.comp.comp(a.get(&self.data.line), b.get(&self.data.line)));
+            self.data
+                .parts
+                .sort_by(|a, b| self.comp.comp(a.get(&self.data.line), b.get(&self.data.line)));
         }
         if self.do_uniq {
-            self.data.parts.dedup_by(|a, b| self.comp.equal(a.get(&self.data.line), b.get(&self.data.line)));
+            self.data
+                .parts
+                .dedup_by(|a, b| self.comp.equal(a.get(&self.data.line), b.get(&self.data.line)));
         }
         if self.do_count {
             #[allow(clippy::cast_precision_loss)]
@@ -1219,30 +1232,52 @@ impl AggMaker {
         Self::do_add_alias("max", "maximum")?;
         Self::do_add_alias("mean", "avg")?;
         Self::do_add_alias("amean", "aavg")?;
-        Self::do_push_counter("chars", "Count the characters", |utf8, _p| Ok(Box::new(Chars::new(utf8))))?;
-        Self::do_push_counter("swords", "Count words, meaning non-space", |utf8, _p| Ok(Box::new(Swords::new(utf8))))?;
+        Self::do_push_counter("chars", "Count the characters", |utf8, _p| {
+            Ok(Box::new(Chars::new(utf8)))
+        })?;
+        Self::do_push_counter("swords", "Count words, meaning non-space", |utf8, _p| {
+            Ok(Box::new(Swords::new(utf8)))
+        })?;
         Self::do_push_counter("awords", "Count words, meaning alphanumeric", |utf8, _p| {
             Ok(Box::new(Awords::new(utf8)))
         })?;
-        Self::do_push("asum", "Sum of the given counter", |p| Ok(Rc::new(RefCell::new(ASum::new(p)?))))?;
-        Self::do_push("amin", "Min of the given counter", |p| Ok(Rc::new(RefCell::new(AMin::new(p)?))))?;
-        Self::do_push("amax", "Max of the given counter", |p| Ok(Rc::new(RefCell::new(AMax::new(p)?))))?;
-        Self::do_push("amean", "Mean of the given counter", |p| Ok(Rc::new(RefCell::new(AMean::new(p)?))))?;
-        Self::do_push("merge", "Merge into a delimited list of values", |p| Ok(Rc::new(RefCell::new(Merge::new(p)?))))?;
-        Self::do_push("count", "The number of things aggregated", |p| Ok(Rc::new(RefCell::new(Count::new(p)?))))?;
+        Self::do_push("asum", "Sum of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(ASum::new(p)?)))
+        })?;
+        Self::do_push("amin", "Min of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(AMin::new(p)?)))
+        })?;
+        Self::do_push("amax", "Max of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(AMax::new(p)?)))
+        })?;
+        Self::do_push("amean", "Mean of the given counter", |p| {
+            Ok(Rc::new(RefCell::new(AMean::new(p)?)))
+        })?;
+        Self::do_push("merge", "Merge into a delimited list of values", |p| {
+            Ok(Rc::new(RefCell::new(Merge::new(p)?)))
+        })?;
+        Self::do_push("count", "The number of things aggregated", |p| {
+            Ok(Rc::new(RefCell::new(Count::new(p)?)))
+        })?;
         Self::do_push("prefix", "The longest common prefix of the input values", |p| {
             Ok(Rc::new(RefCell::new(Prefix::new(p)?)))
         })?;
         Self::do_push("suffix", "The longest common suffix of the input values", |p| {
             Ok(Rc::new(RefCell::new(Suffix::new(p)?)))
         })?;
-        Self::do_push("min", "Keep the minimum value, Pattern is the associated Comparator", |p| {
-            Ok(Rc::new(RefCell::new(Min::new(p)?)))
+        Self::do_push(
+            "min",
+            "Keep the minimum value, Pattern is the associated Comparator",
+            |p| Ok(Rc::new(RefCell::new(Min::new(p)?))),
+        )?;
+        Self::do_push(
+            "max",
+            "Keep the maximum value, Pattern is the associated Comparator",
+            |p| Ok(Rc::new(RefCell::new(Max::new(p)?))),
+        )?;
+        Self::do_push("mean", "The arithmetic mean of the values", |p| {
+            Ok(Rc::new(RefCell::new(Mean::new(p)?)))
         })?;
-        Self::do_push("max", "Keep the maximum value, Pattern is the associated Comparator", |p| {
-            Ok(Rc::new(RefCell::new(Max::new(p)?)))
-        })?;
-        Self::do_push("mean", "The arithmetic mean of the values", |p| Ok(Rc::new(RefCell::new(Mean::new(p)?))))?;
         Self::do_push("sum", "The sum of the values", |p| Ok(Rc::new(RefCell::new(Sum::new(p)?))))?;
         Ok(())
     }
@@ -1279,7 +1314,9 @@ impl AggMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = AggMakerAlias { old_name, new_name };
         let mut mm = AGG_ALIAS.lock().unwrap();
@@ -1317,7 +1354,9 @@ impl AggMaker {
         F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!("You can't add a counter named {tag} because that is reserved for a modifier");
+            return err!(
+                "You can't add a counter named {tag} because that is reserved for a modifier"
+            );
         }
         let m = CounterMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = COUNTER_MAKER.lock().unwrap();
@@ -1413,11 +1452,19 @@ impl AggMaker {
     }
     /// Create an Agg from a full spec, i.e. "Agg,Pattern"
     pub fn make(spec: &str) -> Result<AggRef> {
-        if let Some((a, b)) = spec.split_once(',') { Self::make2(a, b) } else { Self::make2(spec, "") }
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::make2(a, b)
+        } else {
+            Self::make2(spec, "")
+        }
     }
     /// Create a counterer from a full spec, i.e. "chars"
     pub fn make_counter(spec: &str) -> Result<Box<dyn Counter>> {
-        if let Some((a, b)) = spec.split_once(',') { Self::make_counter2(a, b) } else { Self::make_counter2(spec, "") }
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::make_counter2(a, b)
+        } else {
+            Self::make_counter2(spec, "")
+        }
     }
 }
 

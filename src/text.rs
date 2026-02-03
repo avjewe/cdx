@@ -181,7 +181,11 @@ pub trait Text {
         if rest.is_empty() {
             Ok(val)
         } else {
-            err!("Malformed float '{}' trying to make '{what}' from '{}'", self.to_str(), String::from_utf8_lossy(spec))
+            err!(
+                "Malformed float '{}' trying to make '{what}' from '{}'",
+                self.to_str(),
+                String::from_utf8_lossy(spec)
+            )
         }
     }
     /// `bytes_to_d`, returning junk value as appropriate
@@ -274,7 +278,11 @@ pub trait Text {
         if self.is_empty() {
             return self.empty();
         }
-        if self.last_byte() == delim { self.tail_u8(num + 1, delim) } else { self.tail_u8(num, delim) }
+        if self.last_byte() == delim {
+            self.tail_u8(num + 1, delim)
+        } else {
+            self.tail_u8(num, delim)
+        }
     }
     /// return first 'num' elements, delimited by 'delim'
     /// but if the first char is the delim, don't count it
@@ -364,7 +372,11 @@ impl Text for str {
     }
 
     fn equal_insens(&self, other: &Self) -> bool {
-        for ch in self.chars().flat_map(char::to_lowercase).zip(other.chars().flat_map(char::to_lowercase)) {
+        for ch in self
+            .chars()
+            .flat_map(char::to_lowercase)
+            .zip(other.chars().flat_map(char::to_lowercase))
+        {
             if ch.0 != ch.1 {
                 return false;
             }
@@ -382,7 +394,11 @@ impl Text for str {
     }
 
     fn cmp_insens(&self, other: &Self) -> Ordering {
-        for ch in self.chars().flat_map(char::to_lowercase).zip(other.chars().flat_map(char::to_lowercase)) {
+        for ch in self
+            .chars()
+            .flat_map(char::to_lowercase)
+            .zip(other.chars().flat_map(char::to_lowercase))
+        {
             if ch.0 < ch.1 {
                 return Ordering::Less;
             }
@@ -544,7 +560,9 @@ impl Text for [u8] {
         self.eq_ignore_ascii_case(other)
     }
     fn cmp_insens(&self, other: &Self) -> Ordering {
-        for ch in self.iter().map(u8::to_ascii_lowercase).zip(other.iter().map(u8::to_ascii_lowercase)) {
+        for ch in
+            self.iter().map(u8::to_ascii_lowercase).zip(other.iter().map(u8::to_ascii_lowercase))
+        {
             if ch.0 < ch.1 {
                 return Ordering::Less;
             }

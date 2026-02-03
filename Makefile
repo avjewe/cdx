@@ -2,7 +2,7 @@ clean:
 	rm -rf *~ */*~ */*/*~ */*/*/*~ tmp
 
 update:
-	cargo update
+	cargo upgrade --verbose
 	cargo audit
 
 check:

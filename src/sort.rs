@@ -72,7 +72,8 @@ impl SortConfig {
             let r = get_reader(&in_files[0])?;
             return copy(r.0, w);
         }
-        let mc = Rc::new(RefCell::new(MergeContext { open: Vec::with_capacity(in_files.len()), cmp }));
+        let mc =
+            Rc::new(RefCell::new(MergeContext { open: Vec::with_capacity(in_files.len()), cmp }));
         let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| mc.borrow_mut().compare(*a, *b));
         {
             let mut mcm = mc.borrow_mut();
@@ -196,7 +197,13 @@ impl SortConfig {
     }
 
     /// merge all the files into w
-    pub fn merge(&self, files: &[String], cmp: &mut LineCompList, w: impl Write, unique: bool) -> Result<()> {
+    pub fn merge(
+        &self,
+        files: &[String],
+        cmp: &mut LineCompList,
+        w: impl Write,
+        unique: bool,
+    ) -> Result<()> {
         let tmp = TempDir::new()?;
         if self.alt_merge {
             self.merge_t1(files, cmp, w, unique, &tmp)
@@ -278,7 +285,13 @@ impl SortConfig {
         }
     */
     /// Sort all the files together, into w
-    pub fn sort<W: Write>(&self, files: &[String], cmp: LineCompList, w: &mut W, unique: bool) -> Result<()> // maybe return some useful stats?
+    pub fn sort<W: Write>(
+        &self,
+        files: &[String],
+        cmp: LineCompList,
+        w: &mut W,
+        unique: bool,
+    ) -> Result<()> // maybe return some useful stats?
     {
         let mut s = Sorter::new(cmp, 500_000_000, unique);
         for fname in files {
@@ -532,7 +545,10 @@ impl MergeTreeItem {
             Self::new_leaf(nums[0])
         } else {
             let mid = nums.len() / 2;
-            Self::new_node(Box::new(Self::new_tree(&nums[..mid])), Box::new(Self::new_tree(&nums[mid..])))
+            Self::new_node(
+                Box::new(Self::new_tree(&nums[..mid])),
+                Box::new(Self::new_tree(&nums[mid..])),
+            )
         }
     }
     const fn new_node(left: NodeType, right: NodeType) -> Self {

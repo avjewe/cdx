@@ -86,7 +86,11 @@ impl Count {
         Ok(())
     }
     fn get_which(&mut self, spec: &str) -> Result<()> {
-        if let Some((a, b)) = spec.split_once(',') { self.get_which2(a, b) } else { self.get_which2(spec, "") }
+        if let Some((a, b)) = spec.split_once(',') {
+            self.get_which2(a, b)
+        } else {
+            self.get_which2(spec, "")
+        }
     }
     fn get_count(&mut self, spec: &str) -> Result<()> {
         if let Some((a, b)) = spec.split_once(',') {
@@ -96,7 +100,9 @@ impl Count {
                 || b.eq_ignore_ascii_case("first")
             {
                 CountPos::Begin
-            } else if b.eq_ignore_ascii_case("stop") || b.eq_ignore_ascii_case("end") || b.eq_ignore_ascii_case("last")
+            } else if b.eq_ignore_ascii_case("stop")
+                || b.eq_ignore_ascii_case("end")
+                || b.eq_ignore_ascii_case("last")
             {
                 CountPos::End
             } else {

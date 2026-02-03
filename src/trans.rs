@@ -271,7 +271,7 @@ impl TransMaker {
         }
         Self::do_add_alias("lower", "lowercase")?;
         Self::do_add_alias("upper", "uppercase")?;
-        Self::do_push("normspace", "normalize white space", |c, _p| {
+        Self::do_push("normspace", "normalize white space", |c, _p: &str| {
             if c.utf8 { Ok(Box::<NormSpaceUtf8>::default()) } else { Ok(Box::new(NormSpace {})) }
         })?;
         Self::do_push("lower", "make lower case", |c, _p| {
@@ -280,9 +280,15 @@ impl TransMaker {
         Self::do_push("upper", "make upper case", |c, _p| {
             if c.utf8 { Ok(Box::<UpperUtfTrans>::default()) } else { Ok(Box::new(UpperTrans {})) }
         })?;
-        Self::do_push("from_base64", "decode base64 encoding", |_c, _p| Ok(Box::new(Base64Trans::new(false))))?;
-        Self::do_push("to_base64", "encode base64 encoding", |_c, _p| Ok(Box::new(Base64Trans::new(true))))?;
-        Self::do_push("bytes", "Select bytes from value", |_c, p| Ok(Box::new(BytesTrans::new(p)?)))?;
+        Self::do_push("from_base64", "decode base64 encoding", |_c, _p| {
+            Ok(Box::new(Base64Trans::new(false)))
+        })?;
+        Self::do_push("to_base64", "encode base64 encoding", |_c, _p| {
+            Ok(Box::new(Base64Trans::new(true)))
+        })?;
+        Self::do_push("bytes", "Select bytes from value", |_c, p| {
+            Ok(Box::new(BytesTrans::new(p)?))
+        })?;
         Ok(())
     }
     /// Add a new trans. If a Trans already exists by that name, replace it.
@@ -309,7 +315,9 @@ impl TransMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = TransMakerAlias { old_name, new_name };
         let mut mm = TRANS_ALIAS.lock().unwrap();
@@ -328,7 +336,9 @@ impl TransMaker {
         F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!("You can't add a trans named {tag} because that is reserved for a modifier");
+            return err!(
+                "You can't add a trans named {tag} because that is reserved for a modifier"
+            );
         }
         let m = TransMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = TRANS_MAKER.lock().unwrap();
@@ -349,7 +359,7 @@ impl TransMaker {
         for x in &*TRANS_MAKER.lock().unwrap() {
             println!("{:12}{}", x.tag, x.help);
         }
-        println!("See also https://avjewe.github.io/cdxdoc/Trans.html.");
+        println!("See also https://avjewe.github.io/cdxdoc/Transform.html.");
     }
     /// Create a Trans from a trans spec and a pattern
     pub fn make2(trans: &str, pattern: &str) -> Result<Transform> {
@@ -385,6 +395,10 @@ impl TransMaker {
 
     /// Create a trans from a full spec, i.e. "Trans,Pattern"
     pub fn make(spec: &str) -> Result<Transform> {
-        if let Some((a, b)) = spec.split_once(',') { Self::make2(a, b) } else { Self::make2(spec, "") }
+        if let Some((a, b)) = spec.split_once(',') {
+            Self::make2(a, b)
+        } else {
+            Self::make2(spec, "")
+        }
     }
 }

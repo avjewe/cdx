@@ -44,7 +44,11 @@ struct OutFile {
 }
 impl Default for OutFile {
     fn default() -> Self {
-        Self { name: String::new(), content: Vec::new(), matcher: MatchMaker::make("empty").unwrap() }
+        Self {
+            name: String::new(),
+            content: Vec::new(),
+            matcher: MatchMaker::make("empty").unwrap(),
+        }
     }
 }
 
@@ -256,7 +260,11 @@ impl Test {
         let mut tmp_stdin = tmp.clone();
         tmp_stdin.push_str("stdin");
         {
-            let mut w = std::fs::OpenOptions::new().write(true).create(true).truncate(true).open(&tmp_stdin)?;
+            let mut w = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&tmp_stdin)?;
             w.write_all(&self.stdin)?;
         }
         let ncmd = String::from_utf8_lossy(&self.cmd).replace("$TMP", &tmp).as_bytes().to_vec();
@@ -318,7 +326,14 @@ impl Test {
                     f.read_to_end(&mut body)?;
                     if !x.matcher.do_match_safe(&body) {
                         failed = true;
-                        prerr(&[b"File ", x.name.as_bytes(), b" was\n", &body, b" but should have been\n", &x.content]);
+                        prerr(&[
+                            b"File ",
+                            x.name.as_bytes(),
+                            b" was\n",
+                            &body,
+                            b" but should have been\n",
+                            &x.content,
+                        ]);
                     }
                 }
             }
@@ -364,7 +379,13 @@ pub struct Config {
 impl Config {
     /// new
     pub fn new() -> Result<Self> {
-        Ok(Self { pass: 0, fail: 0, bindir: "./".to_string(), tmpdir: String::new(), tmp: TempDir::new()? })
+        Ok(Self {
+            pass: 0,
+            fail: 0,
+            bindir: "./".to_string(),
+            tmpdir: String::new(),
+            tmp: TempDir::new()?,
+        })
     }
     /// set tmp dir
     pub fn tmp(&mut self, path: &str) -> Result<()> {

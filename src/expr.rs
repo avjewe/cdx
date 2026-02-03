@@ -230,11 +230,12 @@ const FUNCS: [FuncDef; 54] = [
 
 const fn min_args(f: FuncOp) -> usize {
     use FuncOp::{
-        Atan2, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Nextafter, Pow, Remainder, Scalbn, Yn,
+        Atan2, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Nextafter, Pow,
+        Remainder, Scalbn, Yn,
     };
     match f {
-        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter | Remainder | Scalbn | Pow
-        | Yn => 2,
+        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
+        | Remainder | Scalbn | Pow | Yn => 2,
         Fma | If => 3,
         _ => 1,
     }
@@ -242,12 +243,12 @@ const fn min_args(f: FuncOp) -> usize {
 
 const fn max_args(f: FuncOp) -> usize {
     use FuncOp::{
-        Atan2, Avg, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Max, Min, Nextafter, Pow, Remainder,
-        Scalbn, Yn,
+        Atan2, Avg, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Max, Min,
+        Nextafter, Pow, Remainder, Scalbn, Yn,
     };
     match f {
-        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter | Remainder | Scalbn | Pow
-        | Yn => 2,
+        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
+        | Remainder | Scalbn | Pow | Yn => 2,
         Fma | If => 3,
         Min | Max | Avg => 0,
         _ => 1,
@@ -301,9 +302,10 @@ fn apply_unary(op: UnaryOp, x: f64) -> f64 {
 #[allow(clippy::cast_precision_loss)]
 fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
     use FuncOp::{
-        Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh, Erf, Exp, Exp2, Exp10,
-        Expm1, Fabs, Fdim, Floor, Fma, Fmax, Fmin, Fmod, Hypot, If, J0, J1, Jn, Ldexp, Lgamma, Log, Log1p, Log2, Log10,
-        Max, Min, Nextafter, Pow, Remainder, Round, Scalbn, Sin, Sinh, Sqrt, Tan, Tanh, Tgamma, Trunc, Y0, Y1, Yn,
+        Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh,
+        Erf, Exp, Exp2, Exp10, Expm1, Fabs, Fdim, Floor, Fma, Fmax, Fmin, Fmod, Hypot, If, J0, J1,
+        Jn, Ldexp, Lgamma, Log, Log1p, Log2, Log10, Max, Min, Nextafter, Pow, Remainder, Round,
+        Scalbn, Sin, Sinh, Sqrt, Tan, Tanh, Tgamma, Trunc, Y0, Y1, Yn,
     };
     match op {
         Acos => args[0].abs(),

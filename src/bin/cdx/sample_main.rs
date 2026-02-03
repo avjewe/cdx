@@ -12,7 +12,10 @@ struct Ranges {
 impl Ranges {
     fn push(&mut self, spec: &str) -> Result<()> {
         self.v.push(if let Some((a, b)) = spec.split_once('-') {
-            RangeInclusive::new(a.to_usize_whole(spec.as_bytes(), "from")?, b.to_usize_whole(spec.as_bytes(), "to")?)
+            RangeInclusive::new(
+                a.to_usize_whole(spec.as_bytes(), "from")?,
+                b.to_usize_whole(spec.as_bytes(), "to")?,
+            )
         } else {
             let val = spec.to_usize_whole(spec.as_bytes(), "line number")?;
             RangeInclusive::new(val, val)
@@ -59,7 +62,10 @@ impl For {
                 1 => f.from = x.to_usize_whole(spec.as_bytes(), "from")?,
                 2 => f.to = x.to_usize_whole(spec.as_bytes(), "to")?,
                 _ => {
-                    return err!("No more than three comma delimited pieces in a For loop spec '{}'", spec);
+                    return err!(
+                        "No more than three comma delimited pieces in a For loop spec '{}'",
+                        spec
+                    );
                 }
             }
         }

@@ -48,15 +48,41 @@ pub trait Compare {
 /// method of comparing two lines
 pub trait LineCompare {
     /// compare lines
-    fn comp_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> Ordering;
+    fn comp_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering;
     /// which columns are in use for this file
     fn used_cols(&self, v: &mut Vec<usize>, file_num: usize);
     /// compare lines
-    fn equal_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> bool;
+    fn equal_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool;
     /// compare lines
-    fn comp_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> Ordering;
+    fn comp_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering;
     /// compare lines
-    fn equal_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> bool;
+    fn equal_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool;
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
     fn lookup(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()>;
     /// initialize columns in `TextLine`?
@@ -243,7 +269,13 @@ impl LineComp {
         self.reverse(x)
     }
     /// compare [`TextLine`]s from multiple files
-    pub fn comp_cols_n(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> Ordering {
+    pub fn comp_cols_n(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
         let x = self.comp.comp_cols(left, right, left_file, right_file);
         self.reverse(x)
     }
@@ -252,7 +284,13 @@ impl LineComp {
         self.comp.equal_cols(left, right, 0, 0)
     }
     /// compare [`TextLine`]s from multiple files
-    pub fn equal_cols_n(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> bool {
+    pub fn equal_cols_n(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
         self.comp.equal_cols(left, right, left_file, right_file)
     }
     /// compare line from a single file
@@ -261,7 +299,13 @@ impl LineComp {
         self.reverse(x)
     }
     /// compare lines from multiple files
-    pub fn comp_lines_n(&mut self, left: &[u8], right: &[u8], left_file: usize, right_file: usize) -> Ordering {
+    pub fn comp_lines_n(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
         let x = self.comp.comp_lines(left, right, self.delim, left_file, right_file);
         self.reverse(x)
     }
@@ -270,7 +314,13 @@ impl LineComp {
         self.comp.equal_lines(left, right, self.delim, 0, 0)
     }
     /// compare lines from multiple files
-    pub fn equal_lines_n(&mut self, left: &[u8], right: &[u8], left_file: usize, right_file: usize) -> bool {
+    pub fn equal_lines_n(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
         self.comp.equal_lines(left, right, self.delim, left_file, right_file)
     }
     /// resolve named columns
@@ -332,19 +382,45 @@ impl LineCompWhole {
 impl LineCompare for LineCompWhole {
     fn used_cols(&self, _v: &mut Vec<usize>, _file_num: usize) {}
     /// compare lines
-    fn comp_cols(&mut self, left: &TextLine, right: &TextLine, _left_file: usize, _right_file: usize) -> Ordering {
+    fn comp_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> Ordering {
         self.comp.comp(left.line(), right.line())
     }
     /// compare lines
-    fn equal_cols(&mut self, left: &TextLine, right: &TextLine, _left_file: usize, _right_file: usize) -> bool {
+    fn equal_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> bool {
         self.comp.equal(left.line(), right.line())
     }
     /// compare lines
-    fn comp_lines(&mut self, left: &[u8], right: &[u8], _delim: u8, _left_file: usize, _right_file: usize) -> Ordering {
+    fn comp_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        _delim: u8,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> Ordering {
         self.comp.comp(left, right)
     }
     /// compare lines
-    fn equal_lines(&mut self, left: &[u8], right: &[u8], _delim: u8, _left_file: usize, _right_file: usize) -> bool {
+    fn equal_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        _delim: u8,
+        _left_file: usize,
+        _right_file: usize,
+    ) -> bool {
         self.comp.equal(left, right)
     }
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
@@ -406,21 +482,52 @@ impl LineCompare for LineCompCol {
         v.push(self.cols[file_num].num);
     }
     /// compare lines
-    fn comp_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> Ordering {
+    fn comp_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
         self.comp.comp(left.get(self.cols[left_file].num), right.get(self.cols[right_file].num))
     }
     /// compare lines
-    fn equal_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> bool {
+    fn equal_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
         self.comp.equal(left.get(self.cols[left_file].num), right.get(self.cols[right_file].num))
     }
     /// compare lines
-    fn comp_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> Ordering {
-        self.comp.comp(get_col(left, self.cols[left_file].num, delim), get_col(right, self.cols[right_file].num, delim))
+    fn comp_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
+        self.comp.comp(
+            get_col(left, self.cols[left_file].num, delim),
+            get_col(right, self.cols[right_file].num, delim),
+        )
     }
     /// compare lines
-    fn equal_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> bool {
-        self.comp
-            .equal(get_col(left, self.cols[left_file].num, delim), get_col(right, self.cols[right_file].num, delim))
+    fn equal_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
+        self.comp.equal(
+            get_col(left, self.cols[left_file].num, delim),
+            get_col(right, self.cols[right_file].num, delim),
+        )
     }
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
     fn lookup(&mut self, fieldnames: &[&str], file_num: usize) -> Result<()> {
@@ -737,17 +844,27 @@ impl CompMaker {
         Self::do_add_alias("numeric", "num")?;
         Self::do_add_alias("length", "len")?;
         Self::do_add_alias("plain", "")?;
-        Self::do_push_line("expr", "Sort by value of expr", |p| Ok(Box::new(LineCompExpr::new(&p.pattern)?)))?;
+        Self::do_push_line("expr", "Sort by value of expr", |p| {
+            Ok(Box::new(LineCompExpr::new(&p.pattern)?))
+        })?;
         Self::do_push("length", "Sort by length of string", |_p| Ok(Box::new(CompareLen::new())))?;
         Self::do_push("random", "Sort randomly", |_p| Ok(Box::new(CompareRandom::new())))?;
-        Self::do_push("ip", "Sort as IP address or 1.2.3 section numbers", |_p| Ok(Box::new(CompareIP::new())))?;
+        Self::do_push("ip", "Sort as IP address or 1.2.3 section numbers", |_p| {
+            Ok(Box::new(CompareIP::new()))
+        })?;
         Self::do_push("plain", "Sort the plain bytes", |_p| Ok(Box::new(ComparePlain::new())))?;
-        Self::do_push("lower", "Sort as the ascii lowercase of the string", |_p| Ok(Box::new(CompareLower::new())))?;
+        Self::do_push("lower", "Sort as the ascii lowercase of the string", |_p| {
+            Ok(Box::new(CompareLower::new()))
+        })?;
         Self::do_push("float", "Convert to floating point, and sort the result.", |_p| {
             Ok(Box::new(Comparef64::new()))
         })?;
-        Self::do_push("numeric", "Convert NNN.nnn of arbitrary length.", |_p| Ok(Box::new(CompareNumeric::new())))?;
-        Self::do_push("equal", "Everything always compares equal.", |_p| Ok(Box::new(CompareEqual {})))?;
+        Self::do_push("numeric", "Convert NNN.nnn of arbitrary length.", |_p| {
+            Ok(Box::new(CompareNumeric::new()))
+        })?;
+        Self::do_push("equal", "Everything always compares equal.", |_p| {
+            Ok(Box::new(CompareEqual {}))
+        })?;
         Ok(())
     }
     /// Add a new Compare. If a Compare already exists by that name, replace it.
@@ -783,7 +900,9 @@ impl CompMaker {
     }
     fn do_add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
         if MODIFIERS.contains(&new_name) {
-            return err!("You can't add an alias named {new_name} because that is reserved for a modifier");
+            return err!(
+                "You can't add an alias named {new_name} because that is reserved for a modifier"
+            );
         }
         let m = CompMakerAlias { old_name, new_name };
         let mut mm = COMP_ALIAS.lock().unwrap();
@@ -802,7 +921,9 @@ impl CompMaker {
         F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!("You can't add a matcher named {tag} because that is reserved for a modifier");
+            return err!(
+                "You can't add a matcher named {tag} because that is reserved for a modifier"
+            );
         }
         let m = CompMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = COMP_MAKER.lock().unwrap();
@@ -821,7 +942,9 @@ impl CompMaker {
         F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
-            return err!("You can't add a matcher named {tag} because that is reserved for a modifier");
+            return err!(
+                "You can't add a matcher named {tag} because that is reserved for a modifier"
+            );
         }
         let m = LineCompMakerItem { tag, help, maker: Box::new(maker) };
         let mut mm = LINE_MAKER.lock().unwrap();
@@ -1029,7 +1152,11 @@ impl CompList {
         } else {
             let values: Vec<&[u8]> = value.split(|ch| *ch == delim).collect();
             if values.len() != self.c.len() {
-                return err!("Tried to use a {} part value for a {} part Comparison", values.len(), self.c.len());
+                return err!(
+                    "Tried to use a {} part value for a {} part Comparison",
+                    values.len(),
+                    self.c.len()
+                );
             }
             for (n, x) in self.c.iter_mut().enumerate() {
                 x.set(values[n]);
@@ -1126,7 +1253,13 @@ impl LineCompList {
         self.comp_cols_n(left, right, 0, 0)
     }
     /// compare [`TextLine`]s in different files
-    pub fn comp_cols_n(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> Ordering {
+    pub fn comp_cols_n(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
         for x in &mut self.c {
             let ret = x.comp_cols_n(left, right, left_file, right_file);
             if ret != Ordering::Equal {
@@ -1140,7 +1273,13 @@ impl LineCompList {
         self.equal_cols_n(left, right, 0, 0)
     }
     /// compare [`TextLine`]s in different files
-    pub fn equal_cols_n(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> bool {
+    pub fn equal_cols_n(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
         for x in &mut self.c {
             if !x.equal_cols_n(left, right, left_file, right_file) {
                 return false;
@@ -1153,7 +1292,13 @@ impl LineCompList {
         self.comp_lines_n(left, right, 0, 0)
     }
     /// compare lines from different files
-    pub fn comp_lines_n(&mut self, left: &[u8], right: &[u8], left_file: usize, right_file: usize) -> Ordering {
+    pub fn comp_lines_n(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
         for x in &mut self.c {
             let ret = x.comp_lines_n(left, right, left_file, right_file);
             if ret != Ordering::Equal {
@@ -1167,7 +1312,13 @@ impl LineCompList {
         self.equal_lines_n(left, right, 0, 0)
     }
     /// compare lines from different files
-    pub fn equal_lines_n(&mut self, left: &[u8], right: &[u8], left_file: usize, right_file: usize) -> bool {
+    pub fn equal_lines_n(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
         for x in &mut self.c {
             if !x.equal_lines_n(left, right, left_file, right_file) {
                 return false;
@@ -1221,7 +1372,11 @@ impl LineCompList {
         } else {
             let values: Vec<&[u8]> = value.split(|ch| *ch == delim).collect();
             if values.len() != self.c.len() {
-                return err!("Tried to use a {} part value for a {} part Comparison", values.len(), self.c.len());
+                return err!(
+                    "Tried to use a {} part value for a {} part Comparison",
+                    values.len(),
+                    self.c.len()
+                );
             }
             for (n, x) in self.c.iter_mut().enumerate() {
                 x.set(values[n]);
@@ -1633,7 +1788,13 @@ impl LineCompExpr {
 }
 
 impl LineCompare for LineCompExpr {
-    fn comp_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> Ordering {
+    fn comp_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
         let left_val = self.exprs[left_file].eval(left);
         let right_val = self.exprs[right_file].eval(right);
         fcmp(left_val, right_val)
@@ -1641,17 +1802,37 @@ impl LineCompare for LineCompExpr {
     fn used_cols(&self, v: &mut Vec<usize>, file_num: usize) {
         self.exprs[file_num].used_cols(v);
     }
-    fn equal_cols(&mut self, left: &TextLine, right: &TextLine, left_file: usize, right_file: usize) -> bool {
+    fn equal_cols(
+        &mut self,
+        left: &TextLine,
+        right: &TextLine,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
         let left_val = self.exprs[left_file].eval(left);
         let right_val = self.exprs[right_file].eval(right);
         left_val == right_val
     }
-    fn comp_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> Ordering {
+    fn comp_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> Ordering {
         let left_val = self.exprs[left_file].eval_line(left, delim);
         let right_val = self.exprs[right_file].eval_line(right, delim);
         fcmp(left_val, right_val)
     }
-    fn equal_lines(&mut self, left: &[u8], right: &[u8], delim: u8, left_file: usize, right_file: usize) -> bool {
+    fn equal_lines(
+        &mut self,
+        left: &[u8],
+        right: &[u8],
+        delim: u8,
+        left_file: usize,
+        right_file: usize,
+    ) -> bool {
         let left_val = self.exprs[left_file].eval_line(left, delim);
         let right_val = self.exprs[right_file].eval_line(right, delim);
         left_val == right_val

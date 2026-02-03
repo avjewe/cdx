@@ -67,7 +67,9 @@ impl fmt::Display for CdxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Error(s) => write!(f, "{s}")?,
-            Self::NeedLookup => write!(f, "ColumnSet.lookup() must be called before ColumnSet.select()")?,
+            Self::NeedLookup => {
+                write!(f, "ColumnSet.lookup() must be called before ColumnSet.select()")?
+            }
             Self::Silent => write!(f, "Silent")?,
             Self::NoError => write!(f, "Not an error.")?,
         }
@@ -249,7 +251,13 @@ pub struct TextFileMode {
 }
 impl Default for TextFileMode {
     fn default() -> Self {
-        Self { head_mode: HeadMode::Maybe, col_mode: QuoteMode::Plain, delim: b'\t', line_break: b'\n', repl: b' ' }
+        Self {
+            head_mode: HeadMode::Maybe,
+            col_mode: QuoteMode::Plain,
+            delim: b'\t',
+            line_break: b'\n',
+            repl: b' ',
+        }
     }
 }
 impl TextFileMode {
@@ -300,7 +308,9 @@ impl TextFileMode {
             } else if ch == 'b' {
                 col_mode = QuoteMode::Backslash;
             } else {
-                return err!("Fourth char of text-fmt spec must be p (plain), q (quote) or b (backslash) not '{ch}'");
+                return err!(
+                    "Fourth char of text-fmt spec must be p (plain), q (quote) or b (backslash) not '{ch}'"
+                );
             }
         }
         // 4th character : repl for plain encoding
@@ -1254,7 +1264,13 @@ pub fn make_header(line: &[u8]) -> StringLine {
 impl InfileContext {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     const fn new(text_in: &TextFileMode) -> Self {
-        Self { header: StringLine::new(), is_done: true, is_empty: true, has_header: false, text: *text_in }
+        Self {
+            header: StringLine::new(),
+            is_done: true,
+            is_empty: true,
+            has_header: false,
+            text: *text_in,
+        }
     }
     fn read_header(&mut self, file: &mut impl BufRead, line: &mut TextLine) -> Result<()> {
         self.is_empty = self.text.read_header(file, &mut self.header.line)?;
@@ -1395,7 +1411,12 @@ impl FileLocList {
         Ok(())
     }
     /// fill data with file loc data
-    pub fn write_data(&mut self, data: &mut impl Write, delim: u8, loc: &FileLocData) -> Result<()> {
+    pub fn write_data(
+        &mut self,
+        data: &mut impl Write,
+        delim: u8,
+        loc: &FileLocData,
+    ) -> Result<()> {
         for x in &mut self.v {
             x.write_data(data, loc)?;
             data.write_all(&[delim])?;
@@ -1911,7 +1932,10 @@ impl HeaderChecker {
                         Ok(false)
                     } else {
                         if !self.head.is_empty() {
-                            return err!("No CDX Header found in {}, but first file had one.", fname);
+                            return err!(
+                                "No CDX Header found in {}, but first file had one.",
+                                fname
+                            );
                         }
                         Ok(true)
                     }
@@ -2028,7 +2052,12 @@ impl CompareOp {
         }
     }
     /// return (line OP value), writing to stderr if false
-    pub fn line_ok_verbose(&self, line: &TextLine, comp: &mut LineCompList, line_num: usize) -> bool {
+    pub fn line_ok_verbose(
+        &self,
+        line: &TextLine,
+        comp: &mut LineCompList,
+        line_num: usize,
+    ) -> bool {
         if self.invert().line_ok(line, comp) {
             true
         } else {
@@ -2070,12 +2099,16 @@ struct RangeSpec<'a> {
 
 impl<'a> RangeSpec<'a> {
     fn new(spec: &'a str) -> Result<Self> {
-        static RE1: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new("^(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap());
-        static RE2: LazyLock<Regex> = LazyLock::new(|| Regex::new("^(<|>|<=|>=|==|!=)(.+)$").unwrap());
-        static RE3: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new("^(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
-        static RE4: LazyLock<Regex> = LazyLock::new(|| Regex::new("^(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
+        static RE1: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("^(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)(.+)$").unwrap()
+        });
+        static RE2: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("^(<|>|<=|>=|==|!=)(.+)$").unwrap());
+        static RE3: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("^(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
+        });
+        static RE4: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("^(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
         if let Some(caps) = RE1.captures(spec) {
             Ok(Self {
                 op1: caps.get(1).unwrap().as_str(),
@@ -2084,7 +2117,12 @@ impl<'a> RangeSpec<'a> {
                 val2: Some(caps.get(4).unwrap().as_str()),
             })
         } else if let Some(caps) = RE2.captures(spec) {
-            Ok(Self { op1: caps.get(1).unwrap().as_str(), val1: caps.get(2).unwrap().as_str(), op2: None, val2: None })
+            Ok(Self {
+                op1: caps.get(1).unwrap().as_str(),
+                val1: caps.get(2).unwrap().as_str(),
+                op2: None,
+                val2: None,
+            })
         } else if let Some(caps) = RE3.captures(spec) {
             Ok(Self {
                 op1: caps.get(1).unwrap().as_str(),
@@ -2093,18 +2131,27 @@ impl<'a> RangeSpec<'a> {
                 val2: Some(caps.get(4).unwrap().as_str()),
             })
         } else if let Some(caps) = RE4.captures(spec) {
-            Ok(Self { op1: caps.get(1).unwrap().as_str(), val1: caps.get(2).unwrap().as_str(), op2: None, val2: None })
+            Ok(Self {
+                op1: caps.get(1).unwrap().as_str(),
+                val1: caps.get(2).unwrap().as_str(),
+                op2: None,
+                val2: None,
+            })
         } else {
             err!("Not valid range spec '{}'", spec)
         }
     }
     fn new_trail(spec: &'a str) -> Result<(Self, usize)> {
-        static RE1: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)([^=].*)$").unwrap());
-        static RE2: LazyLock<Regex> = LazyLock::new(|| Regex::new("(^|,)(<|>|<=|>=|==|!=)([^=].*)$").unwrap());
-        static RE3: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
-        static RE4: LazyLock<Regex> = LazyLock::new(|| Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
+        static RE1: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("(^|,)(<|>|<=|>=|==|!=)([^<>!=]+)(<|>|<=|>=|==|!=)([^=].*)$").unwrap()
+        });
+        static RE2: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("(^|,)(<|>|<=|>=|==|!=)([^=].*)$").unwrap());
+        static RE3: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),([^,]+),(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap()
+        });
+        static RE4: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new("(^|,)(LT|GT|LE|GE|EQ|NE),(.+)$").unwrap());
         if let Some(caps) = RE1.captures(spec) {
             Ok((
                 Self {
@@ -2117,7 +2164,12 @@ impl<'a> RangeSpec<'a> {
             ))
         } else if let Some(caps) = RE2.captures(spec) {
             Ok((
-                Self { op1: caps.get(2).unwrap().as_str(), val1: caps.get(3).unwrap().as_str(), op2: None, val2: None },
+                Self {
+                    op1: caps.get(2).unwrap().as_str(),
+                    val1: caps.get(3).unwrap().as_str(),
+                    op2: None,
+                    val2: None,
+                },
                 caps.get(0).unwrap().start(),
             ))
         } else if let Some(caps) = RE3.captures(spec) {
@@ -2132,7 +2184,12 @@ impl<'a> RangeSpec<'a> {
             ))
         } else if let Some(caps) = RE4.captures(spec) {
             Ok((
-                Self { op1: caps.get(2).unwrap().as_str(), val1: caps.get(3).unwrap().as_str(), op2: None, val2: None },
+                Self {
+                    op1: caps.get(2).unwrap().as_str(),
+                    val1: caps.get(3).unwrap().as_str(),
+                    op2: None,
+                    val2: None,
+                },
                 caps.get(0).unwrap().start(),
             ))
         } else {
@@ -2170,7 +2227,12 @@ impl CheckLine {
         self.set_with(&RangeSpec::new(spec)?)
     }
     /// compare line OP text, return true if matched, print to stderr if non-match
-    pub fn line_ok_verbose(&self, line: &TextLine, comp: &mut LineCompList, line_num: usize) -> Result<bool> {
+    pub fn line_ok_verbose(
+        &self,
+        line: &TextLine,
+        comp: &mut LineCompList,
+        line_num: usize,
+    ) -> Result<bool> {
         comp.set(self.val.as_bytes(), b',')?;
         Ok(self.op.line_ok_verbose(line, comp, line_num))
     }

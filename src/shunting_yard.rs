@@ -193,12 +193,34 @@ mod tests {
             vec![Number(3.), Number(1.), Number(2.), Binary(Times), Binary(Minus)]
         );
         assert_eq!(
-            to_rpn(&[LParen, Number(3.), Binary(Minus), Number(1.), RParen, Binary(Times), Number(2.)]).unwrap(),
+            to_rpn(&[
+                LParen,
+                Number(3.),
+                Binary(Minus),
+                Number(1.),
+                RParen,
+                Binary(Times),
+                Number(2.)
+            ])
+            .unwrap(),
             vec![Number(3.), Number(1.), Binary(Minus), Number(2.), Binary(Times)]
         );
         assert_eq!(
-            to_rpn(&[Number(1.), Binary(Minus), Unary(UnaryOp::Minus), Unary(UnaryOp::Minus), Number(2.)]).unwrap(),
-            vec![Number(1.), Number(2.), Unary(UnaryOp::Minus), Unary(UnaryOp::Minus), Binary(Minus)]
+            to_rpn(&[
+                Number(1.),
+                Binary(Minus),
+                Unary(UnaryOp::Minus),
+                Unary(UnaryOp::Minus),
+                Number(2.)
+            ])
+            .unwrap(),
+            vec![
+                Number(1.),
+                Number(2.),
+                Unary(UnaryOp::Minus),
+                Unary(UnaryOp::Minus),
+                Binary(Minus)
+            ]
         );
         assert_eq!(
             to_rpn(&[Var("x".into()), Binary(Plus), Var("y".into())]).unwrap(),

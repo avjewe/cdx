@@ -1,4 +1,4 @@
 
 # Set the maximum width of a line to 100 characters (default is 80)
-max_width = 120
+max_width = 100
 use_small_heuristics = "Max"

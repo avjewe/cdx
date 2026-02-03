@@ -108,7 +108,11 @@ pub fn fcmp(x: f64, y: f64) -> Ordering {
 #[must_use]
 pub const fn ulp_to_ulong(d: f64) -> u64 {
     let x = u64::from_ne_bytes(d.to_ne_bytes());
-    if (x & 0x8000_0000_0000_0000_u64) != 0 { x ^ 0xffff_ffff_ffff_ffff_u64 } else { x | 0x8000_0000_0000_0000_u64 }
+    if (x & 0x8000_0000_0000_0000_u64) != 0 {
+        x ^ 0xffff_ffff_ffff_ffff_u64
+    } else {
+        x | 0x8000_0000_0000_0000_u64
+    }
 }
 
 /// how to format a number
@@ -199,7 +203,8 @@ impl NumFormat {
         } else {
             ""
         };
-        let (exp, letters) = if nfmt == Self::Power2 { (1024.0, P2_LETTERS) } else { (1000.0, P10_LETTERS) };
+        let (exp, letters) =
+            if nfmt == Self::Power2 { (1024.0, P2_LETTERS) } else { (1000.0, P10_LETTERS) };
 
         let mut curr_exp: f64 = 1.0;
         let mut exp_num: usize = 0;
@@ -227,7 +232,8 @@ impl NumFormat {
 
 const P2_LETTERS: &[u8] = b"0KMGTPEZY";
 const P10_LETTERS: &[u8] = b"0kmgtpezy";
-const P2_VALUES_U: [usize; 9] = [1, 1024, 1024 ^ 2, 1024 ^ 3, 1024 ^ 4, 1024 ^ 5, 1024 ^ 6, usize::MAX, usize::MAX];
+const P2_VALUES_U: [usize; 9] =
+    [1, 1024, 1024 ^ 2, 1024 ^ 3, 1024 ^ 4, 1024 ^ 5, 1024 ^ 6, usize::MAX, usize::MAX];
 const P2_VALUES_F: [f64; 9] = [
     1.0,
     1024.0,
@@ -239,7 +245,8 @@ const P2_VALUES_F: [f64; 9] = [
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
 ];
-const P10_VALUES_U: [usize; 9] = [1, 1000, 1000 ^ 2, 1000 ^ 3, 1000 ^ 4, 1000 ^ 5, 1000 ^ 6, usize::MAX, usize::MAX];
+const P10_VALUES_U: [usize; 9] =
+    [1, 1000, 1000 ^ 2, 1000 ^ 3, 1000 ^ 4, 1000 ^ 5, 1000 ^ 6, usize::MAX, usize::MAX];
 const P10_VALUES_F: [f64; 9] = [
     1.0,
     1000.0,

@@ -64,7 +64,11 @@ impl Context {
         *self == Self::default()
     }
     fn get(&self, is_empty: bool) -> (usize, usize) {
-        if is_empty { (self.before_non, self.after_non) } else { (self.before_match, self.after_match) }
+        if is_empty {
+            (self.before_non, self.after_non)
+        } else {
+            (self.before_match, self.after_match)
+        }
     }
     fn set(&mut self, spec: &str) -> Result<()> {
         let v: Vec<&str> = spec.split(',').collect();

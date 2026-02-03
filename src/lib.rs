@@ -89,6 +89,7 @@ pub mod num;
 pub mod prelude;
 pub mod sampler;
 mod shunting_yard;
+pub mod solve;
 pub mod sort;
 pub mod tabs;
 pub mod text;

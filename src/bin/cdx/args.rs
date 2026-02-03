@@ -49,7 +49,12 @@ pub fn version() -> String {
 }
 impl ProgSpec {
     pub fn new(help: &str, files: FileCount) -> Self {
-        Self { help: help.to_string(), files, author: "avjewe@gmail.com".to_string(), version: version() }
+        Self {
+            help: help.to_string(),
+            files,
+            author: "avjewe@gmail.com".to_string(),
+            version: version(),
+        }
     }
 }
 
@@ -139,6 +144,7 @@ pub fn parse(
             a = a.arg(clap::Arg::new("input_files").multiple_occurrences(true).takes_value(true));
         }
     }
+    a.clone().debug_assert();
     let m = a.get_matches_from(argv);
     glob.handle_std_help(&m)?;
     let mut v: Vec<ArgValue> = Vec::new();

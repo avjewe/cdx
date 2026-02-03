@@ -79,7 +79,11 @@ pub fn validate_column_name(name: &str) -> Result<()> {
 pub fn get_col(data: &[u8], col: usize, delim: u8) -> &[u8] {
     for (n, s) in data.split(|ch| *ch == delim).enumerate() {
         if n == col {
-            return if !s.is_empty() && s.last().unwrap() == &b'\n' { &s[0..s.len() - 1] } else { s };
+            return if !s.is_empty() && s.last().unwrap() == &b'\n' {
+                &s[0..s.len() - 1]
+            } else {
+                s
+            };
         }
     }
     &data[0..0]
@@ -833,7 +837,10 @@ impl ColumnSet {
 
         let ch = range.first();
         if ch == '(' {
-            return Ok(Self::to_outcols(&Self::match_range(fieldnames, &range[1..range.len() - 1])?, name));
+            return Ok(Self::to_outcols(
+                &Self::match_range(fieldnames, &range[1..range.len() - 1])?,
+                name,
+            ));
         }
         let mut parts: Vec<&str> = range.split('-').collect();
         if parts.len() > 2 {
@@ -930,7 +937,11 @@ impl ColumnSet {
             if x.num < cols.len() {
                 result.push(cols[x.num].clone());
             } else {
-                return err!("Line has only {} columns, but column {} was requested.", cols.len(), x.num + 1);
+                return err!(
+                    "Line has only {} columns, but column {} was requested.",
+                    cols.len(),
+                    x.num + 1
+                );
             }
         }
         Ok(())
@@ -953,7 +964,11 @@ impl ColumnSet {
                     if x.num < cols.len() {
                         w.write_all(cols[x.num].as_bytes())?;
                     } else {
-                        return err!("Line has only {} columns, but column {} was requested.", cols.len(), x.num + 1);
+                        return err!(
+                            "Line has only {} columns, but column {} was requested.",
+                            cols.len(),
+                            x.num + 1
+                        );
                     }
                 }
             }
@@ -992,7 +1007,12 @@ impl ColumnSet {
     }
 
     /// write the appropriate selection from the given columns, but no trailing newline
-    pub fn write3(&mut self, w: &mut dyn Write, cols: &TextLine, text: &TextFileMode) -> Result<()> {
+    pub fn write3(
+        &mut self,
+        w: &mut dyn Write,
+        cols: &TextLine,
+        text: &TextFileMode,
+    ) -> Result<()> {
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
         }
@@ -1056,7 +1076,12 @@ impl ColumnSet {
     ///    s.select_sloppy(&v, &"extra", &mut res);
     ///    assert_eq!(res, vec!["Zeroth", "First", "Third", "extra"]);
     /// ```
-    pub fn select_sloppy<T: AsRef<str> + Clone>(&self, cols: &[T], restval: &T, result: &mut Vec<T>) -> Result<()> {
+    pub fn select_sloppy<T: AsRef<str> + Clone>(
+        &self,
+        cols: &[T],
+        restval: &T,
+        result: &mut Vec<T>,
+    ) -> Result<()> {
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
         }
@@ -1131,7 +1156,11 @@ impl ColumnSet {
         s.add_yes(spec)?;
         s.lookup(names)?;
         if s.get_cols().len() != 1 {
-            return err!("Spec {} resolves to {} columns, rather than a single column", spec, s.get_cols().len());
+            return err!(
+                "Spec {} resolves to {} columns, rather than a single column",
+                spec,
+                s.get_cols().len()
+            );
         }
         Ok(s.get_cols_num()[0])
     }
@@ -1332,7 +1361,11 @@ impl NamedCol {
     pub fn new_from(spec: &str) -> Result<Self> {
         let mut x = Self::default();
         let rest = x.parse(spec)?;
-        if rest.is_empty() { Ok(x) } else { err!("Extra stuff {} at the end of column spec {}", rest, spec) }
+        if rest.is_empty() {
+            Ok(x)
+        } else {
+            err!("Extra stuff {} at the end of column spec {}", rest, spec)
+        }
     }
     /// Resolve the column name
     pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
@@ -1340,7 +1373,11 @@ impl NamedCol {
             self.num = ColumnSet::lookup_col(fieldnames, &self.name)?;
         } else if self.from_end > 0 {
             if self.from_end > fieldnames.len() {
-                return err!("Requested column +{}, but there are only {} columns", self.from_end, fieldnames.len());
+                return err!(
+                    "Requested column +{}, but there are only {} columns",
+                    self.from_end,
+                    fieldnames.len()
+                );
             }
             self.num = fieldnames.len() - self.from_end;
         }
@@ -1532,8 +1569,13 @@ mod tests {
     #[test]
     fn range() -> Result<()> {
         let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
-        let res: [OutCol; 5] =
-            [OutCol::from_num(0), OutCol::from_num(1), OutCol::from_num(2), OutCol::from_num(3), OutCol::from_num(4)];
+        let res: [OutCol; 5] = [
+            OutCol::from_num(0),
+            OutCol::from_num(1),
+            OutCol::from_num(2),
+            OutCol::from_num(3),
+            OutCol::from_num(4),
+        ];
         assert_eq!(ColumnSet::range(&f, "(range,<p)")?, [OutCol::from_num(1), OutCol::from_num(4)]);
         assert_eq!(ColumnSet::range(&f, "2-+2")?, res[1..=3]);
         assert_eq!(ColumnSet::range(&f, "-")?, res);

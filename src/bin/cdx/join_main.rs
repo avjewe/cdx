@@ -35,7 +35,10 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                     set.add_yes(spec)?;
                 } else {
                     if file.is_none() {
-                        return err!("First part of output spec must start with 'file.' {}", x.value);
+                        return err!(
+                            "First part of output spec must start with 'file.' {}",
+                            x.value
+                        );
                     }
                     set.add_yes(y)?;
                 }
@@ -48,7 +51,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         } else if x.name == "also" {
             let parts = x.value.split_once(',');
             if let Some((a, b)) = parts {
-                config.unmatch_out.push(NoMatch::new(a.to_usize_whole(x.value.as_bytes(), "file number")?, b));
+                config
+                    .unmatch_out
+                    .push(NoMatch::new(a.to_usize_whole(x.value.as_bytes(), "file number")?, b));
             } else {
                 return err!("--also format is FileNum,FileName {}", x.value);
             }
