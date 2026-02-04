@@ -57,11 +57,13 @@ impl Settings {
             }
         }
     }
-    pub fn add_std_help<'a>(&'a self, a: clap::Command<'a>) -> clap::Command<'a> {
+    pub fn add_std_help(&self, a: clap::Command) -> clap::Command {
         add_arg(a, &arg! {"std-help", "", "", "Show help for standard args."}, false)
     }
     pub fn handle_std_help(&self, m: &clap::ArgMatches) -> Result<()> {
-        if m.occurrences_of("std-help") > 0 {
+        if let Some(src) = m.value_source("std-help")
+            && src == clap::parser::ValueSource::CommandLine
+        {
             self.help();
             cdx_err(CdxError::NoError)
         } else {

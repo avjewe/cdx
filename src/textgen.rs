@@ -348,8 +348,13 @@ impl GenMaker {
         //        println!("Modifers :");
         //        println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
+        let mut results = Vec::new();
         for x in &*GEN_MAKER.lock().unwrap() {
-            println!("{:12}{}", x.tag, x.help);
+            results.push(format!("{:12}{}", x.tag, x.help));
+        }
+        results.sort();
+        for x in results {
+            println!("{}", x);
         }
         println!();
         println!("See also https://avjewe.github.io/cdxdoc/TextGen.html.");

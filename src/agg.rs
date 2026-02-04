@@ -1376,13 +1376,24 @@ impl AggMaker {
         println!("Modifers :");
         println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
+        let mut results = Vec::new();
         for x in &*AGG_MAKER.lock().unwrap() {
-            println!("{:12}{}", x.tag, x.help);
+            results.push(format!("{:12}{}", x.tag, x.help));
+        }
+        results.sort();
+        for x in &results {
+            println!("{}", x);
         }
         println!("Counters :");
+        results.clear();
         for x in &*COUNTER_MAKER.lock().unwrap() {
-            println!("{:12}{}", x.tag, x.help);
+            results.push(format!("{:12}{}", x.tag, x.help));
         }
+        results.sort();
+        for x in &results {
+            println!("{}", x);
+        }
+
         println!();
         println!("'merge' pattern is a period delimited set of any of the following :");
         println!("sort        --  sort the parts");

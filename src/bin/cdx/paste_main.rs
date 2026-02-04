@@ -28,12 +28,12 @@ impl EndMode {
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Join files on a matching column.", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
-        arg_enum! {"end", "e", "Mode", "When to stop. Default Exact", &["Exact", "Early", "Late"]},
+        arg_enum! {"end", "e", "Mode", "When to stop. Default Exact", &["exact", "early", "late"]},
         arg! {"default", "d", "ScopedValue", "Use this value for short files."},
         arg! {"last", "l", "", "Use value from last line for short files."},
         arg! {"rename", "r", "old.new,...", "Dupicate column named 'old' is renamed 'new'."},
         arg! {"rename-sloppy", "R", "", "Not an error is some renames not used."},
-        arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail", "Allow", "Numeric"]},
+        arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["fail", "allow", "numeric"]},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

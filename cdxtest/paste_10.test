@@ -1,4 +1,4 @@
-#command cdx paste $TMP/aaa $TMP/bbb -D Numeric -r one.uno,two.dos -r three.tres,four.quatro -R
+#command cdx paste $TMP/aaa $TMP/bbb -D numeric -r one.uno,two.dos -r three.tres,four.quatro -R
 #infile aaa
  CDX	one	two	three
 111	222	333

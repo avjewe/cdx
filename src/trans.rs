@@ -356,8 +356,13 @@ impl TransMaker {
     pub fn help() {
         println!("Modifers :");
         Self::init().unwrap();
+        let mut results = Vec::new();
         for x in &*TRANS_MAKER.lock().unwrap() {
-            println!("{:12}{}", x.tag, x.help);
+            results.push(format!("{:12}{}", x.tag, x.help));
+        }
+        results.sort();
+        for x in results {
+            println!("{}", x);
         }
         println!("See also https://avjewe.github.io/cdxdoc/Transform.html.");
     }

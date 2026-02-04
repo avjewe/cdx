@@ -68,7 +68,7 @@ impl fmt::Display for CdxError {
         match self {
             Self::Error(s) => write!(f, "{s}")?,
             Self::NeedLookup => {
-                write!(f, "ColumnSet.lookup() must be called before ColumnSet.select()")?
+                write!(f, "ColumnSet.lookup() must be called before ColumnSet.select()")?;
             }
             Self::Silent => write!(f, "Silent")?,
             Self::NoError => write!(f, "Not an error.")?,

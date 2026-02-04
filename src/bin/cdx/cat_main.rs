@@ -73,7 +73,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     */
     let prog = args::ProgSpec::new("Concatenate files.", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
-        arg_enum! {"pad", "p", "Mode", "Add trailing newline if absent.", &["Yes","No","End"]},
+        arg_enum! {"pad", "p", "Mode", "Add trailing newline if absent.", &["yes","no","end"]},
         arg! {"remove", "r", "Matcher", "Remove these lines."},
         arg! {"skip", "s", "Matcher", "Do not number these lines."},
         arg! {"number", "n", "Name,Start,Where", "Number the lines in column 'Name', starting at 'Start', 'Where' can be 'begin' or 'end'"},

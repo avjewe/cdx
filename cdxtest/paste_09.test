@@ -1,4 +1,4 @@
-#command cdx paste $TMP/aaa $TMP/bbb -D Numeric
+#command cdx paste $TMP/aaa $TMP/bbb -D numeric
 #infile aaa
  CDX	one	two	three
 111	222	333

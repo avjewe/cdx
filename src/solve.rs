@@ -6,30 +6,44 @@ pub(crate) const fn to_lower(ch: u8) -> u8 {
     if b'A' <= ch && ch <= b'Z' { ch + b'a' - b'A' } else { ch }
 }
 
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
+enum Class {
+    #[default]
+    Exact,
+    Misplaced,
+    Wrong,
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Hash)]
+pub(crate) struct LetterInfo {
+    ch: u8,
+    class: Class,
+}
 // Check if the attempt matches the word given the exact pattern
 #[must_use]
-pub(crate) fn matches(word: &[u8], exact: &[u8], guess: &[u8]) -> bool {
-    debug_assert!(word.len() == exact.len());
+pub(crate) fn matches(word: &[u8], guess: &[LetterInfo]) -> bool {
     debug_assert!(word.len() == guess.len());
 
     let mut used = vec![false; word.len()];
     // first pass: exact matches
-    for i in 0..word.len() {
-        if word[i] == exact[i] {
+    for i in 0..guess.len() {
+        if guess[i].class == Class::Exact {
+            if word[i] != guess[i].ch {
+                return false;
+            }
             used[i] = true;
-        } else if exact[i] != b'.' {
-            return false;
         }
     }
+
     // second pass: misplaced letters
     for (i, g) in guess.iter().enumerate() {
-        if b'A' <= *g && *g <= b'Z' {
+        if g.class == Class::Misplaced {
             for j in 0..word.len() {
-                if i == j && word[j] == to_lower(*g) {
+                if i == j && word[j] == g.ch {
                     // cannot be in the same position
                     return false;
                 }
-                if (to_lower(*g) == word[j]) && !used[j] {
+                if g.ch == word[j] && !used[j] {
                     used[j] = true;
                     break;
                 }
@@ -40,11 +54,12 @@ pub(crate) fn matches(word: &[u8], exact: &[u8], guess: &[u8]) -> bool {
             }
         }
     }
+
     // third pass: wrong letters
     for g in guess {
-        if b'a' <= *g && *g <= b'z' {
+        if g.class == Class::Wrong {
             for j in 0..word.len() {
-                if (*g == word[j]) && !used[j] {
+                if g.ch == word[j] && !used[j] {
                     return false;
                 }
             }
@@ -56,18 +71,19 @@ pub(crate) fn matches(word: &[u8], exact: &[u8], guess: &[u8]) -> bool {
 
 // Check if the attempt matches the word given multiple guess patterns
 #[must_use]
-fn multi_match(word: &[u8], exact: &[u8], guess: &[Vec<u8>]) -> bool {
-    if word.len() != exact.len() {
-        return false;
-    }
+fn multi_match(word: &[u8], guess: &[Vec<LetterInfo>]) -> bool {
     for g in guess {
-        if !matches(word, exact, g) {
+        if word.len() != g.len() {
+            return false;
+        }
+        if !matches(word, g) {
             return false;
         }
     }
     true
 }
 
+#[must_use]
 /// Scores a word based on candidate lists
 #[allow(clippy::cast_precision_loss)]
 pub fn score_word(word: &[u8], candidates: &[Vec<u8>]) -> f64 {
@@ -87,35 +103,42 @@ pub fn score_word(word: &[u8], candidates: &[Vec<u8>]) -> f64 {
             p_x * (1.0 / p_x).log2()
         };
         total += entropy;
-        // eprintln!("For word {}, with exact {:?} and guess {:?}, count = {},
     }
     total
 }
 
-///    A matcher that solves puzzles like mastermind or wordle
+/// A matcher that solves puzzles like mastermind or wordle
 #[derive(Debug, Clone)]
 pub struct SolverMatch {
-    /// Letter, is known, '.' otherwise
-    exact: Vec<u8>,
     /// Lowercase for wrong, uppercase for misplaced, '.' for exact
-    guesses: Vec<Vec<u8>>,
+    guesses: Vec<Vec<LetterInfo>>,
 }
+// ch.is_ascii_lowercase()
 
-fn validate_exact(ch: u8) -> Result<()> {
-    if ch.is_ascii_lowercase() || (ch == b'.') {
-        Ok(())
-    } else {
-        err!("Exact pattern must only contain lowercase letters or '.'")
+fn make_letter_info(data: &[u8]) -> Result<Vec<LetterInfo>> {
+    let mut ret = Vec::with_capacity(data.len());
+    let mut was_plus = false;
+    for &ch in data {
+        if ch == b'+' {
+            if was_plus {
+                return err!("Consecutive '+' characters in solver pattern");
+            }
+            was_plus = true;
+        } else if ch.is_ascii_lowercase() {
+            if was_plus {
+                ret.push(LetterInfo { ch, class: Class::Exact });
+                was_plus = false;
+            } else {
+                ret.push(LetterInfo { ch, class: Class::Wrong });
+            }
+        } else if ch.is_ascii_uppercase() {
+            ret.push(LetterInfo { ch: to_lower(ch), class: Class::Misplaced });
+        } else {
+            return err!("Invalid character in solver pattern: {}", ch as char);
+        }
     }
+    Ok(ret)
 }
-fn validate_guess(ch: u8) -> Result<()> {
-    if ch.is_ascii_lowercase() || ch.is_ascii_uppercase() || (ch == b'.') {
-        Ok(())
-    } else {
-        err!("Guess pattern must only contain lowercase letters, uppercase letters, or '.'")
-    }
-}
-
 impl SolverMatch {
     /// Create a new `SolverMatch` from a data string
     pub fn new(data: &str) -> Result<Self> {
@@ -126,49 +149,30 @@ impl SolverMatch {
         if words[0].is_empty() {
             return err!("Solver patterns must not be empty.");
         }
-        let len = words[0].len();
+        let mut guesses = Vec::new();
+        let mut len = 0usize;
         for word in &words {
-            if word.len() != len {
+            let guess = make_letter_info(word.as_bytes())?;
+            if len == 0 {
+                len = guess.len();
+            } else if guess.len() != len {
                 return err!("All patterns in solver matcher must have the same length");
             }
-        }
-        let ret = if words[0].contains('.') {
-            Self {
-                exact: words[0].as_bytes().to_vec(),
-                guesses: words[1..].iter().map(|w| w.as_bytes().to_vec()).collect(),
-            }
-        } else {
-            Self {
-                exact: vec![b'.'; len],
-                guesses: words.iter().map(|w| w.as_bytes().to_vec()).collect(),
-            }
-        };
-
-        for &ch in &ret.exact {
-            validate_exact(ch)?;
-        }
-        for g in &ret.guesses {
-            for &ch in g {
-                validate_guess(ch)?;
-            }
+            guesses.push(guess);
         }
 
-        Ok(ret)
+        Ok(Self { guesses })
     }
 }
 impl Match for SolverMatch {
     fn smatch(&self, buff: &str) -> bool {
-        multi_match(buff.as_bytes(), &self.exact, &self.guesses)
+        multi_match(buff.as_bytes(), &self.guesses)
     }
     fn umatch(&self, buff: &[u8]) -> bool {
-        multi_match(buff, &self.exact, &self.guesses)
+        multi_match(buff, &self.guesses)
     }
     fn show(&self) -> String {
-        format!(
-            "Solver Match of exact: {}, guesses: {}",
-            String::from_utf8_lossy(&self.exact),
-            self.guesses.iter().map(|g| String::from_utf8_lossy(g)).collect::<Vec<_>>().join(", ")
-        )
+        "Solver Match".to_string()
     }
 }
 
@@ -176,25 +180,30 @@ impl Match for SolverMatch {
 mod tests {
     use super::*;
 
+    fn test_match(word: &[u8], guess: &str) -> bool {
+        let sm = SolverMatch::new(guess).unwrap();
+        sm.umatch(word)
+    }
+
     #[test]
     fn solve() {
-        assert!(matches(b"apple", b".....", b"uvxyz"));
-        assert!(matches(b"apple", b".....", b"PxyzP"));
-        assert!(matches(b"apple", b".....", b"qrtPA"));
-        assert!(matches(b"apple", b"apple", b"vwxyz"));
-        assert!(matches(b"apple", b".....", b"xyzPA"));
-        assert!(!matches(b"apple", b".....", b"xyzLA"));
-        assert!(!matches(b"apple", b".....", b"xyzAA"));
+        assert!(test_match(b"apple", "PxyzP"));
+        assert!(test_match(b"apple", "qrtPA"));
+        assert!(test_match(b"apple", "+a+p+p+l+e,vwxyz"));
+        assert!(test_match(b"apple", "xyzPA"));
+        assert!(!test_match(b"apple", "xyzLA"));
+        assert!(!test_match(b"apple", "xyzAA"));
     }
     #[test]
     fn multi_solve() {
-        assert!(multi_match(b"apple", b".....", &[b"PxyzP".to_vec()]));
-        assert!(multi_match(b"apple", b"apple", &[b"vwxyz".to_vec()]));
-        assert!(multi_match(b"apple", b".....", &[b"xyzPA".to_vec()]));
-        assert!(!multi_match(b"apple", b".....", &[b"xyzLA".to_vec()]));
-        assert!(!multi_match(b"apple", b".....", &[b"xyzAA".to_vec()]));
-        assert!(multi_match(b"apple", b".....", &[b"uvxyz".to_vec()]));
-        assert!(multi_match(b"apple", b".....", &[b"qrtPA".to_vec()]));
-        assert!(multi_match(b"apple", b".....", &[b"uvxyz".to_vec(), b"qrtPA".to_vec()]));
+        assert!(test_match(b"apple", "PxyzP"));
+        assert!(test_match(b"apple", "xyzPA"));
+        assert!(!test_match(b"apple", "xyzLA"));
+        assert!(!test_match(b"apple", "xyzAA"));
+        assert!(test_match(b"apple", "uvxyz"));
+        assert!(test_match(b"apple", "qrtPA"));
+        assert!(test_match(b"apple", "uvxyz,qrtPA"));
+        assert!(test_match(b"weigh", "starE,no+ily"));
+        assert!(test_match(b"weigh", "starE,no+ily,b+e+i+ge"));
     }
 }

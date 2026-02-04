@@ -967,11 +967,16 @@ impl CompMaker {
         println!("low     junk should compare low, rather than high");
         println!("Methods :");
         Self::init().unwrap();
+        let mut results = Vec::new();
         for x in &*COMP_MAKER.lock().unwrap() {
-            println!("{:12}{}", x.tag, x.help);
+            results.push(format!("{:12}{}", x.tag, x.help));
         }
         for x in &*LINE_MAKER.lock().unwrap() {
-            println!("{:12}{}", x.tag, x.help);
+            results.push(format!("{:12}{}", x.tag, x.help));
+        }
+        results.sort();
+        for x in results {
+            println!("{}", x);
         }
         println!("See also https://avjewe.github.io/cdxdoc/Comparator.html.");
     }
