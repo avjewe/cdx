@@ -101,7 +101,9 @@ pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command 
         }
 
         if !x.values.is_empty() {
-            b = b.value_parser(clap::builder::PossibleValuesParser::new(x.values));
+            b = b
+                .value_parser(clap::builder::PossibleValuesParser::new(x.values))
+                .ignore_case(true);
         }
     }
     b = b.hide_long_help(hide_help);
@@ -136,6 +138,10 @@ pub fn parse(
         .version(prog.version)
         .author(prog.author)
         .about(prog.help)
+        .override_usage(format!(
+            "{} [OPTIONS] [input_files]...",
+            argv[0].split('/').last().unwrap_or(&argv[0])
+        ))
         .disable_help_flag(true)
         .disable_version_flag(true);
 

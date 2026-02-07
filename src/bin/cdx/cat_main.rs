@@ -10,6 +10,21 @@ enum PadMode {
     End,
 }
 
+impl FromStr for PadMode {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        if s.eq_ignore_ascii_case("yes") {
+            Ok(Self::All)
+        } else if s.eq_ignore_ascii_case("no") {
+            Ok(Self::None)
+        } else if s.eq_ignore_ascii_case("end") {
+            Ok(Self::End)
+        } else {
+            err!("Invalid pad mode : {}", s)
+        }
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 /// how to number lines
 struct LineNumber {
@@ -73,10 +88,18 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     */
     let prog = args::ProgSpec::new("Concatenate files.", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
-        arg_enum! {"pad", "p", "Mode", "Add trailing newline if absent.", &["yes","no","end"]},
+        arg_enum! {"pad", "p", "Mode",
+"Add trailing newline if absent.
+    yes : ensure after each file
+    no  : add no newlines
+    end : ensure after last file.", &["yes","no","end"]},
         arg! {"remove", "r", "Matcher", "Remove these lines."},
         arg! {"skip", "s", "Matcher", "Do not number these lines."},
-        arg! {"number", "n", "Name,Start,Where", "Number the lines in column 'Name', starting at 'Start', 'Where' can be 'begin' or 'end'"},
+        arg! {"number", "n", "Name,Start,Where",
+"Number the output lines.
+    Name  : the name of the output column
+    Start : the number of the first line
+    Where : 'begin' to add the number as the first column, 'end' to add it as the last column"},
         arg! {"begin", "b", "",  "Shortcut for --number number,1,begin"},
         arg! {"end", "e", "",  "Shortcut for --number number,1,end"},
     ];
@@ -89,15 +112,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     for x in args {
         if x.name == "pad" {
-            if x.value.eq_ignore_ascii_case("yes") {
-                pad = PadMode::All;
-            } else if x.value.eq_ignore_ascii_case("no") {
-                pad = PadMode::None;
-            } else if x.value.eq_ignore_ascii_case("end") {
-                pad = PadMode::End;
-            } else {
-                unreachable!();
-            }
+            pad = PadMode::from_str(&x.value)?;
         } else if x.name == "number" {
             num.set(&x.value)?;
         } else if x.name == "begin" {

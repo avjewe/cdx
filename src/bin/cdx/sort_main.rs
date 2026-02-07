@@ -10,7 +10,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         arg! {"unique", "u", "", "Print only first of equal lines."},
         arg! {"merge", "m", "", "Merge already sorted files."},
         arg! {"check", "c", "", "Check to see if each input file is sorted."},
-        arg! {"Check", "C", "Number", "Check to see if each input file is sorted. Report this many failures before exiting."},
+        arg! {"Check", "C", "Number", "Check to see if each input file is sorted.\nReport this many failures before exiting."},
         arg! {"alt-sort", "a", "", "Use alternate sort algorithm."},
         arg! {"alt-merge", "A", "", "Use alternate merge algorithm."},
     ];

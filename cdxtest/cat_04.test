@@ -1,4 +1,4 @@
-#command cdx cat --pad end $TMP/one.txt $TMP/two.txt
+#command cdx cat --pad EnD $TMP/one.txt $TMP/two.txt
 #infile one.txt
 aaa
 #nonewline
