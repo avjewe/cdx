@@ -1697,7 +1697,7 @@ impl MatchMaker {
         }
         results.sort();
         for x in results {
-            println!("{}", x);
+            println!("{x}");
         }
         println!("See also https://avjewe.github.io/cdxdoc/Matcher.html.");
     }

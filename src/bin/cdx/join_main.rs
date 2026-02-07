@@ -49,13 +49,14 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         } else if x.name == "file" {
             config.match_out = x.value;
         } else if x.name == "also" {
-            let parts = x.value.split_once(',');
-            if let Some((a, b)) = parts {
-                config
-                    .unmatch_out
-                    .push(NoMatch::new(a.to_usize_whole(x.value.as_bytes(), "file number")?, b));
+            let parts: Vec<&str> = x.value.split(',').collect();
+            let file_num = parts[0].to_usize_whole(x.value.as_bytes(), "file number")?;
+            if parts.len() == 1 {
+                config.unmatch_out.push(NoMatch::new(file_num, "-"));
+            } else if parts.len() == 2 {
+                config.unmatch_out.push(NoMatch::new(file_num, parts[1]));
             } else {
-                return err!("--also format is FileNum,FileName {}", x.value);
+                return err!("--also argument must be FileNum,FileName : '{}'", x.value);
             }
         } else {
             unreachable!();

@@ -4,6 +4,9 @@ use crate::column::{OutCol, ScopedValue};
 use crate::comp::CompMaker;
 use crate::prelude::*;
 use crate::util::Outfile;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 /// How to search and combine input files
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
@@ -131,24 +134,31 @@ impl JoinConfig {
     }
 }
 
+type SharedOutFile = Rc<RefCell<Outfile>>;
+#[derive(Default)]
 /// does the actual joining
 struct Joiner {
     r: Vec<Reader>,
     comp: LineCompList,
     yes_match: Outfile,
-    no_match: Vec<Option<Outfile>>,
+    no_match: Vec<Option<SharedOutFile>>,
     out_cols: Vec<OneOutCol>,
+    files: HashMap<String, SharedOutFile>,
 }
 
 impl Joiner {
+    fn get_shared_writer(&mut self, name: &str) -> Result<(bool, SharedOutFile)> {
+        if self.files.contains_key(name) {
+            return Ok((false, self.files.get(name).unwrap().clone()));
+        }
+        let f = get_writer(name)?;
+        let f = Rc::new(RefCell::new(f));
+        self.files.insert(name.to_string(), f.clone());
+        Ok((true, f))
+    }
+
     fn new(config: &JoinConfig) -> Result<Self> {
-        Ok(Self {
-            r: Vec::new(),
-            comp: LineCompList::new(),
-            yes_match: get_writer(&config.match_out)?,
-            no_match: Vec::new(),
-            out_cols: Vec::new(),
-        })
+        Ok(Self { yes_match: get_writer(&config.match_out)?, ..Default::default() })
     }
     fn join(&mut self, config: &JoinConfig) -> Result<()> {
         if config.infiles.len() < 2 {
@@ -172,8 +182,11 @@ impl Joiner {
             }
             let num = x.file_num - 1;
             if self.no_match[num].is_none() {
-                let mut w = get_writer(&x.file_name)?;
-                self.r[num].write_header(&mut *w)?;
+                let (flag, w) = self.get_shared_writer(&x.file_name)?;
+                if flag {
+                    // self.r[num].write_header(&mut Rc::get_mut(&mut w).unwrap().0)?;
+                    self.r[num].write_header(&mut w.borrow_mut().0)?;
+                }
                 self.no_match[num] = Some(w);
             } else {
                 return err!("Multiple uses of --also for file {}", x.file_num);
@@ -261,7 +274,7 @@ impl Joiner {
                     },
                     Ordering::Less => {
                         if let Some(x) = &mut self.no_match[0] {
-                            self.r[0].write(&mut x.0)?;
+                            self.r[0].write(&mut x.borrow_mut().0)?;
                         }
                         if self.r[0].getline()? {
                             break;
@@ -270,7 +283,7 @@ impl Joiner {
                     }
                     Ordering::Greater => {
                         if let Some(x) = &mut self.no_match[1] {
-                            self.r[1].write(&mut x.0)?;
+                            self.r[1].write(&mut x.borrow_mut().0)?;
                         }
                         if self.r[1].getline()? {
                             break;
@@ -282,13 +295,13 @@ impl Joiner {
         }
         while !self.r[0].is_done() {
             if let Some(x) = &mut self.no_match[0] {
-                self.r[0].write(&mut x.0)?;
+                self.r[0].write(&mut x.borrow_mut().0)?;
             }
             self.r[0].getline()?;
         }
         while !self.r[1].is_done() {
             if let Some(x) = &mut self.no_match[1] {
-                self.r[1].write(&mut x.0)?;
+                self.r[1].write(&mut x.borrow_mut().0)?;
             }
             self.r[1].getline()?;
         }

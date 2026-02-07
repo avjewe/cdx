@@ -126,7 +126,7 @@ pub fn parse(
         .version(prog.version)
         .author(prog.author)
         .about(prog.help)
-        .disable_help_flag(true);
+        .disable_help_flag(false);
 
     for x in spec {
         a = add_arg(a, x, false);

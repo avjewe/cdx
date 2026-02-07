@@ -1202,10 +1202,6 @@ fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
     err!("S3 feature not enabled, cannot read '{}'", name)
 }
 
-#[cfg(feature = "s3")]
-fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
-    Ok(Box::new(S3Reader::new_path(name)?))
-}
 /// Make an Infile from a file name
 pub fn get_reader(name: &str) -> Result<Infile> {
     let inner: Box<dyn Read> = {

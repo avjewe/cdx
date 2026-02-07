@@ -354,7 +354,7 @@ impl GenMaker {
         }
         results.sort();
         for x in results {
-            println!("{}", x);
+            println!("{x}");
         }
         println!();
         println!("See also https://avjewe.github.io/cdxdoc/TextGen.html.");

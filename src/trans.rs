@@ -362,7 +362,7 @@ impl TransMaker {
         }
         results.sort();
         for x in results {
-            println!("{}", x);
+            println!("{x}");
         }
         println!("See also https://avjewe.github.io/cdxdoc/Transform.html.");
     }

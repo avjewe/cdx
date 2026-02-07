@@ -1382,7 +1382,7 @@ impl AggMaker {
         }
         results.sort();
         for x in &results {
-            println!("{}", x);
+            println!("{x}");
         }
         println!("Counters :");
         results.clear();
@@ -1391,7 +1391,7 @@ impl AggMaker {
         }
         results.sort();
         for x in &results {
-            println!("{}", x);
+            println!("{x}");
         }
 
         println!();
