@@ -89,10 +89,10 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Concatenate files.", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
         arg_enum! {"pad", "p", "Mode",
-"Add trailing newline if absent.
-    yes : ensure after each file
-    no  : add no newlines
-    end : ensure after last file.", &["yes","no","end"]},
+"Add trailing newline if absent. Values for Mode can be:
+    Yes : Ensure after each file.
+    No  : Add no newlines (default).
+    End : Ensure newline after last file.", &["Yes","No","End"]},
         arg! {"remove", "r", "Matcher", "Remove these lines."},
         arg! {"skip", "s", "Matcher", "Do not number these lines."},
         arg! {"number", "n", "Name,Start,Where",

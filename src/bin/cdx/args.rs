@@ -103,6 +103,7 @@ pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command 
         if !x.values.is_empty() {
             b = b
                 .value_parser(clap::builder::PossibleValuesParser::new(x.values))
+                .hide_possible_values(true)
                 .ignore_case(true);
         }
     }

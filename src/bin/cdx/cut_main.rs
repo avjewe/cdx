@@ -7,9 +7,14 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     const A: [ArgSpec; 5] = [
         arg! {"fields", "f", "Columns", "the columns to select."},
         arg! {"group", "g", "Columns", "the columns in a bunch, e.g. '.group:1-3'"},
-        arg! {"expr", "e", "Name:Expr", "The result of an arithmetic expression"},
+        arg! {"expr", "e", "Name:Expr", "The result of an arithmetic expression."},
         arg! {"composite", "c", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
-        arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["Fail", "Allow", "Numeric"]},
+        arg_enum! {"dups", "D", "Mode",
+"Duplicate Column Handling. Values for Mode can be:
+    Fail    : Fail if there are duplicate column names (default).
+    Allow   : Allow duplicate column names.
+    Numeric : Allow duplicate column names. Make them unique by appending a number.",
+        &["Fail", "Allow", "Numeric"]},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
     let mut header = ColumnHeader::new();
