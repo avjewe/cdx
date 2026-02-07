@@ -74,7 +74,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             unreachable!();
         }
     }
-    let nada = TextLine::new();
+    let empty_line = TextLine::new();
     let mut w = get_writer("-")?;
     let mut first_file = true;
     let mut totals = Vec::new();
@@ -87,19 +87,19 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         }
         totals.resize(agg.len(), 0.0);
         let mut aggs: Vec<NamedAgg> = Vec::new();
-        let mut colmap: Vec<usize> = Vec::new();
+        let mut col_map: Vec<usize> = Vec::new();
         for x in &files {
             let mut f = Reader::new(&settings.text_in);
             f.open(x)?;
             if f.is_empty() {
                 continue;
             }
-            colmap.clear();
+            col_map.clear();
             for x in &f.names() {
                 if let Some(pos) = aggs.iter().position(|agg| agg.name == *x) {
-                    colmap.push(pos);
+                    col_map.push(pos);
                 } else {
-                    colmap.push(aggs.len());
+                    col_map.push(aggs.len());
                     aggs.push(NamedAgg::new(x, agg.deep_clone()));
                 }
             }
@@ -108,9 +108,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
             loop {
                 for (i, x) in f.curr_line().iter().enumerate() {
-                    aggs[colmap[i]].agg.add(x);
+                    aggs[col_map[i]].agg.add(x);
                 }
-                if f.getline()? {
+                if f.get_line()? {
                     break;
                 }
             }
@@ -210,7 +210,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             f.do_split(false);
             loop {
                 agg.add(f.curr_line().line());
-                if f.getline()? {
+                if f.get_line()? {
                     break;
                 }
             }
@@ -219,7 +219,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                     w.write_all(x.as_bytes())?;
                     w.write_all(b"\t")?;
                 }
-                c_write.write(&mut w.0, &nada)?;
+                c_write.write(&mut w.0, &empty_line)?;
             }
             #[allow(clippy::needless_range_loop)]
             for i in 0..agg.len() {

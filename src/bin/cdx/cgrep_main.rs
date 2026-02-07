@@ -66,7 +66,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             } else {
                 // write more lines of context if necessary
             }
-            if f.getline()? {
+            if f.get_line()? {
                 break;
             }
         }

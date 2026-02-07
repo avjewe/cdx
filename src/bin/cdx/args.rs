@@ -76,6 +76,14 @@ impl ArgValue {
         Self { name: name.to_string(), value: value.to_string(), index }
     }
 }
+
+pub fn add_help(mut a: clap::Command) -> clap::Command {
+    a = a.arg(clap::Arg::new("help").long("help").help("Show help.").action(ArgAction::SetTrue));
+    a.arg(
+        clap::Arg::new("version").long("version").help("Show version.").action(ArgAction::SetTrue),
+    )
+}
+
 pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command {
     let mut b = clap::Arg::new(x.name);
     if x.positional {
@@ -97,8 +105,10 @@ pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command 
         }
     }
     b = b.hide_long_help(hide_help);
+    b = b.hide(hide_help);
     a.arg(b)
 }
+
 pub fn get_arg(m: &clap::ArgMatches, x: &ArgSpec, v: &mut Vec<ArgValue>) {
     if x.value.is_empty() {
         if let Some(_arg) = m.get_many::<String>(x.name) {
@@ -126,15 +136,17 @@ pub fn parse(
         .version(prog.version)
         .author(prog.author)
         .about(prog.help)
-        .disable_help_flag(false);
+        .disable_help_flag(true)
+        .disable_version_flag(true);
 
     for x in spec {
         a = add_arg(a, x, false);
     }
-    a = glob.add_std_help(a);
+    a = globals::Settings::add_std_help(a);
     for x in globals::global_args() {
         a = add_arg(a, x, true);
     }
+    a = add_help(a);
     match prog.files {
         FileCount::Zero => {}
         FileCount::One => {
@@ -145,8 +157,9 @@ pub fn parse(
         }
     }
     a.clone().debug_assert();
+    let help = a.render_help().to_string();
     let m = a.get_matches_from(argv);
-    glob.handle_std_help(&m)?;
+    globals::Settings::handle_std_help(&m, &help)?;
     let mut v: Vec<ArgValue> = Vec::new();
     for x in globals::global_args() {
         get_arg(&m, x, &mut v);

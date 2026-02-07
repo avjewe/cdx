@@ -18,7 +18,7 @@ pub enum JoinType {
     Full,
     /// All files sorted. Files 2-N never have repeated keys.
     /// One output line per unique key from any file
-    /// no "unmatching file" output
+    /// no "non-matching file" output
     Poly,
     /// First file not sorted, binary search remaining files
     /// One output line per match in each file separately.
@@ -67,7 +67,7 @@ impl OutColSpec {
 #[non_exhaustive]
 pub struct JoinConfig {
     /// the type, default Quick
-    pub jtype: JoinType,
+    pub join_type: JoinType,
     /// input file names
     pub infiles: Vec<String>,
     /// primary output file name, default "-"
@@ -78,7 +78,7 @@ pub struct JoinConfig {
     /// file 1 except joined cols, everything from file 2 except joined cols, ...
     /// if empty, create a reasonable default
     pub col_specs: Vec<OutColSpec>,
-    /// skip sortedness check, normally join fails if input file is not sorted
+    /// skip sort order check, normally join fails if input file is not sorted
     pub skip_check: bool,
     /// output delimiter, default tab
     pub out_delim: u8,
@@ -90,7 +90,7 @@ pub struct JoinConfig {
     pub dups: DupColHandling,
     /// if true, replace empty column with value from other file
     pub use_other: bool,
-    /// default value for non-matching lines. Scoped wrt the output columns.
+    /// default value for non-matching lines. Scoped with respect to the output columns.
     pub empty: ScopedValue,
 }
 
@@ -241,7 +241,7 @@ impl Joiner {
             }
             self.yes_match.0.write_all(b"\n")?;
         }
-        if config.jtype == JoinType::Quick {
+        if config.join_type == JoinType::Quick {
             self.join_quick(config)
         } else {
             err!("Only quick supported")
@@ -259,13 +259,13 @@ impl Joiner {
                             x.write(&mut *self.yes_match, &self.r)?;
                         }
                         self.yes_match.write_all(b"\n")?;
-                        if self.r[0].getline()? {
-                            self.r[1].getline()?;
+                        if self.r[0].get_line()? {
+                            self.r[1].get_line()?;
                             break 'outer;
                         }
                         cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
                         if cmp != Ordering::Equal {
-                            if self.r[1].getline()? {
+                            if self.r[1].get_line()? {
                                 break 'outer;
                             }
                             cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
@@ -276,7 +276,7 @@ impl Joiner {
                         if let Some(x) = &mut self.no_match[0] {
                             self.r[0].write(&mut x.borrow_mut().0)?;
                         }
-                        if self.r[0].getline()? {
+                        if self.r[0].get_line()? {
                             break;
                         }
                         cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
@@ -285,7 +285,7 @@ impl Joiner {
                         if let Some(x) = &mut self.no_match[1] {
                             self.r[1].write(&mut x.borrow_mut().0)?;
                         }
-                        if self.r[1].getline()? {
+                        if self.r[1].get_line()? {
                             break;
                         }
                         cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
@@ -297,13 +297,13 @@ impl Joiner {
             if let Some(x) = &mut self.no_match[0] {
                 self.r[0].write(&mut x.borrow_mut().0)?;
             }
-            self.r[0].getline()?;
+            self.r[0].get_line()?;
         }
         while !self.r[1].is_done() {
             if let Some(x) = &mut self.no_match[1] {
                 self.r[1].write(&mut x.borrow_mut().0)?;
             }
-            self.r[1].getline()?;
+            self.r[1].get_line()?;
         }
         Ok(())
     }

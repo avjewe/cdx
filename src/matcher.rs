@@ -5,7 +5,7 @@
 //! method, in addition to a pattern. The `regex` crate provides
 //! one such method, but many other, simpler, methods are also available.
 //! See <https://avjewe.github.io/cdxdoc/Matcher.html> for a list of matchers,
-//! and other details about the syntax for specifying lagauges,
+//! and other details about the syntax for specifying languages,
 //!
 //! Most uses will involve [Matcher]s, collected into [`MatcherList`]s, or
 //!
@@ -25,7 +25,7 @@
 //! reader.open(input);
 //! list.lookup(&reader.names())?;
 //! assert!(list.ok(reader.curr_line()));
-//! reader.getline()?;
+//! reader.get_line()?;
 //! assert!(!list.ok(reader.curr_line()));
 //! # Ok::<(), cdx::util::Error>(())
 //!```
@@ -45,7 +45,7 @@ pub trait LineMatch {
     /// Is this line ok?
     fn ok(&mut self, line: &TextLine) -> bool;
     /// Resolve any named columns.
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()>;
     /// Human readable desription
     fn show(&self) -> String;
     /// Is this line ok? If not, write explanation to stderr
@@ -116,7 +116,7 @@ impl fmt::Display for dyn LineMatch + '_ {
     }
 }
 
-/// a threshhold
+/// a threshold
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Thresh {
     /// number of items
@@ -134,9 +134,9 @@ impl Thresh {
     /// If decimal point then frac, else count
     pub fn new(spec: &str) -> Result<Self> {
         if spec.contains('.') {
-            Self::new_frac(spec.to_f64_whole(spec.as_bytes(), "Threshhold for Determiner")?)
+            Self::new_frac(spec.to_f64_whole(spec.as_bytes(), "Threshold for Determiner")?)
         } else {
-            Ok(Self::new_count(spec.to_usize_whole(spec.as_bytes(), "Threshhold for Determiner")?))
+            Ok(Self::new_count(spec.to_usize_whole(spec.as_bytes(), "Threshold for Determiner")?))
         }
     }
     /// new Count
@@ -405,7 +405,7 @@ fn scase_suffix(haystack: &str, needle: &str) -> bool {
     let mut haystack_it =
         haystack.chars().flat_map(char::to_lowercase).skip(haystack_len - needle_len);
 
-    // at this monent, needle_it.chars().count() == haystack_it.chars().count()
+    // at this moment, needle_it.chars().count() == haystack_it.chars().count()
     for _ in 0..needle_len {
         if needle_it.next().unwrap() != haystack_it.next().unwrap() {
             return false;
@@ -582,7 +582,7 @@ fn load_hashset(data: &mut HashSet<Vec<u8>>, fname: &str) -> Result<()> {
         if line.len() > 1 {
             data.insert(line[0..line.len() - 1].to_vec());
         }
-        if f.getline()? {
+        if f.get_line()? {
             break;
         }
     }
@@ -634,7 +634,7 @@ fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Re
                 data.insert(line.new_lower());
             }
         }
-        if f.getline()? {
+        if f.get_line()? {
             break;
         }
     }
@@ -836,8 +836,8 @@ struct ColGroup {
     has_col: bool,
 }
 impl ColGroup {
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.col.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.col.lookup(field_names)
     }
     fn new_with(spec: &str) -> Result<(Self, &str)> {
         if spec.is_empty() {
@@ -932,9 +932,9 @@ impl LineMatch for CompMatcher {
         }
         self.col.det.match_final(yes, no)
     }
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.target.lookup(fieldnames)?;
-        self.col.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.target.lookup(field_names)?;
+        self.col.lookup(field_names)
     }
 
     fn show(&self) -> String {
@@ -965,7 +965,7 @@ impl LineMatch for WholeMatcher {
             }
     }
 
-    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
         Ok(())
     }
     fn show(&self) -> String {
@@ -991,7 +991,7 @@ impl LineMatch for CountMatcher {
         line.len() == self.count
     }
 
-    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
         Ok(())
     }
     fn show(&self) -> String {
@@ -1058,8 +1058,8 @@ impl LineMatch for ColSetMatcher {
         self.matcher.negate ^ self.det.match_final(yes, no)
     }
 
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.col.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.col.lookup(field_names)
     }
     fn show(&self) -> String {
         format!("match {:?} against {}", self.col, self.matcher)
@@ -1094,8 +1094,8 @@ impl LineMatch for ColMatcher {
             }
     }
 
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.col.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.col.lookup(field_names)
     }
     fn show(&self) -> String {
         format!("match {} against {}", self.col, self.matcher)
@@ -1206,13 +1206,13 @@ impl LineMatcherList {
         self.ok_verbose_tagged(line, self.multi, line_num, fname)
     }
     /// resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
         for x in &mut self.matchers {
-            x.lookup(fieldnames)?;
+            x.lookup(field_names)?;
         }
         Ok(())
     }
-    /// Human readable desription
+    /// Human readable description
     fn show(&self) -> String {
         if self.is_empty() {
             format!("Empty {} LineMatcherList", self.multi)
@@ -1235,8 +1235,8 @@ impl LineMatch for LineMatcherList {
     fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         self.ok_verbose(line, line_num, fname)
     }
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.lookup(field_names)
     }
     fn show(&self) -> String {
         self.show()
@@ -1326,7 +1326,7 @@ impl MatcherList {
         }
         false
     }
-    /// Human readable desription
+    /// Human readable description
     #[must_use]
     pub fn show(&self) -> String {
         if self.is_empty() {
@@ -1607,11 +1607,15 @@ impl MatchMaker {
             m.empty = true;
             Ok(Box::new(PrefixMatch::new(p)))
         })?;
-        Self::do_push("hash", "Is the target white space folled by the # character?", |m, _p| {
-            m.trim = true;
-            m.empty = true;
-            Ok(Box::new(PrefixMatch::new("#")))
-        })?;
+        Self::do_push(
+            "hash",
+            "Is the target white space followed by the # character?",
+            |m, _p| {
+                m.trim = true;
+                m.empty = true;
+                Ok(Box::new(PrefixMatch::new("#")))
+            },
+        )?;
         Self::do_push("slash", "Is the target white space followed by //", |m, _p| {
             m.trim = true;
             m.empty = true;
@@ -1681,11 +1685,11 @@ impl MatchMaker {
     }
     /// Print all available Matchers to stdout.
     pub fn help() {
-        println!("Modifers :");
+        println!("Modifiers :");
         println!("utf8  Operations are on utf8 strings, rather than the default u8 bytes.");
         println!("not   Treat a match as a non-match, and vice versa.");
         println!("case  Ignore case. Exact behavior depends on 'utf8' setting.");
-        println!("trim  Remove leading and trailing whitespce before checking.");
+        println!("trim  Remove leading and trailing whitespace before checking.");
         println!("null  An empty string also matches. This check happens after trimming.");
         println!("and   Interpret pattern as a multi-pattern, Match with AND.");
         println!("or    Interpret pattern as a multi-pattern, Match with OR.\n");
@@ -1810,7 +1814,7 @@ impl MatchMaker {
     }
 }
 
-/// macth if arithmetic expression is non-zero
+/// Match if arithmetic expression is non-zero
 #[derive(Debug)]
 struct ExprMatcher {
     con: Expr,
@@ -1840,8 +1844,8 @@ impl LineMatch for ExprMatcher {
             true
         }
     }
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.con.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.con.lookup(field_names)
     }
 
     fn show(&self) -> String {

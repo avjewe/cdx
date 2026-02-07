@@ -14,7 +14,7 @@ pub fn transpose(file: &str, head: bool, max_lines: usize, text: &TextFileMode) 
     while lines < max_lines {
         data.push(f.curr().clone());
         lines += 1;
-        if f.getline()? {
+        if f.get_line()? {
             break;
         }
     }

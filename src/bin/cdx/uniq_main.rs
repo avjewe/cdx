@@ -139,8 +139,8 @@ impl Count {
             }
         }
     }
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.comp.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.comp.lookup(field_names)
     }
 }
 
@@ -227,7 +227,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         agg.add(f.curr_line());
         let mut tmp = f.curr_line().clone();
         loop {
-            if f.getline()? {
+            if f.get_line()? {
                 c_write.write(&mut w.0, &tmp)?;
                 break;
             }
@@ -243,7 +243,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         }
     } else if count.which == Which::Last {
         loop {
-            if f.getline()? {
+            if f.get_line()? {
                 count.write(&mut w.0, matches, f.prev_line(1).line(), f.delim())?;
                 break;
             }
@@ -257,7 +257,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     } else if count.which == Which::First && count.is_plain() {
         f.write_curr(&mut w.0)?;
         loop {
-            if f.getline()? {
+            if f.get_line()? {
                 break;
             }
             if !comp.equal_cols(f.prev_line(1), f.curr_line()) {
@@ -267,7 +267,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     } else {
         let mut tmp = f.curr_line().clone();
         loop {
-            if f.getline()? {
+            if f.get_line()? {
                 count.write(&mut w.0, matches, tmp.line(), f.delim())?;
                 break;
             }

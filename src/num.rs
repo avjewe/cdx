@@ -276,7 +276,7 @@ pub fn suffix_valf(ch: u8) -> Option<f64> {
 }
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000
 #[must_use]
-pub fn suffix_valu(ch: u8) -> Option<usize> {
+pub fn suffix_value(ch: u8) -> Option<usize> {
     for (i, x) in P2_LETTERS.iter().enumerate() {
         if *x == ch {
             return Some(P2_VALUES_U[i]);

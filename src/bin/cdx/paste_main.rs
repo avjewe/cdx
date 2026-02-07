@@ -31,7 +31,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         arg_enum! {"end", "e", "Mode", "When to stop. Default Exact", &["exact", "early", "late"]},
         arg! {"default", "d", "ScopedValue", "Use this value for short files."},
         arg! {"last", "l", "", "Use value from last line for short files."},
-        arg! {"rename", "r", "old.new,...", "Dupicate column named 'old' is renamed 'new'."},
+        arg! {"rename", "r", "old.new,...", "Duplicate column named 'old' is renamed 'new'."},
         arg! {"rename-sloppy", "R", "", "Not an error is some renames not used."},
         arg_enum! {"dups", "D", "Mode", "Duplicate Column Handling", &["fail", "allow", "numeric"]},
     ];
@@ -63,7 +63,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut num_live = 0;
     let mut num_dead = 0;
     let mut do_header = true;
-    let mut rngs: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
     let mut curr_cols = 0;
     for x in &files {
         let mut f = Reader::new(&settings.text_in);
@@ -81,7 +81,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         } else {
             num_live += 1;
         }
-        rngs.push(std::ops::Range { start: curr_cols, end: curr_cols + f.header().len() });
+        ranges.push(std::ops::Range { start: curr_cols, end: curr_cols + f.header().len() });
         curr_cols += f.header().len();
         fds.push(f);
     }
@@ -90,7 +90,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     if do_header {
         w.write_all(header.get_head(&settings.text_out()).as_bytes())?;
     }
-    dflt.lookup(&header.fieldnames())?;
+    dflt.lookup(&header.field_names())?;
     while num_live > 0 {
         if end_mode == EndMode::Exact && num_dead != 0 && num_live != 0 {
             let mut s = String::new();
@@ -131,7 +131,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                     w.write_all(f.prev_nl(1))?;
                 } else {
                     let mut nd = false;
-                    for j in rngs[i].start..rngs[i].end {
+                    for j in ranges[i].start..ranges[i].end {
                         if nd {
                             w.write_all(b"\t")?;
                         }
@@ -141,7 +141,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 }
             } else {
                 w.write_all(f.curr_nl())?;
-                if f.getline()? {
+                if f.get_line()? {
                     num_dead += 1;
                     num_live -= 1;
                 }

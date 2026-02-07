@@ -11,7 +11,7 @@ pub trait Trans {
     /// Transform `src` into a new value, and append to `dst`
     fn trans(&mut self, src: &[u8], cont: &TextLine, dst: &mut Vec<u8>) -> Result<()>;
     /// Resolve any named columns, typically needed only if `TextLine` is used in `trans`
-    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
         Ok(())
     }
 }
@@ -183,8 +183,8 @@ impl Transform {
     fn trans(&mut self, src: &[u8], cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
         self.trans.trans(src, cont, dst)
     }
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.trans.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.trans.lookup(field_names)
     }
 }
 
@@ -231,9 +231,9 @@ impl TransList {
     }
 
     /// Resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
         for x in &mut self.v {
-            x.lookup(fieldnames)?;
+            x.lookup(field_names)?;
         }
         Ok(())
     }
@@ -352,9 +352,9 @@ impl TransMaker {
         drop(mm);
         Ok(())
     }
-    /// Print all available Transs to stdout.
+    /// Print all available Transformers to stdout.
     pub fn help() {
-        println!("Modifers :");
+        println!("Modifiers :");
         Self::init().unwrap();
         let mut results = Vec::new();
         for x in &*TRANS_MAKER.lock().unwrap() {

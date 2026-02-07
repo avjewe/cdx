@@ -66,7 +66,7 @@ pub fn show(file: &str, screen: &Rect, text: &TextFileMode) -> Result<()> {
             s.line = String::from_utf8_lossy(f.curr().line()).to_string();
             s.split(f.delim());
             lines.push(s);
-            if f.getline()? {
+            if f.get_line()? {
                 break;
             }
         }
@@ -137,7 +137,7 @@ pub fn show2(file: &str, screen: &Rect, w: &mut Vec<String>, text: &TextFileMode
             s.line = String::from_utf8_lossy(f.curr().line()).to_string();
             s.split(f.delim());
             lines.push(s);
-            if f.getline()? {
+            if f.get_line()? {
                 break;
             }
         }

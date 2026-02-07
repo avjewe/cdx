@@ -57,22 +57,55 @@ impl Settings {
             }
         }
     }
-    pub fn add_std_help(&self, a: clap::Command) -> clap::Command {
+    pub fn add_std_help(a: clap::Command) -> clap::Command {
         add_arg(a, &arg! {"std-help", "", "", "Show help for standard args."}, false)
     }
-    pub fn handle_std_help(&self, m: &clap::ArgMatches) -> Result<()> {
+    pub fn handle_std_help(m: &clap::ArgMatches, help: &str) -> Result<()> {
         if let Some(src) = m.value_source("std-help")
             && src == clap::parser::ValueSource::CommandLine
         {
-            self.help();
+            Self::help();
+            cdx_err(CdxError::NoError)
+        } else if let Some(src) = m.value_source("version")
+            && src == clap::parser::ValueSource::CommandLine
+        {
+            println!("cdx {}", args::version());
+            cdx_err(CdxError::NoError)
+        } else if let Some(src) = m.value_source("help")
+            && src == clap::parser::ValueSource::CommandLine
+        {
+            println!("{help}");
             cdx_err(CdxError::NoError)
         } else {
             Ok(())
         }
     }
-    pub fn help(&self) {
+    pub fn help() {
         for x in &A {
             eprintln!("{:12} {} {}", x.name, x.value, x.help);
+        }
+    }
+    pub fn show_std_help(name: &str) {
+        if name == "std-agg" {
+            AggMaker::help();
+        } else if name == "std-comp" {
+            CompMaker::help();
+        } else if name == "std-const" {
+            expr::show_const();
+        } else if name == "std-func" {
+            expr::show_func();
+        } else if name == "std-gen" {
+            GenMaker::help();
+        } else if name == "std-match" {
+            MatchMaker::help();
+        } else if name == "std-text" {
+            TextFileMode::text_help();
+        } else if name == "std-trans" {
+            TransMaker::help();
+        } else if name == "std-help" {
+            Self::help();
+        } else {
+            unreachable!();
         }
     }
     pub fn consume(&mut self, args: &[ArgValue]) -> Result<()> {
@@ -81,34 +114,9 @@ impl Settings {
                 self.text_in = TextFileMode::new(&x.value)?;
             } else if x.name == "text-out" {
                 self.text_out = Some(TextFileMode::new(&x.value)?);
-            } else if x.name == "std-agg" {
-                AggMaker::help();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "std-comp" {
-                CompMaker::help();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "std-const" {
-                expr::show_const();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "std-func" {
-                expr::show_func();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "std-gen" {
-                GenMaker::help();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "std-match" {
-                MatchMaker::help();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "std-text" {
-                TextFileMode::text_help();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "std-trans" {
-                TransMaker::help();
-                return cdx_err(CdxError::NoError);
-            } else if x.name == "foo" {
-                eprintln!("Something with side effect");
             } else {
-                unreachable!();
+                Self::show_std_help(&x.name);
+                return cdx_err(CdxError::NoError);
             }
         }
         Ok(())

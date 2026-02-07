@@ -36,7 +36,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 }
                 Err(e) => eprintln!("{}", e),
             }
-            if f.getline()? {
+            if f.get_line()? {
                 break;
             }
         }

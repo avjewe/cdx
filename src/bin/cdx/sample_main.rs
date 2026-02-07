@@ -70,7 +70,7 @@ impl For {
             }
         }
         if f.by == 0 || f.from == 0 || f.to == 0 {
-            return err!("Nono of the pieces in a For loop spec can be zero '{}'", spec);
+            return err!("None of the pieces in a For loop spec can be zero '{}'", spec);
         }
         Ok(f)
     }
@@ -86,7 +86,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut checker = HeaderChecker::new();
-    let mut floop = For::default();
+    let mut for_loop = For::default();
     let mut ranges = Ranges::default();
     let mut sample = 10;
     let mut saw_sample = false;
@@ -98,7 +98,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if saw_for || saw_sample || saw_range {
                 return err!("No more that one --sample, --range  or --for allowed");
             }
-            floop = For::new(&x.value)?;
+            for_loop = For::new(&x.value)?;
             saw_for = true;
         } else if x.name == "range" {
             if saw_for || saw_sample || saw_range {
@@ -141,19 +141,19 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             let mut s = Smooth::new(sample);
             loop {
                 s.add(f.curr().line());
-                if f.getline()? {
+                if f.get_line()? {
                     break;
                 }
             }
             s.finalize(&mut w.0)?;
         } else if saw_for {
-            let mut next = floop.from;
-            while f.line_number() <= floop.to {
+            let mut next = for_loop.from;
+            while f.line_number() <= for_loop.to {
                 if f.line_number() == next {
                     w.write_all(f.curr_line().line())?;
-                    next += floop.by;
+                    next += for_loop.by;
                 }
-                if f.getline()? {
+                if f.get_line()? {
                     break;
                 }
             }
@@ -163,7 +163,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 if ranges.contains(f.line_number()) {
                     w.write_all(f.curr_line().line())?;
                 }
-                if f.getline()? {
+                if f.get_line()? {
                     break;
                 }
             }

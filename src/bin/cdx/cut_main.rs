@@ -57,7 +57,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         }
         loop {
             v.write(&mut w.0, f.curr())?;
-            if f.getline()? {
+            if f.get_line()? {
                 break;
             }
         }

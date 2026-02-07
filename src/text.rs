@@ -1,7 +1,7 @@
 //! The Text trait, with implementations for str and &[u8]
 //! for all those things that are needed for both types
 
-use crate::num::{Junk, JunkType, suffix_valf, suffix_valu};
+use crate::num::{Junk, JunkType, suffix_valf, suffix_value};
 use crate::prelude::*;
 use std::ops::Range;
 
@@ -15,7 +15,7 @@ pub enum Case {
     Insens,
 }
 
-/// start of range contianing last 'num' parts delimited by 'delim'
+/// start of range containing last 'num' parts delimited by 'delim'
 fn tail_u8_len(buff: &[u8], num: usize, delim: u8) -> usize {
     let mut left = num;
     if left == 0 {
@@ -91,7 +91,7 @@ pub trait Text {
     fn to_str(&self) -> std::borrow::Cow<'_, str>;
     /// convert to usize
     fn to_usize(&self) -> (usize, &Self);
-    /// `to_usize`, but simply retrj best guess
+    /// `to_usize`, but simply return best guess
     fn to_usize_lossy(&self) -> usize {
         self.to_usize().0
     }
@@ -131,7 +131,7 @@ pub trait Text {
     }
     /// convert to isize
     fn to_isize(&self) -> (isize, &Self);
-    /// `to_isize`, but simply retrj best guess
+    /// `to_isize`, but simply return best guess
     fn to_isize_lossy(&self) -> isize {
         self.to_isize().0
     }
@@ -628,7 +628,7 @@ impl Text for [u8] {
             curr = &curr[1..];
         }
         if !curr.is_empty()
-            && let Some(mul) = suffix_valu(curr[0])
+            && let Some(mul) = suffix_value(curr[0])
         {
             curr = &curr[1..];
             ret *= mul;
@@ -656,7 +656,7 @@ impl Text for [u8] {
             curr = &curr[1..];
         }
         if !curr.is_empty()
-            && let Some(mul) = suffix_valu(curr[0])
+            && let Some(mul) = suffix_value(curr[0])
         {
             curr = &curr[1..];
             ret *= mul.cast_signed();

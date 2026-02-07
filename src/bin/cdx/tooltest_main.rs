@@ -7,7 +7,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     const A: [ArgSpec; 4] = [
         arg! {"verbose", "v", "", "Print name of each test before execution."},
         arg! {"bin", "b", "Dir", "Location of executables to test"},
-        arg! {"tmp", "t", "Dir", "Use this as a persistant tmp dir, rather than creating an ephemeral one."},
+        arg! {"tmp", "t", "Dir", "Use this as a persistent tmp dir, rather than creating an ephemeral one."},
         arg! {"file-format", "", "", "Describe format for '.test' files."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;

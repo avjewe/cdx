@@ -49,6 +49,52 @@ fn main() {
 }
 
 pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> {
+    if args.len() > 1 {
+        for x in cdxmain::MAIN_LIST {
+            if args[1] == x.name {
+                let arg1 = args.remove(1);
+                args[0] += " ";
+                args[0] += &arg1;
+                return (x.proc)(&args, settings);
+            }
+        }
+    }
+
+    let mut cmd = clap::Command::new("cdx")
+        .version("0.1.22")
+        .author("avjewe@gmail.com")
+        .about("Transform text files into other text files.")
+        .disable_help_flag(true)
+        .disable_version_flag(true);
+
+    for x in cdxmain::MAIN_LIST {
+        cmd = cmd.subcommand(clap::Command::new(x.name).about(x.help));
+    }
+    for i in 2..globals::global_args().len() {
+        cmd = args::add_arg(cmd, &globals::global_args()[i], false);
+    }
+    cmd = globals::Settings::add_std_help(cmd);
+    cmd = args::add_help(cmd);
+
+    if args.len() < 2 {
+        cmd.print_help()?;
+        return Ok(());
+    }
+    let help = cmd.render_help().to_string();
+    let matches = cmd.get_matches_from(&args);
+    globals::Settings::handle_std_help(&matches, &help)?;
+    for i in 2..globals::global_args().len() {
+        let name = globals::global_args()[i].name;
+        if matches.get_one::<String>(name).is_some() {
+            globals::Settings::show_std_help(name);
+        }
+    }
+    if matches.get_one::<String>("std-help").is_some() {
+        globals::Settings::show_std_help("std-help");
+    }
+
+    Ok(())
+    /*
     if args.len() < 2 {
         eprintln!("USAGE : cdx <command> [options...]");
         eprintln!("Type 'cdx help' for more details");
@@ -57,7 +103,7 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
     if args[1] == "help" || args[1] == "--help" {
         println!("USAGE : cdx <command> [options...]");
         println!("Commands are :");
-        for x in cdxmain::MAINLIST {
+        for x in cdxmain::MAIN_LIST {
             println!("{:8} : {}", x.name, x.help);
         }
         return Ok(());
@@ -66,7 +112,7 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
         println!("cdx version {}", args::version());
         return Ok(());
     }
-    for x in cdxmain::MAINLIST {
+    for x in cdxmain::MAIN_LIST {
         if args[1] == x.name {
             let arg1 = args.remove(1);
             args[0] += " ";
@@ -75,8 +121,9 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
         }
     }
     eprintln!("Valid subcommands are :");
-    for x in cdxmain::MAINLIST {
+    for x in cdxmain::MAIN_LIST {
         eprintln!("{:8} : {}", x.name, x.help);
     }
     cdx_err(CdxError::Silent)
+    */
 }

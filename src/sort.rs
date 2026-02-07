@@ -101,7 +101,7 @@ impl SortConfig {
             }
             let first = heap.pop().unwrap();
             let mut prev = mc.borrow().open[first].curr_line().clone();
-            if !mc.borrow_mut().open[first].getline()? {
+            if !mc.borrow_mut().open[first].get_line()? {
                 heap.push(first);
             }
             w.write_all(prev.line())?;
@@ -114,7 +114,7 @@ impl SortConfig {
                         w.write_all(mcm.open[x].curr_line().line())?;
                         prev.assign(mcm.open[x].curr_line());
                     }
-                    if !mc.borrow_mut().open[x].getline()? {
+                    if !mc.borrow_mut().open[x].get_line()? {
                         heap.push(x);
                     }
                 }
@@ -123,7 +123,7 @@ impl SortConfig {
             while !heap.is_empty() {
                 if let Some(x) = heap.pop() {
                     w.write_all(mc.borrow_mut().open[x].curr_line().line())?;
-                    if !mc.borrow_mut().open[x].getline()? {
+                    if !mc.borrow_mut().open[x].get_line()? {
                         heap.push(x);
                     }
                 }
@@ -241,22 +241,22 @@ impl SortConfig {
                     if ord == Ordering::Less {
                         left_file.write(&mut w)?;
                         mem::swap(&mut prev, left_file.curr_mut().raw());
-                        left_file.getline()?;
+                        left_file.get_line()?;
                     } else if ord == Ordering::Greater {
                         right_file.write(&mut w)?;
                         mem::swap(&mut prev, left_file.curr_mut().raw());
-                        right_file.getline()?;
+                        right_file.get_line()?;
                     } else {
                         left_file.write(&mut w)?;
                         mem::swap(&mut prev, left_file.curr_mut().raw());
-                        left_file.getline()?;
-                        right_file.getline()?;
+                        left_file.get_line()?;
+                        right_file.get_line()?;
                     }
                     while !left_file.is_done() && cmp.equal_lines(left_file.curr().line(), &prev) {
-                        left_file.getline()?;
+                        left_file.get_line()?;
                     }
                     while !right_file.is_done() && cmp.equal_lines(right_file.curr().line(), &prev) {
-                        right_file.getline()?;
+                        right_file.get_line()?;
                     }
                 }
             } else {
@@ -265,21 +265,21 @@ impl SortConfig {
                     // if Equal, write both lines
                     if ord != Ordering::Less {
                         right_file.write(&mut w)?;
-                        right_file.getline()?;
+                        right_file.get_line()?;
                     }
                     if ord != Ordering::Greater {
                         left_file.write(&mut w)?;
-                        left_file.getline()?;
+                        left_file.get_line()?;
                     }
                 }
             }
             while !left_file.is_done() {
                 left_file.write(&mut w)?;
-                left_file.getline()?;
+                left_file.get_line()?;
             }
             while !right_file.is_done() {
                 right_file.write(&mut w)?;
-                right_file.getline()?;
+                right_file.get_line()?;
             }
             Ok(())
         }
@@ -325,7 +325,7 @@ pub struct Sorter {
     // assert(data_calc <= data_used)
     data_calc: usize,
 
-    // number of btes beyond data_calc, known to be free of newlines
+    // number of bytes beyond data_calc, known to be free of newlines
     // to avoid N^2 craziness with long lines
     // assert(data_calc+data_nonl <= data_used)
     data_nonl: usize,
@@ -565,7 +565,7 @@ impl MergeTreeItem {
                 } else {
                     if r.first {
                         r.first = false;
-                    } else if files[r.file_num].getline()? {
+                    } else if files[r.file_num].get_line()? {
                         return Ok(None);
                     }
                     Ok(Some(r.file_num))

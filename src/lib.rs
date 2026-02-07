@@ -1,6 +1,6 @@
 //! The command line tool `cdx` is a set of tools for text file manipulation
 //! and command line data mining.
-//! It is hoped that the associated library will be useful for theid party tools.
+//! It is hoped that the associated library will be useful for third party tools.
 
 #![warn(
     absolute_paths_not_starting_with_crate,

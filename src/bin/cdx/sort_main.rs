@@ -6,13 +6,13 @@ use cdx::sort::SortConfig;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
     const A: [ArgSpec; 7] = [
-        arg! {"key", "k", "Spec", "How to compare adjacent lines"},
-        arg! {"unique", "u", "", "Print only first of equal lines"},
+        arg! {"key", "k", "Spec", "How to compare adjacent lines."},
+        arg! {"unique", "u", "", "Print only first of equal lines."},
         arg! {"merge", "m", "", "Merge already sorted files."},
         arg! {"check", "c", "", "Check to see if each input file is sorted."},
         arg! {"Check", "C", "Number", "Check to see if each input file is sorted. Report this many failures before exiting."},
-        arg! {"alt-sort", "a", "", "Use alternate sort algorithm"},
-        arg! {"alt-merge", "A", "", "Use alternate merge algorithm"},
+        arg! {"alt-sort", "a", "", "Use alternate sort algorithm."},
+        arg! {"alt-merge", "A", "", "Use alternate merge algorithm."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
@@ -57,7 +57,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 continue;
             }
             loop {
-                if f.getline()? {
+                if f.get_line()? {
                     break;
                 }
                 if comp_check(&f, &mut comp, unique) {

@@ -196,18 +196,18 @@ The first character is the header mode, which can be
     n - no : A CDX header is forbidden
     s - skip : A CDX header, if present, is ignored.
 
-The second chracter is the column delimiter, auto-escaped
+The second character is the column delimiter, auto-escaped
     default is 't' for 'tab'
 
-The third charater is the quoting mode
+The third character is the quoting mode
     p - plain (default) : no quoting is done. It is impossible to have a data field
-                          containing the column deliiter.
+                          containing the column delimiter.
     q - quote : The column delimiter is ignored when between double quotes : '"'
                 Within a quoted sting, '""' is used to mean '"'
-    b - backslash : All backslahes are combined with the following character in the usual way.
+    b - backslash : All backslashes are combined with the following character in the usual way.
 
-The fouth character is the replacement character, used when the quote mode is 'plain'.
-Any occurrences of the column delimiter are replaced with this charater.
+The fourth character is the replacement character, used when the quote mode is 'plain'.
+Any occurrences of the column delimiter are replaced with this character.
     default is space.
 
 The fifth character is the line delimiter, default is newline (\n)
@@ -218,8 +218,8 @@ Omitted trailing characters accept the default, so 'y' is the same as 'ytpsn'
 
 All tools have a --text-out option that controls how text files are written.
 Its parameter is treated exactly like --text-in, except that the default values
-are thos passed to --text-in.
-If --text-in sepcified "maybe" as the header mode, then the output default is
+are those passed to --text-in.
+If --text-in specified "maybe" as the header mode, then the output default is
 'yes' if an input header was present and 'no' otherwise.
 
 # Auto Escaped #
@@ -230,7 +230,7 @@ If --text-in sepcified "maybe" as the header mode, then the output default is
     s is space
     r is return (/r)
     n is newline (/n)
-    other lowecase ascii is reserved
+    other lowercase ascii is reserved
     otherwise the character is unchanged.
 "#;
 
@@ -1227,7 +1227,7 @@ pub fn get_reader(name: &str) -> Result<Infile> {
 #[derive(Debug, Default)]
 /// shared context for any input file type
 pub struct InfileContext {
-    // CDX header, contructed if necessary
+    // CDX header, constructed if necessary
     header: StringLine,
     // have we read all the bytes of the file
     is_done: bool,
@@ -1571,7 +1571,7 @@ impl Reader {
         }
     }
     /// get next line of text
-    pub fn getline(&mut self) -> Result<bool> {
+    pub fn get_line(&mut self) -> Result<bool> {
         self.loc.bytes += self.curr().line.len();
         self.incr();
         if self.cont.text.read_line(&mut *self.file, &mut self.lines[self.curr].line)? {

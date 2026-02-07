@@ -271,7 +271,7 @@ impl GenMaker {
         Self::do_push("expr", "'fmt,expr' e.g. plain,line*col OR just 'expr'", |p| {
             Ok(Box::new(ExprGen::new(p)?))
         })?;
-        Self::do_push("normal", "Normal Dirtribution Mean,Dev,Fmt", |p| {
+        Self::do_push("normal", "Normal Distribution Mean,Dev,Fmt", |p| {
             Ok(Box::new(NormalDistGen::new(p)?))
         })?;
         Self::do_push("decimal", "Decimal number. Pattern is [-]NNN[.NNN]", |p| {
@@ -345,7 +345,7 @@ impl GenMaker {
     /// Print all available Matchers to stdout.
     pub fn help() {
         Self::init().unwrap();
-        //        println!("Modifers :");
+        //        println!("Modifiers :");
         //        println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
         let mut results = Vec::new();

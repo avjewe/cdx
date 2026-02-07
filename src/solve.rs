@@ -1,4 +1,4 @@
-//! Solve hidden code puzzles like mastermond or wordle
+//! Solve hidden code puzzles like mastermind or wordle
 use crate::matcher::Match;
 use crate::prelude::*;
 

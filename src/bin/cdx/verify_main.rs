@@ -109,7 +109,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if !list.ok_verbose(f.curr_line(), f.line_number(), x) {
                 did_fail = true;
             }
-            if f.getline()? {
+            if f.get_line()? {
                 if last.is_some()
                     && !last.as_ref().unwrap().line_ok_verbose(
                         f.prev_line(1),

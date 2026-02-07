@@ -164,7 +164,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                         v.write(&mut w.0, f.curr())?;
                     }
                 }
-                if f.getline()? {
+                if f.get_line()? {
                     break;
                 }
             }

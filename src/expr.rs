@@ -448,13 +448,13 @@ impl Expr {
         self.rpn_to_expr(&rpn)
     }
     /// resolve named columns
-    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
         let mut n = self.expr_str.clone();
         while let Some(pos) = n.find('[') {
             let len = find_close(&n[pos..])?;
             let mut s = ColumnSet::new();
             s.add_yes(&n[pos + 1..pos + len - 1])?;
-            s.lookup(fieldnames)?;
+            s.lookup(field_names)?;
             let v = s.get_cols_num();
             let mut nval = String::new();
             if !v.is_empty() {
@@ -469,7 +469,7 @@ impl Expr {
         self.parse(&n)?;
         'outer: for y in self.vars.iter_mut().skip(start_vars) {
             static CN: LazyLock<Regex> = LazyLock::new(|| Regex::new("^c([0-9]+)$").unwrap());
-            for (i, x) in fieldnames.iter().enumerate() {
+            for (i, x) in field_names.iter().enumerate() {
                 if *x == y.name {
                     y.col = Some(i);
                     continue 'outer;

@@ -55,7 +55,7 @@ pub trait LineAgg {
         0.0
     }
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()>;
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()>;
     /// return self's column within head
     fn replace<'a>(&self, head: &'a StringLine) -> &'a str;
     /// is the replace function available
@@ -105,8 +105,8 @@ impl LineAgger {
         self.agg.borrow().value()
     }
     /// resolve any named columns
-    fn lookup(&self, fieldnames: &[&str]) -> Result<()> {
-        self.agg.borrow_mut().lookup(fieldnames)
+    fn lookup(&self, field_names: &[&str]) -> Result<()> {
+        self.agg.borrow_mut().lookup(field_names)
     }
     /// return self's column within head
     fn replace<'a>(&self, head: &'a StringLine) -> &'a str {
@@ -197,8 +197,8 @@ impl LineAgg for ExprAgg {
     fn value(&self) -> f64 {
         self.val
     }
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.expr.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.expr.lookup(field_names)
     }
     fn replace<'a>(&self, _head: &'a StringLine) -> &'a str {
         ""
@@ -360,8 +360,8 @@ impl LineAgg for AggCol {
         self.agg.add(data.get(self.src.num));
     }
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.src.lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.src.lookup(field_names)
     }
 
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
@@ -406,8 +406,8 @@ impl ColumnFun for LineAgger {
         self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
-    fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
-        self.agg.borrow_mut().lookup(fieldnames)
+    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.agg.borrow_mut().lookup(field_names)
     }
 }
 
@@ -435,7 +435,7 @@ impl ColumnFun for Agger {
         self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
-    fn lookup(&mut self, _fieldnames: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
         Ok(())
     }
 }
@@ -634,9 +634,9 @@ impl LineAggList {
         }
     }
     /// resolve any named columns
-    pub fn lookup(&mut self, fieldnames: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
         for x in &mut self.v {
-            x.lookup(fieldnames)?;
+            x.lookup(field_names)?;
         }
         Ok(())
     }
@@ -855,13 +855,13 @@ impl Agg for Min {
 
 struct Mean {
     val: f64,
-    cnt: f64,
+    count: f64,
 }
 
 impl Mean {
     fn new(spec: &str) -> Result<Self> {
         if spec.is_empty() {
-            Ok(Self { val: 0.0, cnt: 0.0 })
+            Ok(Self { val: 0.0, count: 0.0 })
         } else {
             err!("Unexpected pattern with 'Mean' aggregator : '{}'", spec)
         }
@@ -871,18 +871,18 @@ impl Mean {
 impl Agg for Mean {
     fn add(&mut self, data: &[u8]) {
         self.val += data.to_f64_lossy();
-        self.cnt += 1.0;
+        self.count += 1.0;
     }
 
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.value(), w)
     }
     fn value(&self) -> f64 {
-        if self.cnt > 0.0 { self.val / self.cnt } else { 0.0 }
+        if self.count > 0.0 { self.val / self.count } else { 0.0 }
     }
     fn reset(&mut self) {
         self.val = 0.0;
-        self.cnt = 0.0;
+        self.count = 0.0;
     }
 }
 
@@ -917,12 +917,12 @@ impl Agg for Sum {
 
 struct ASum {
     val: usize,
-    cnt: Box<dyn Counter>,
+    count: Box<dyn Counter>,
 }
 
 impl ASum {
     fn new(spec: &str) -> Result<Self> {
-        Ok(Self { val: 0, cnt: AggMaker::make_counter(spec)? })
+        Ok(Self { val: 0, count: AggMaker::make_counter(spec)? })
     }
 }
 
@@ -932,7 +932,7 @@ impl Agg for ASum {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
-        self.val += self.cnt.counter(data);
+        self.val += self.count.counter(data);
     }
     #[allow(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
@@ -945,12 +945,12 @@ impl Agg for ASum {
 
 struct AMin {
     val: usize,
-    cnt: Box<dyn Counter>,
+    count: Box<dyn Counter>,
 }
 
 impl AMin {
     fn new(spec: &str) -> Result<Self> {
-        Ok(Self { val: usize::MAX, cnt: AggMaker::make_counter(spec)? })
+        Ok(Self { val: usize::MAX, count: AggMaker::make_counter(spec)? })
     }
 }
 
@@ -960,7 +960,7 @@ impl Agg for AMin {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
-        self.val = cmp::min(self.val, self.cnt.counter(data));
+        self.val = cmp::min(self.val, self.count.counter(data));
     }
     #[allow(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
@@ -973,12 +973,12 @@ impl Agg for AMin {
 
 struct AMax {
     val: usize,
-    cnt: Box<dyn Counter>,
+    count: Box<dyn Counter>,
 }
 
 impl AMax {
     fn new(spec: &str) -> Result<Self> {
-        Ok(Self { val: 0, cnt: AggMaker::make_counter(spec)? })
+        Ok(Self { val: 0, count: AggMaker::make_counter(spec)? })
     }
 }
 
@@ -988,7 +988,7 @@ impl Agg for AMax {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
-        self.val = cmp::max(self.val, self.cnt.counter(data));
+        self.val = cmp::max(self.val, self.count.counter(data));
     }
     #[allow(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
@@ -1002,12 +1002,12 @@ impl Agg for AMax {
 struct AMean {
     val: usize,
     num: usize,
-    cnt: Box<dyn Counter>,
+    count: Box<dyn Counter>,
 }
 
 impl AMean {
     fn new(spec: &str) -> Result<Self> {
-        Ok(Self { val: 0, num: 0, cnt: AggMaker::make_counter(spec)? })
+        Ok(Self { val: 0, num: 0, count: AggMaker::make_counter(spec)? })
     }
 }
 
@@ -1017,7 +1017,7 @@ impl Agg for AMean {
         if self.num > 0 { self.val as f64 / self.num as f64 } else { 0.0 }
     }
     fn add(&mut self, data: &[u8]) {
-        self.val += self.cnt.counter(data);
+        self.val += self.count.counter(data);
         self.num += 1;
     }
     #[allow(clippy::cast_precision_loss)]
@@ -1070,7 +1070,7 @@ impl Prefix {
         if spec.is_empty() {
             Ok(Self { val: Vec::new(), empty: true })
         } else {
-            err!("Unexpected non-empty pattern passed to Prefix agregator : '{}'", spec)
+            err!("Unexpected non-empty pattern passed to Prefix aggregator : '{}'", spec)
         }
     }
 }
@@ -1117,7 +1117,7 @@ impl Suffix {
         if spec.is_empty() {
             Ok(Self { val: Vec::new(), empty: true })
         } else {
-            err!("Unexpected non-empty pattern passed to Sufffix agregator : '{}'", spec)
+            err!("Unexpected non-empty pattern passed to Suffix aggregator : '{}'", spec)
         }
     }
 }
@@ -1373,7 +1373,7 @@ impl AggMaker {
     /// Print all available Matchers to stdout.
     pub fn help() {
         Self::init().unwrap();
-        println!("Modifers :");
+        println!("Modifiers :");
         println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
         let mut results = Vec::new();
@@ -1469,7 +1469,7 @@ impl AggMaker {
             Self::make2(spec, "")
         }
     }
-    /// Create a counterer from a full spec, i.e. "chars"
+    /// Create a counter from a full spec, i.e. "chars"
     pub fn make_counter(spec: &str) -> Result<Box<dyn Counter>> {
         if let Some((a, b)) = spec.split_once(',') {
             Self::make_counter2(a, b)
@@ -1489,13 +1489,13 @@ mod tests {
         assert_eq!(&v, b"123456789");
         common_suffix(&mut v, b"23456789");
         assert_eq!(&v, b"23456789");
-        common_suffix(&mut v, b"dsjfldkjsfaslkjfaslkfjadflkj3456789");
+        common_suffix(&mut v, b"_stuff_and_junk3456789");
         assert_eq!(&v, b"3456789");
         common_suffix(&mut v, b"");
         assert_eq!(&v, b"");
         common_suffix(&mut v, b"");
         assert_eq!(&v, b"");
-        common_suffix(&mut v, b"sadfddsafasdgfg");
+        common_suffix(&mut v, b"_stuff_and_junk");
         assert_eq!(&v, b"");
     }
     #[test]
@@ -1505,11 +1505,11 @@ mod tests {
         assert_eq!(&v, b"123456789");
         common_prefix(&mut v, b"12345678");
         assert_eq!(&v, b"12345678");
-        common_prefix(&mut v, b"1234567sdfhasflhasflasflaksjfasdkhj");
+        common_prefix(&mut v, b"1234567_stuff_and_junk");
         assert_eq!(&v, b"1234567");
-        common_prefix(&mut v, b"sdkjadflkjafdakjdsf");
+        common_prefix(&mut v, b"_stuff_and_junk");
         assert_eq!(&v, b"");
-        common_prefix(&mut v, b"sdkjadflkjafdakjdsf");
+        common_prefix(&mut v, b"_stuff_and_junk");
         assert_eq!(&v, b"");
         common_prefix(&mut v, b"");
         assert_eq!(&v, b"");

@@ -20,12 +20,12 @@ macro_rules! proc {
     };
 }
 
-pub const MAINLIST: &[OneMain] = &[
+pub const MAIN_LIST: &[OneMain] = &[
     proc! {"binsearch",  "Search sorted files.",  binsearch_main::main},
     proc! {"calc",  "Calculator",  calc_main::main},
     proc! {"cat",  "Concatenate Files.",  cat_main::main},
     proc! {"cgrep",  "Search files.",  cgrep_main::main},
-    proc! {"cut",  "Select colums.",  cut_main::main},
+    proc! {"cut",  "Select columns.",  cut_main::main},
     proc! {"filegen",  "Generate text files",  filegen_main::main},
     proc! {"join",  "Join files on a matching column",  join_main::main},
     proc! {"paste",  "Combine columns of files.",  paste_main::main},
