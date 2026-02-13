@@ -197,36 +197,12 @@ impl NumFormat {
             write!(w, "{num}")?;
             return Ok(());
         }
-        let sign = if num < 0.0 {
-            num = -num;
-            "-"
+        if nfmt == Self::Power2 {
+            write!(w, "{}", crate::format::format_power2f(num))?;
         } else {
-            ""
-        };
-        let (exp, letters) =
-            if nfmt == Self::Power2 { (1024.0, P2_LETTERS) } else { (1000.0, P10_LETTERS) };
-
-        let mut curr_exp: f64 = 1.0;
-        let mut exp_num: usize = 0;
-
-        loop {
-            if num < (999.0 * curr_exp) {
-                if num >= (10.0 * curr_exp) {
-                    write!(w, "{}{:.0}{}", sign, num / curr_exp, letters[exp_num] as char)?;
-                } else if num >= (1.1 * curr_exp) {
-                    write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[exp_num] as char)?;
-                } else {
-                    write!(w, "{}1{}", sign, letters[exp_num] as char)?;
-                }
-                return Ok(());
-            }
-            exp_num += 1;
-            curr_exp *= exp;
-            if exp_num >= 8 {
-                write!(w, "{}{:.1}{}", sign, num / curr_exp, letters[8] as char)?;
-                return Ok(());
-            }
+            write!(w, "{}", crate::format::format_power10f(num))?;
         }
+        Ok(())
     }
 }
 

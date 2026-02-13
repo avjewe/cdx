@@ -45,3 +45,4 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
 
 [features]
 s3 = ["aws-config", "aws-sdk-s3", "tokio", "bytes"]
+track = []

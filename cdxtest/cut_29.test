@@ -1,0 +1,9 @@
+#command cdx cut -f 1 -f 2-5::sum+count+mean --dups Numeric
+#stdin
+aaa	1	2	3	4
+bbb	2	3	4	5
+ccc	3	4	5	6
+#stdout
+aaa	10	4	2.5
+bbb	14	4	3.5
+ccc	18	4	4.5

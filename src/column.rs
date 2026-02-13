@@ -295,22 +295,12 @@ impl ColumnHeader {
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct ColumnSet {
-    pos: Vec<ColSetPart>,
-    neg: Vec<ColSetPart>,
+    pos: Vec<String>,
+    neg: Vec<String>,
     columns: Vec<OutCol>,
     did_lookup: bool,
-    trans: Vec<TransList>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct ColSetPart {
-    val: String,
-    trans: Option<usize>,
-}
-impl ColSetPart {
-    fn new(spec: &str, trans: Option<usize>) -> Self {
-        Self { val: spec.to_string(), trans }
-    }
+    trans: TransList,
+    agg: AggList,
 }
 
 /// named output columns
@@ -321,30 +311,32 @@ pub struct OutCol {
     /// column name, might be empty if no name available
     pub name: String,
     /// which `TransList` to use
-    pub trans: Option<usize>,
+    pub oc_num_trans: Option<usize>,
+    /// which `AggList` to use
+    pub oc_num_agg: Option<usize>,
 }
 
 impl OutCol {
     /// new
     #[must_use]
     pub fn new(num: usize, name: &str) -> Self {
-        Self { num, name: name.to_string(), trans: None }
+        Self { num, name: name.to_string(), oc_num_trans: None, oc_num_agg: None }
     }
-    /// new with name and trans
-    #[must_use]
-    pub fn new_trans(num: usize, name: &str, trans: usize) -> Self {
-        Self { num, name: name.to_string(), trans: Some(trans) }
-    }
+    // new with name and trans
+    // #[must_use]
+    // pub fn new_trans(num: usize, name: &str, trans: usize) -> Self {
+    //     Self { num, name: name.to_string(), oc_num_trans: Some(trans) }
+    // }
     /// new with empty name
     #[must_use]
     pub const fn from_num(num: usize) -> Self {
-        Self { num, name: String::new(), trans: None }
+        Self { num, name: String::new(), oc_num_trans: None, oc_num_agg: None }
     }
-    /// new with empty name but a trans
-    #[must_use]
-    pub const fn from_num_trans(num: usize, trans: usize) -> Self {
-        Self { num, name: String::new(), trans: Some(trans) }
-    }
+    // new with empty name but a trans
+    // #[must_use]
+    // pub const fn from_num_trans(num: usize, trans: usize) -> Self {
+    //     Self { num, name: String::new(), oc_num_trans: Some(trans) }
+    // }
 }
 
 /// A `ColumnSet` with associated string
@@ -686,16 +678,16 @@ impl ColumnSet {
     }
 
     /// Add a single range, "yes" or "no" based on a flag.
-    pub fn add_one(&mut self, s: &str, negate: bool, trans: Option<usize>) {
+    pub fn add_one(&mut self, s: &str, negate: bool) {
         if let Some(stripped) = s.strip_prefix('~') {
-            let st = ColSetPart::new(stripped, trans);
+            let st = stripped.to_string();
             if negate {
                 self.pos.push(st);
             } else {
                 self.neg.push(st);
             }
         } else {
-            let st = ColSetPart::new(s, trans);
+            let st = s.to_string();
             if negate {
                 self.neg.push(st);
             } else {
@@ -721,26 +713,29 @@ impl ColumnSet {
     /// Add a list or ranges, "yes" or "no" based on a flag.
     pub fn add(&mut self, in_spec: &str, negate: bool) -> Result<()> {
         let mut spc = in_spec;
-        let trans = if let Some((a, b)) = Self::find_trans(in_spec) {
+        if let Some((a, b)) = spc.split_once("::") {
             spc = a;
-            self.trans.push(TransList::new(b)?);
-            Some(self.trans.len() - 1)
-        } else {
-            None
-        };
+            for a in b.split('+') {
+                self.agg.push(a)?;
+            }
+        }
+        if let Some((a, b)) = Self::find_trans(spc) {
+            spc = a;
+            self.trans = TransList::new(b)?;
+        }
         loop {
             if spc.first() == '(' {
                 let pos = find_close(spc)?;
-                self.add_one(&spc[..pos], negate, trans);
+                self.add_one(&spc[..pos], negate);
                 spc = &spc[pos..];
                 if spc.is_empty() {
                     break;
                 }
             } else if let Some((a, b)) = spc.split_once(',') {
-                self.add_one(a, negate, trans);
+                self.add_one(a, negate);
                 spc = b;
             } else {
-                self.add_one(spc, negate, trans);
+                self.add_one(spc, negate);
                 break;
             }
         }
@@ -890,7 +885,7 @@ impl ColumnSet {
         let mut no_cols: HashSet<usize> = HashSet::new();
 
         for s in &self.neg {
-            for x in Self::range(field_names, &s.val)? {
+            for x in Self::range(field_names, s)? {
                 no_cols.insert(x.num);
             }
         }
@@ -903,9 +898,8 @@ impl ColumnSet {
             }
         } else {
             for s in &self.pos {
-                for mut x in Self::range(field_names, &s.val)? {
+                for x in Self::range(field_names, s)? {
                     if !no_cols.contains(&x.num) {
-                        x.trans = s.trans;
                         self.columns.push(x);
                     }
                 }
@@ -997,13 +991,12 @@ impl ColumnSet {
         Ok(())
     }
 
-    fn fetch<'a>(&'a mut self, cols: &'a TextLine, col: usize) -> &'a [u8] {
-        let col = &self.columns[col];
-        if let Some(trans) = col.trans {
-            self.trans[trans].trans(cols.get(col.num), cols).unwrap()
-        } else {
-            cols.get(col.num)
-        }
+    fn fetch2<'a>(
+        col: &'a OutCol,
+        mut_trans: &'a mut TransList,
+        cols: &'a TextLine,
+    ) -> Result<&'a [u8]> {
+        mut_trans.trans(cols.get(col.num), cols)
     }
 
     /// write the appropriate selection from the given columns, but no trailing newline
@@ -1019,10 +1012,27 @@ impl ColumnSet {
         if self.columns.is_empty() {
             return Ok(());
         }
-        text.write(w, self.fetch(cols, 0))?;
-        for i in 1..self.columns.len() {
-            w.write_all(&[text.delim])?;
-            text.write(w, self.fetch(cols, i))?;
+        if self.agg.is_empty() {
+            text.write(w, Self::fetch2(&self.columns[0], &mut self.trans, cols)?)?;
+            for i in 1..self.columns.len() {
+                w.write_all(&[text.delim])?;
+                text.write(w, Self::fetch2(&self.columns[i], &mut self.trans, cols)?)?;
+            }
+        } else {
+            let mut is_first = true;
+            for agg in &mut self.agg.v {
+                agg.reset();
+                for i in 0..self.columns.len() {
+                    let val = Self::fetch2(&self.columns[i], &mut self.trans, cols)?;
+                    agg.add(val);
+                }
+                if is_first {
+                    is_first = false;
+                } else {
+                    w.write_all(&[text.delim])?;
+                }
+                agg.write(w, cols, text)?;
+            }
         }
         Ok(())
     }

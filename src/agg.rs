@@ -324,9 +324,8 @@ impl Counter for Awords {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 /// Does this `LineAgger` replace a column, or add a new column
-#[derive(Default)]
 pub enum AggType {
     /// replace a column
     #[default]
@@ -445,11 +444,11 @@ impl Agger {
         self.agg.borrow_mut().add(data);
     }
     /// print result of aggregation
-    fn result(&self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
+    pub fn result(&self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         self.agg.borrow_mut().result(w, fmt)
     }
     /// reset to empty or zero state
-    fn reset(&self) {
+    pub fn reset(&self) {
         self.agg.borrow_mut().reset();
     }
     /// return floating point value of Agg, as possible
@@ -485,9 +484,9 @@ impl Agger {
 #[derive(Clone, Default, Debug)]
 pub struct AggList {
     /// The aggregators
-    v: Vec<Agger>,
+    pub v: Vec<Agger>,
     /// fmt
-    fmt: NumFormat,
+    pub fmt: NumFormat,
 }
 
 impl AggList {

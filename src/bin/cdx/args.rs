@@ -34,23 +34,14 @@ pub enum FileCount {
 pub struct ProgSpec {
     pub help: &'static str,
     pub files: FileCount,
-    pub author: &'static str,
-    pub version: &'static str,
+    pub usage: String,
 }
 
-/// return current version string
-pub fn version() -> String {
-    format!(
-        "{}.{}.{}{}",
-        env!("CARGO_PKG_VERSION_MAJOR"),
-        env!("CARGO_PKG_VERSION_MINOR"),
-        env!("CARGO_PKG_VERSION_PATCH"),
-        option_env!("CARGO_PKG_VERSION_PRE").unwrap_or("")
-    )
-}
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 impl ProgSpec {
     pub fn new(help: &'static str, files: FileCount) -> Self {
-        Self { help, files, author: "avjewe@gmail.com", version: "0.1.22" }
+        Self { help, files, usage: "[OPTIONS] [input_files]...".to_string() }
     }
 }
 
@@ -78,16 +69,16 @@ impl ArgValue {
 }
 
 pub fn add_help(mut a: clap::Command) -> clap::Command {
-    a = a.arg(clap::Arg::new("help").long("help").help("Show help.").action(ArgAction::SetTrue));
+    a = a.arg(clap::Arg::new("help").long("help").help("Show help.").action(ArgAction::Help));
     a.arg(
-        clap::Arg::new("version").long("version").help("Show version.").action(ArgAction::SetTrue),
+        clap::Arg::new("version").long("version").help("Show version.").action(ArgAction::Version),
     )
 }
 
 pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command {
     let mut b = clap::Arg::new(x.name);
     if x.positional {
-        b = b.help(x.help).required(true)
+        b = b.help(x.help).required(true);
     } else {
         if !x.short.is_empty() {
             b = b.short(x.short.first());
@@ -136,12 +127,13 @@ pub fn parse(
     glob: &mut globals::Settings,
 ) -> Result<(Vec<ArgValue>, Vec<String>)> {
     let mut a = clap::Command::new("cdx")
-        .version(prog.version)
-        .author(prog.author)
+        .version(VERSION)
+        .author("avjewe@gmail.com")
         .about(prog.help)
         .override_usage(format!(
-            "{} [OPTIONS] [input_files]...",
-            argv[0].split('/').last().unwrap_or(&argv[0])
+            "{} {}",
+            argv[0].split('/').next_back().unwrap_or(&argv[0]),
+            prog.usage
         ))
         .disable_help_flag(true)
         .disable_version_flag(true);

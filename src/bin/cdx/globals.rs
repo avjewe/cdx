@@ -66,11 +66,6 @@ impl Settings {
         {
             Self::help();
             cdx_err(CdxError::NoError)
-        } else if let Some(src) = m.value_source("version")
-            && src == clap::parser::ValueSource::CommandLine
-        {
-            println!("cdx {}", args::version());
-            cdx_err(CdxError::NoError)
         } else if let Some(src) = m.value_source("help")
             && src == clap::parser::ValueSource::CommandLine
         {

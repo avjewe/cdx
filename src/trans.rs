@@ -211,7 +211,10 @@ impl TransList {
         Ok(())
     }
     /// Transform `src` into a new value, and append to `dst`
-    pub fn trans(&mut self, src: &[u8], cont: &TextLine) -> Result<&[u8]> {
+    pub fn trans<'a>(&'a mut self, src: &'a [u8], cont: &'a TextLine) -> Result<&'a [u8]> {
+        if self.v.is_empty() {
+            return Ok(src);
+        }
         let mut use_1 = true;
         for (i, x) in self.v.iter_mut().enumerate() {
             if i == 0 {

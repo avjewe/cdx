@@ -87,7 +87,8 @@ impl Context {
 }
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
-    let prog = args::ProgSpec::new("Search sorted files.", args::FileCount::Many);
+    let mut prog = args::ProgSpec::new("Search sorted files.", args::FileCount::Many);
+    prog.usage = "[OPTIONS] pattern [input_files]...".to_string();
     const A: [ArgSpec; 5] = [
         arg! {"key", "k", "Spec", "How to compare value to lines"},
         arg! {"filename", "H", "ColName:Parts", "Prefix output lines with file name."},
@@ -108,7 +109,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             comp.add(&x.value)?;
         } else if x.name == "filename" {
             if filename.is_some() {
-                return err!("You cant use --filename twice");
+                return err!("You can't use --filename twice");
             }
             let mut f = FileNameColumn::new();
             f.set(&x.value)?;

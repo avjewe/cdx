@@ -55,7 +55,12 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
                 let arg1 = args.remove(1);
                 args[0] += " ";
                 args[0] += &arg1;
-                return (x.proc)(&args, settings);
+                #[cfg(feature = "track")]
+                let tr = cdx::memory_tracker::ResourceTracker::new();
+                let result = (x.proc)(&args, settings);
+                #[cfg(feature = "track")]
+                tr.report("main");
+                return result;
             }
         }
     }

@@ -47,7 +47,7 @@
     clippy::little_endian_bytes,
     clippy::missing_asserts_for_indexing,
     clippy::mixed_read_write_in_expression,
-    // clippy::panic, because mpl enums are stupid
+    // clippy::panic,
     clippy::partial_pub_fields,
     clippy::redundant_type_annotations,
     clippy::renamed_function_params,
@@ -95,8 +95,12 @@ pub mod tabs;
 pub mod text;
 pub mod textgen;
 //mod tokenizer;
+pub mod format;
+pub mod memory_tracker;
 mod tok2;
 pub mod tooltest;
 pub mod trans;
 pub mod transpose;
+#[cfg(feature = "track")]
+pub mod use_memory_tracker;
 pub mod util;
