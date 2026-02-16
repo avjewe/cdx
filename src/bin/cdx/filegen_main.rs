@@ -51,7 +51,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if bad_full {
             return err!("When using --full, you may not use --lines, --column or -multi.");
         }
-        println!("FULL {full}");
         let mut w = get_writer("-")?;
         let mut filegen = cdx::textgen::GenMaker::full_make(&full)?;
         filegen.text_gen.write(&mut w.0)?;
