@@ -262,9 +262,9 @@ const MODIFIERS: Vec<&'static str> = vec![];
 pub struct GenMaker {}
 
 impl GenMaker {
-    fn init() -> Result<()> {
+    pub(crate) fn init() -> Result<()> {
         if !GEN_MAKER.lock().unwrap().is_empty() {
-            return Ok(());
+            return err!("Double init of GenMaker not allowed");
         }
         Self::do_add_alias("min", "minimum")?;
         Self::do_push("null", "Produce empty column value", |_p| Ok(Box::new(NullGen {})))?;
@@ -288,12 +288,10 @@ impl GenMaker {
     where
         F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static,
     {
-        Self::init()?;
         Self::do_push(tag, help, maker)
     }
     /// Add a new alias. If an alias already exists by that name, replace it.
     pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
-        Self::init()?;
         Self::do_add_alias(old_name, new_name)
     }
     /// Return name, replaced by its alias, if any.
@@ -344,7 +342,6 @@ impl GenMaker {
     }
     /// Print all available Matchers to stdout.
     pub fn help() {
-        Self::init().unwrap();
         //        println!("Modifiers :");
         //        println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
@@ -361,7 +358,6 @@ impl GenMaker {
     }
     /// Create a Gen from a name and a pattern
     pub fn make2(spec: &str, pattern: &str, orig: &str) -> Result<TextGen> {
-        Self::init()?;
         let mut name = "";
         if !spec.is_empty() {
             for x in spec.split('.') {

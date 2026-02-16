@@ -49,6 +49,7 @@ fn main() {
 }
 
 pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> {
+    cdx::util::init()?;
     if args.len() > 1 {
         for x in cdxmain::MAIN_LIST {
             if args[1] == x.name {

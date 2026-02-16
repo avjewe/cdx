@@ -42,7 +42,7 @@ impl ResourceTracker {
 
     /// Report outstanding allocations
     pub fn report_leak() {
-        println!(
+        eprintln!(
             "{} outstanding allocations totalling {} bytes.",
             get_net_counter(),
             get_net_total()
@@ -57,7 +57,7 @@ impl ResourceTracker {
 
     /// Print a one line report about allocations
     pub fn report(&self, tag: &str) {
-        println!(
+        eprintln!(
             "{tag} : {} allocations totalling {} bytes.",
             format_power2(get_counter() - self.count),
             format_power2(get_total() - self.total)

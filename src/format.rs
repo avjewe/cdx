@@ -1,10 +1,8 @@
 //! format numbers into human readable abbreviations
 
-const POWER_LETTERS: &str = "0KMGTPEZYRQ";
-const POWER_10_LETTERS: &str = "0kmgtpezyrq";
-
 #[must_use]
 /// Format f64 into something short and readable, like 42K or 1.5M
+/// Value is rounded to the nearest integer.
 ///
 /// Returned string is at most 5 characters, including optional `-` sign
 /// 0-999 are themselves
@@ -24,6 +22,7 @@ pub fn format_power2f(num: f64) -> String {
 
 #[must_use]
 /// Format f64 into something short and readable, like 42k or 1.5m
+/// Value is rounded to the nearest integer.
 ///
 /// Returned string is at most 5 characters, including optional `-` sign
 /// 0-999 are themselves
@@ -61,21 +60,22 @@ fn format_inner(num: f64, is_10: bool) -> String {
         return format!("{num:.0}");
     }
     let mut curr_exp = 1f64;
-    let mut exp = if is_10 { POWER_10_LETTERS.chars() } else { POWER_LETTERS.chars() };
+    let mut exp =
+        if is_10 { crate::num::P10_LETTERS.iter() } else { crate::num::P2_LETTERS.iter() };
     let bump = if is_10 { 1000.0 } else { 1024.0 };
 
     loop {
-        let e: char = exp.next().unwrap();
+        let e = exp.next().unwrap();
         if num <= (999.0 * curr_exp) {
             if num > (9.9 * curr_exp) {
-                return format!("{:.0}{e}", (num / curr_exp).ceil());
+                return format!("{:.0}{}", (num / curr_exp).ceil(), *e as char);
             }
             if num > curr_exp {
-                return format!("{:.1}{e}", (num * 10.0 / curr_exp).ceil() / 10.0);
+                return format!("{:.1}{}", (num * 10.0 / curr_exp).ceil() / 10.0, *e as char);
             }
-            return format!("1{e}");
+            return format!("1{}", *e as char);
         }
-        if e == 'Q' {
+        if *e == b'Q' {
             return format!("{:.0}Q", num / curr_exp);
         }
         curr_exp *= bump;

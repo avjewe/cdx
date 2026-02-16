@@ -16,6 +16,66 @@ pub trait Trans {
     }
 }
 
+#[derive(Default, Clone, Debug)]
+struct SelectTrans {
+    cols: ColumnSet,
+    in_mode: TextFileMode,
+    out_mode: TextFileMode,
+    text: TextLine,
+}
+
+// pub struct TextFileMode {
+//     /// yes, no, maybe
+//     pub head_mode: HeadMode,
+//     /// plain, quote, backslash
+//     pub col_mode: QuoteMode,
+//     /// column delimiter
+//     pub delim: u8,
+//     /// line delimiter
+//     pub line_break: u8,
+//     /// replacement character for plain encoding
+//     // maybe should be Option<u8> where None means to drop, rather than replace
+//     pub repl: u8,
+// }
+
+impl SelectTrans {
+    #[must_use]
+    const fn mode(delim: char) -> TextFileMode {
+        TextFileMode {
+            head_mode: crate::util::HeadMode::No,
+            col_mode: crate::util::QuoteMode::Plain,
+            delim: crate::util::auto_escape(delim),
+            line_break: b'\n',
+            repl: b' ',
+        }
+    }
+
+    fn new(spec: &str) -> Result<Self> {
+        let mut chars = spec.chars();
+        match (chars.next(), chars.next()) {
+            (Some(in_delim), Some(out_delim)) => {
+                let in_mode = Self::mode(in_delim);
+                let out_mode = Self::mode(out_delim);
+                let cols = ColumnSet::from_spec(chars.as_str())?;
+                Ok(Self { cols, in_mode, out_mode, text: TextLine::default() })
+            }
+            _ => err!("Invalid select spec : {}", spec),
+        }
+    }
+}
+
+impl Trans for SelectTrans {
+    fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
+        self.text.line.clear();
+        self.text.line.extend_from_slice(src);
+        self.text.split(&self.in_mode);
+        self.cols.write3(dst, &self.text, &self.out_mode)
+    }
+    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
+        self.cols.lookup(&[])?;
+        Ok(())
+    }
+}
 // get ranges of bytes
 struct BytesTrans {
     v: Vec<FakeSlice>,
@@ -268,9 +328,9 @@ pub struct TransMaker {}
 
 impl TransMaker {
     /// add standard trans makers
-    fn init() -> Result<()> {
+    pub(crate) fn init() -> Result<()> {
         if !TRANS_MAKER.lock().unwrap().is_empty() {
-            return Ok(());
+            return err!("Double init of TransMaker not allowed");
         }
         Self::do_add_alias("lower", "lowercase")?;
         Self::do_add_alias("upper", "uppercase")?;
@@ -292,6 +352,9 @@ impl TransMaker {
         Self::do_push("bytes", "Select bytes from value", |_c, p| {
             Ok(Box::new(BytesTrans::new(p)?))
         })?;
+        Self::do_push("select", "Select sub-columns from value", |_c, p| {
+            Ok(Box::new(SelectTrans::new(p)?))
+        })?;
         Ok(())
     }
     /// Add a new trans. If a Trans already exists by that name, replace it.
@@ -299,12 +362,10 @@ impl TransMaker {
     where
         F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send + 'static,
     {
-        Self::init()?;
         Self::do_push(tag, help, maker)
     }
     /// Add a new alias. If an alias already exists by that name, replace it.
     pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
-        Self::init()?;
         Self::do_add_alias(old_name, new_name)
     }
     /// Return name, replaced by its alias, if any.
@@ -358,7 +419,8 @@ impl TransMaker {
     /// Print all available Transformers to stdout.
     pub fn help() {
         println!("Modifiers :");
-        Self::init().unwrap();
+        println!("utf8  Operations are on utf8 strings, rather than the default u8 bytes.");
+        println!("Methods :");
         let mut results = Vec::new();
         for x in &*TRANS_MAKER.lock().unwrap() {
             results.push(format!("{:12}{}", x.tag, x.help));
@@ -392,7 +454,6 @@ impl TransMaker {
     }
     /// make a dyn Trans from a named trans and a pattern
     pub fn make_box(kind: &str, conf: &TransSettings, pattern: &str) -> Result<Box<dyn Trans>> {
-        Self::init()?;
         for x in &*TRANS_MAKER.lock().unwrap() {
             if x.tag == kind {
                 return (x.maker)(conf, pattern);

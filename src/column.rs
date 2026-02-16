@@ -262,6 +262,7 @@ impl ColumnHeader {
 ///
 /// ```
 ///    use cdx::column::ColumnSet;
+///    cdx::util::init();
 ///    let header: [&str; 5] = ["zero", "one", "two", "three", "four"];
 ///
 ///    let mut s = ColumnSet::new();
@@ -295,12 +296,18 @@ impl ColumnHeader {
 /// ```
 #[derive(Debug, Default, Clone)]
 pub struct ColumnSet {
-    pos: Vec<String>,
-    neg: Vec<String>,
-    columns: Vec<OutCol>,
-    did_lookup: bool,
-    trans: TransList,
-    agg: AggList,
+    /// specs for columns to include, e.g. "1-3", "one-three", "(range,>s<=two)"
+    pub pos: Vec<String>,
+    /// specs for columns to exclude, e.g. "1-3", "one-three", "(range,>s<=two)"
+    pub neg: Vec<String>,
+    /// the resulting list of column numbers, in order, after lookup
+    pub columns: Vec<OutCol>,
+    /// have we done the lookup yet?
+    pub did_lookup: bool,
+    /// any transformations to apply to the column values
+    pub trans: TransList,
+    /// any aggregations to apply to the column values
+    pub agg: AggList,
 }
 
 /// named output columns
@@ -880,6 +887,8 @@ impl ColumnSet {
     ///    assert_eq!(s.get_cols_num(), &[0,1,3,4]);
     /// ```
     pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+        self.trans.lookup(field_names)?;
+        // self.agg.lookup(field_names)?;
         self.did_lookup = true;
         self.columns = Vec::new();
         let mut no_cols: HashSet<usize> = HashSet::new();
@@ -991,7 +1000,7 @@ impl ColumnSet {
         Ok(())
     }
 
-    fn fetch2<'a>(
+    fn fetch<'a>(
         col: &'a OutCol,
         mut_trans: &'a mut TransList,
         cols: &'a TextLine,
@@ -1013,17 +1022,17 @@ impl ColumnSet {
             return Ok(());
         }
         if self.agg.is_empty() {
-            text.write(w, Self::fetch2(&self.columns[0], &mut self.trans, cols)?)?;
+            text.write(w, Self::fetch(&self.columns[0], &mut self.trans, cols)?)?;
             for i in 1..self.columns.len() {
                 w.write_all(&[text.delim])?;
-                text.write(w, Self::fetch2(&self.columns[i], &mut self.trans, cols)?)?;
+                text.write(w, Self::fetch(&self.columns[i], &mut self.trans, cols)?)?;
             }
         } else {
             let mut is_first = true;
             for agg in &mut self.agg.v {
                 agg.reset();
                 for i in 0..self.columns.len() {
-                    let val = Self::fetch2(&self.columns[i], &mut self.trans, cols)?;
+                    let val = Self::fetch(&self.columns[i], &mut self.trans, cols)?;
                     agg.add(val);
                 }
                 if is_first {
@@ -1578,6 +1587,7 @@ mod tests {
 
     #[test]
     fn range() -> Result<()> {
+        crate::util::init()?;
         let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
         let res: [OutCol; 5] = [
             OutCol::from_num(0),
@@ -1597,6 +1607,7 @@ mod tests {
 
     #[test]
     fn named_range() -> Result<()> {
+        crate::util::init()?;
         let f: [&str; 5] = ["zero", "one", "two", "three", "four"];
         let res: [OutCol; 5] = [
             OutCol::new(0, "stuff"),
@@ -1611,7 +1622,8 @@ mod tests {
     }
 
     #[test]
-    fn do_get_col_name() {
+    fn do_get_col_name() -> Result<()> {
+        crate::util::init()?;
         assert_eq!(get_col_name(""), 0);
         assert_eq!(get_col_name("..."), 0);
         assert_eq!(get_col_name("_aaa"), 0);
@@ -1621,5 +1633,6 @@ mod tests {
         assert_eq!(get_col_name("abc,aaa"), 3);
         assert_eq!(get_col_name("a_b_c"), 5);
         assert_eq!(get_col_name("a_ñ_c"), 6);
+        Ok(())
     }
 }

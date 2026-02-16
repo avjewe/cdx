@@ -13,7 +13,28 @@ use std::io;
 use std::ops::{Deref, DerefMut};
 use std::str;
 use std::sync::LazyLock;
-// use tokio_stream::StreamExt;
+
+fn do_init() -> Result<()> {
+    crate::agg::AggMaker::init()?;
+    CompMaker::init()?;
+    crate::matcher::MatchMaker::init()?;
+    crate::textgen::GenMaker::init()?;
+    crate::trans::TransMaker::init()?;
+    Ok(())
+}
+
+static INIT: LazyLock<core::result::Result<(), String>> = LazyLock::new(|| {
+    do_init().map_err(|e| format!("{e:?}"))?;
+    Ok(())
+});
+
+/// Call before anything else. Automatically done in `main`
+pub fn init() -> Result<()> {
+    match INIT.as_ref() {
+        Ok(()) => Ok(()),
+        Err(e) => err!(e),
+    }
+}
 
 /// Shorthand for returning an error Result
 #[macro_export]

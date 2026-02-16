@@ -9,6 +9,7 @@
 //! ```
 //! use cdx::comp::LineCompList;
 //! use cdx::prelude::*;
+//! cdx::util::init();
 //! let mut comp = LineCompList::new();
 //! comp.add("price,float")?;
 //! comp.add("quant,num")?;
@@ -837,9 +838,9 @@ pub struct CompMaker {}
 
 impl CompMaker {
     /// add standard match makers
-    fn init() -> Result<()> {
+    pub(crate) fn init() -> Result<()> {
         if !COMP_MAKER.lock().unwrap().is_empty() {
-            return Ok(());
+            return err!("Double init of CompMaker not allowed");
         }
         Self::do_add_alias("numeric", "num")?;
         Self::do_add_alias("length", "len")?;
@@ -872,7 +873,6 @@ impl CompMaker {
     where
         F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static,
     {
-        Self::init()?;
         Self::do_push(tag, help, maker)
     }
     /// Add a new `LineCompare`. If a Compare already exists by that name, replace it.
@@ -880,12 +880,10 @@ impl CompMaker {
     where
         F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static,
     {
-        Self::init()?;
         Self::do_push_line(tag, help, maker)
     }
     /// Add a new alias. If an alias already exists by that name, replace it.
     pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
-        Self::init()?;
         Self::do_add_alias(old_name, new_name)
     }
     /// Return name, replaced by its alias, if any.
@@ -971,7 +969,6 @@ impl CompMaker {
         println!("   trail   compare as junk unless a prefix of the string is valid.");
         println!("   low     junk should compare low, rather than the default of high.");
         println!("Methods :");
-        Self::init().unwrap();
         let mut results = Vec::new();
         for x in &*COMP_MAKER.lock().unwrap() {
             results.push(format!("   {:12}{}", x.tag, x.help));
@@ -1060,7 +1057,6 @@ impl CompMaker {
     }
     /// reset the Compare inside the Comp
     pub fn remake_comp(comp: &mut Comp) -> Result<()> {
-        Self::init()?;
         let ctype = Self::resolve_alias(&comp.ctype);
         for x in &*COMP_MAKER.lock().unwrap() {
             if ctype.eq_ignore_ascii_case(x.tag) {
@@ -1072,7 +1068,6 @@ impl CompMaker {
     }
     /// reset the `LineCompare` inside the `LineComp`
     pub fn remake_line_comp(comp: &mut LineComp) -> Result<()> {
-        Self::init()?;
         let ctype = Self::resolve_alias(&comp.ctype);
         for x in &*LINE_MAKER.lock().unwrap() {
             if ctype.eq_ignore_ascii_case(x.tag) {

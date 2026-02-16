@@ -1,0 +1,7 @@
+#command cdx cut -f 1 -f 2+select,,,2 -f 3+select,..2-3 -f 4+select,s:1,3
+#stdin
+aaa	a,b,c	d.e.f	g h i
+bbb	x,y,z	w.x.y	u v w
+#stdout
+aaa	b	e.f	g:i
+bbb	y	x.y	u:w

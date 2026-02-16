@@ -131,7 +131,8 @@ pub enum NumFormat {
 }
 impl Default for NumFormat {
     fn default() -> Self {
-        Self::Short(None)
+        Self::Plain(None)
+        // Self::Short(None)
     }
 }
 impl NumFormat {
@@ -206,11 +207,24 @@ impl NumFormat {
     }
 }
 
-const P2_LETTERS: &[u8] = b"0KMGTPEZY";
-const P10_LETTERS: &[u8] = b"0kmgtpezy";
-const P2_VALUES_U: [usize; 9] =
-    [1, 1024, 1024 ^ 2, 1024 ^ 3, 1024 ^ 4, 1024 ^ 5, 1024 ^ 6, usize::MAX, usize::MAX];
-const P2_VALUES_F: [f64; 9] = [
+/// Suffix letters for powers of 2^10
+pub const P2_LETTERS: &[u8] = b"0KMGTPEZYRQ";
+/// Suffix letters for powers of 10^3
+pub const P10_LETTERS: &[u8] = b"0kmgtpezyrq";
+const P2_VALUES_U: [usize; 11] = [
+    1,
+    1024,
+    1024 ^ 2,
+    1024 ^ 3,
+    1024 ^ 4,
+    1024 ^ 5,
+    1024 ^ 6,
+    usize::MAX,
+    usize::MAX,
+    usize::MAX,
+    usize::MAX,
+];
+const P2_VALUES_F: [f64; 11] = [
     1.0,
     1024.0,
     1024.0 * 1024.0,
@@ -220,10 +234,23 @@ const P2_VALUES_F: [f64; 9] = [
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
     1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
+    1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
 ];
-const P10_VALUES_U: [usize; 9] =
-    [1, 1000, 1000 ^ 2, 1000 ^ 3, 1000 ^ 4, 1000 ^ 5, 1000 ^ 6, usize::MAX, usize::MAX];
-const P10_VALUES_F: [f64; 9] = [
+const P10_VALUES_U: [usize; 11] = [
+    1,
+    1000,
+    1000 ^ 2,
+    1000 ^ 3,
+    1000 ^ 4,
+    1000 ^ 5,
+    1000 ^ 6,
+    usize::MAX,
+    usize::MAX,
+    usize::MAX,
+    usize::MAX,
+];
+const P10_VALUES_F: [f64; 11] = [
     1.0,
     1000.0,
     1000.0 * 1000.0,
@@ -233,6 +260,8 @@ const P10_VALUES_F: [f64; 9] = [
     1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
     1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
     1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
+    1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0 * 1000.0,
 ];
 
 /// return value associated with suffix character, e.g. K returns 1024 and k returns 1000

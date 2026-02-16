@@ -194,7 +194,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_lower() {
+    fn test_lower() -> Result<()> {
+        crate::util::init()?;
         let mut comp = LineCompList::new();
         comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
@@ -214,9 +215,11 @@ mod tests {
         );
         assert_eq!(lower_bound(b"bbb\t1\nbbb\t2\nbbb\t3\nbbb\t4\nccc\n", &mut comp), b"bbb\t1\n");
         assert_eq!(lower_bound(b"aaa\nbbb\t1\nbbb\t2\nbbb\t3\nbbb\t4", &mut comp), b"bbb\t1\n");
+        Ok(())
     }
     #[test]
-    fn test_lower2() {
+    fn test_lower2() -> Result<()> {
+        crate::util::init()?;
         let mut comp = LineCompList::new();
         comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
@@ -241,5 +244,6 @@ mod tests {
         assert_eq!(lower_bound(b"\n\naaa\nccc", &mut comp), b"");
         assert_eq!(lower_bound(b"\n\n", &mut comp), b"");
         assert_eq!(lower_bound(b"\n", &mut comp), b"");
+        Ok(())
     }
 }

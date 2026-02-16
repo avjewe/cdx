@@ -12,6 +12,7 @@
 //!```
 //! use cdx::matcher::*;
 //! use cdx::prelude::*;
+//! cdx::util::init();
 //! let matcher = MatchMaker::make("prefix,abc")?;
 //! assert!(matcher.umatch(b"abcdef"));
 //! assert!(!matcher.umatch(b"bcdef"));
@@ -1511,9 +1512,9 @@ pub struct MatchMaker {}
 
 impl MatchMaker {
     /// add standard match makers
-    fn init() -> Result<()> {
+    pub(crate) fn init() -> Result<()> {
         if !MATCH_MAKER.lock().unwrap().is_empty() {
-            return Ok(());
+            return err!("Double init of MatchMaker not allowed");
         }
         Self::do_add_alias("infix", "substr")?;
         Self::do_add_alias("infix", "substring")?;
@@ -1627,12 +1628,10 @@ impl MatchMaker {
     where
         F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static,
     {
-        Self::init()?;
         Self::do_push(tag, help, maker)
     }
     /// Add a new alias. If an alias already exists by that name, replace it.
     pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
-        Self::init()?;
         Self::do_add_alias(old_name, new_name)
     }
     /// Return name, replaced by its alias, if any.
@@ -1694,7 +1693,6 @@ impl MatchMaker {
         println!("and   Interpret pattern as a multi-pattern, Match with AND.");
         println!("or    Interpret pattern as a multi-pattern, Match with OR.\n");
         println!("Methods :");
-        Self::init().unwrap();
         let mut results = Vec::new();
         for x in &*MATCH_MAKER.lock().unwrap() {
             results.push(format!("{:12}{}", x.tag, x.help));
@@ -1707,7 +1705,6 @@ impl MatchMaker {
     }
     /// Create a Matcher from a matcher spec and a pattern
     pub fn make2(matcher: &str, pattern: &str) -> Result<Matcher> {
-        Self::init()?;
         let mut m = Matcher::default();
         if !matcher.is_empty() {
             for x in matcher.split('.') {
@@ -1803,7 +1800,6 @@ impl MatchMaker {
     }
     /// Remake the dyn Match based on current contents.
     pub fn remake(m: &mut Matcher, pattern: &str) -> Result<()> {
-        Self::init()?;
         for x in &*MATCH_MAKER.lock().unwrap() {
             if x.tag == m.ctype {
                 m.matcher = (x.maker)(m, pattern)?;

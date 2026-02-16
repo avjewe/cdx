@@ -1223,9 +1223,9 @@ const MODIFIERS: Vec<&'static str> = vec![];
 pub struct AggMaker {}
 
 impl AggMaker {
-    fn init() -> Result<()> {
+    pub(crate) fn init() -> Result<()> {
         if !AGG_MAKER.lock().unwrap().is_empty() {
-            return Ok(());
+            return err!("Double init of AggMaker not allowed");
         }
         Self::do_add_alias("min", "minimum")?;
         Self::do_add_alias("max", "maximum")?;
@@ -1286,7 +1286,6 @@ impl AggMaker {
     where
         F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send + 'static,
     {
-        Self::init()?;
         Self::do_push(tag, help, maker)
     }
     /// Add a new Counter. If a Counter already exists by that name, replace it.
@@ -1294,12 +1293,10 @@ impl AggMaker {
     where
         F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static,
     {
-        Self::init()?;
         Self::do_push_counter(tag, help, maker)
     }
     /// Add a new alias. If an alias already exists by that name, replace it.
     pub fn add_alias(old_name: &'static str, new_name: &'static str) -> Result<()> {
-        Self::init()?;
         Self::do_add_alias(old_name, new_name)
     }
     /// Return name, replaced by its alias, if any.
@@ -1371,7 +1368,6 @@ impl AggMaker {
     }
     /// Print all available Matchers to stdout.
     pub fn help() {
-        Self::init().unwrap();
         println!("Modifiers :");
         println!("utf8 : do the unicode thing, rather than the ascii thing.");
         println!("Methods :");
@@ -1419,7 +1415,6 @@ impl AggMaker {
     }
     /// Create a Agg from a name and a pattern
     pub fn make2(spec: &str, pattern: &str) -> Result<AggRef> {
-        Self::init()?;
         let mut name = "";
         if !spec.is_empty() {
             for x in spec.split('.') {
@@ -1438,9 +1433,6 @@ impl AggMaker {
     }
     /// Create a Agg from a name and a pattern
     pub fn make_counter2(spec: &str, pattern: &str) -> Result<Box<dyn Counter>> {
-        // we can't call init here, because mutex is already held by make2()
-        //        Self::init()?;
-        // we need to split the list of counters into a separate init
         let mut name = "";
         let mut utf8 = false;
         if !spec.is_empty() {
