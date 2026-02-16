@@ -340,6 +340,128 @@ impl Match for PrefixMatch {
 }
 
 #[derive(Debug, Clone)]
+/// match if value contains all of these characters
+struct KeepMatch {
+    s_data: String,
+    u_data: Vec<u8>,
+    case: Case,
+}
+
+#[derive(Debug, Clone)]
+/// match if value contains any of these characters
+struct RejectMatch {
+    s_data: String,
+    u_data: Vec<u8>,
+    case: Case,
+}
+impl KeepMatch {
+    fn new(data: &str, matcher: &Matcher) -> Self {
+        if matcher.case == Case::Insens {
+            Self {
+                s_data: data.to_lowercase(),
+                u_data: data.as_bytes().to_ascii_lowercase(),
+                case: matcher.case,
+            }
+        } else {
+            Self { s_data: data.to_string(), u_data: data.as_bytes().to_vec(), case: matcher.case }
+        }
+    }
+}
+impl RejectMatch {
+    fn new(data: &str, matcher: &Matcher) -> Self {
+        if matcher.case == Case::Insens {
+            Self {
+                s_data: data.to_lowercase(),
+                u_data: data.as_bytes().to_ascii_lowercase(),
+                case: matcher.case,
+            }
+        } else {
+            Self { s_data: data.to_string(), u_data: data.as_bytes().to_vec(), case: matcher.case }
+        }
+    }
+}
+//    case: Case,
+
+impl Match for KeepMatch {
+    fn smatch(&self, buff: &str) -> bool {
+        if self.case == Case::Sens {
+            for ch in self.s_data.chars() {
+                if !buff.contains(ch) {
+                    return false;
+                }
+            }
+        } else {
+            let b = buff.to_lowercase();
+            for ch in self.s_data.chars() {
+                if !b.contains(ch) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+    fn umatch(&self, buff: &[u8]) -> bool {
+        if self.case == Case::Sens {
+            for ch in &self.u_data {
+                if !buff.contains(ch) {
+                    return false;
+                }
+            }
+        } else {
+            let b = buff.to_ascii_lowercase();
+            for ch in &self.u_data {
+                if !b.contains(ch) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+    fn show(&self) -> String {
+        format!("KeepMatch {self:?}")
+    }
+}
+impl Match for RejectMatch {
+    fn smatch(&self, buff: &str) -> bool {
+        if self.case == Case::Sens {
+            for ch in self.s_data.chars() {
+                if buff.contains(ch) {
+                    return false;
+                }
+            }
+        } else {
+            let b = buff.to_lowercase();
+            for ch in self.s_data.chars() {
+                if b.contains(ch) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+    fn umatch(&self, buff: &[u8]) -> bool {
+        if self.case == Case::Sens {
+            for ch in &self.u_data {
+                if buff.contains(ch) {
+                    return false;
+                }
+            }
+        } else {
+            let b = buff.to_ascii_lowercase();
+            for ch in &self.u_data {
+                if b.contains(ch) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+    fn show(&self) -> String {
+        format!("RejectMatch {self:?}")
+    }
+}
+
+#[derive(Debug, Clone)]
 /// pattern is prefix of string, case insensitive
 struct PrefixMatchC {
     s_data: String,
@@ -1529,6 +1651,12 @@ impl MatchMaker {
         Self::do_push("solve", "Does the target match the given solver pattern?", |_m, p| {
             Ok(Box::new(crate::solve::SolverMatch::new(p)?))
         })?;
+        Self::do_push("keep", "Match values that contain all of these characters.", |m, p| {
+            Ok(Box::new(KeepMatch::new(p, m)))
+        })?;
+        Self::do_push("reject", "Reject values that contain any of these characters.", |m, p| {
+            Ok(Box::new(RejectMatch::new(p, m)))
+        })?;
         Self::do_push("float", "Valid floating point number", |_m, _p| {
             Ok(Box::new(RegexMatch::new("^[-]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?$", Case::Sens)?))
         })?;
@@ -1854,7 +1982,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn keep() -> Result<()> {
+        util::init()?;
+        let c = MatchMaker::make("keep,abc")?;
+        assert!(c.umatch(b"azbzc"));
+        assert!(!c.umatch(b"azzc"));
+        assert!(c.smatch("azbzc"));
+        assert!(!c.smatch("azzc"));
+        let c = MatchMaker::make("keep.case,AbC")?;
+        assert!(c.umatch(b"AzbzC"));
+        assert!(c.umatch(b"azBzC"));
+        assert!(!c.umatch(b"AZZC"));
+        assert!(c.smatch("azBzC"));
+        assert!(!c.smatch("AZZC"));
+        let c = MatchMaker::make("reject,abc")?;
+        assert!(c.umatch(b"defgh"));
+        assert!(!c.umatch(b"defagh"));
+        assert!(c.smatch("defgh"));
+        assert!(!c.smatch("defcgh"));
+        Ok(())
+    }
+
+    #[test]
     fn range() -> Result<()> {
+        util::init()?;
         let c = MatchMaker::make("range,plain,<=dog>cat")?;
         assert!(c.smatch("ccc"));
         assert!(!c.smatch("cat"));
