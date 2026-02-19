@@ -24,20 +24,6 @@ struct SelectTrans {
     text: TextLine,
 }
 
-// pub struct TextFileMode {
-//     /// yes, no, maybe
-//     pub head_mode: HeadMode,
-//     /// plain, quote, backslash
-//     pub col_mode: QuoteMode,
-//     /// column delimiter
-//     pub delim: u8,
-//     /// line delimiter
-//     pub line_break: u8,
-//     /// replacement character for plain encoding
-//     // maybe should be Option<u8> where None means to drop, rather than replace
-//     pub repl: u8,
-// }
-
 impl SelectTrans {
     #[must_use]
     const fn mode(delim: char) -> TextFileMode {

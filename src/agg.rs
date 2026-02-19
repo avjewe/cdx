@@ -233,6 +233,53 @@ pub trait Counter {
     fn counter(&mut self, data: &[u8]) -> usize;
 }
 
+struct CountChar {
+    uchar: Option<u8>,
+    ch: char,
+}
+impl CountChar {
+    fn new(s: &str) -> Result<Self> {
+        let iter = &mut s.chars();
+        let ret = match &iter.next() {
+            None => return err!("`occurs` needs a single character, got the empty string"),
+            Some(ch) => {
+                let ch = crate::util::auto_escape_char(*ch);
+                if ch.is_ascii() {
+                    Self { uchar: Some(ch as u8), ch }
+                } else {
+                    Self { uchar: None, ch }
+                }
+            }
+        };
+        match &iter.next().as_ref() {
+            None => Ok(ret),
+            Some(_ch) => err!("`occurs` needs a single character, got multiple characters."),
+        }
+    }
+}
+impl Counter for CountChar {
+    fn counter(&mut self, data: &[u8]) -> usize {
+        let mut count = 0usize;
+        match self.uchar {
+            Some(ch) => {
+                for c in data {
+                    if *c == ch {
+                        count += 1;
+                    }
+                }
+            }
+            None => {
+                for ch in String::from_utf8_lossy(data).chars() {
+                    if ch == self.ch {
+                        count += 1;
+                    }
+                }
+            }
+        }
+        count
+    }
+}
+
 struct Chars {
     utf8: bool,
 }
@@ -1231,6 +1278,11 @@ impl AggMaker {
         Self::do_add_alias("max", "maximum")?;
         Self::do_add_alias("mean", "avg")?;
         Self::do_add_alias("amean", "aavg")?;
+        Self::do_push_counter(
+            "occurs",
+            "Count the number of occurrences of a character",
+            |_utf8, p| Ok(Box::new(CountChar::new(p)?)),
+        )?;
         Self::do_push_counter("chars", "Count the characters", |utf8, _p| {
             Ok(Box::new(Chars::new(utf8)))
         })?;

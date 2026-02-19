@@ -889,7 +889,7 @@ impl CompMaker {
     /// Return name, replaced by its alias, if any.
     fn resolve_alias(name: &str) -> &str {
         // let mut mm = COMP_ALIAS.lock().unwrap();
-        for x in COMP_ALIAS.lock().unwrap().iter_mut() {
+        for x in COMP_ALIAS.lock().unwrap().iter() {
             if x.new_name == name {
                 return x.old_name;
             }
@@ -911,7 +911,7 @@ impl CompMaker {
             }
         }
         mm.push(m);
-        drop(mm);
+        drop(mm); // because clippy::significant_drop_tightening
         Ok(())
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
@@ -960,7 +960,7 @@ impl CompMaker {
     pub fn help() {
         println!();
         println!("A Comparator determines how strings are ordered.");
-        println!("Syntax is `method.modifier.modifier...` with al parts optional.");
+        println!("Syntax is `method.modifier.modifier...` with all parts optional.");
         println!("Default is ascending by plain byte order.");
         println!();
         println!("Modifiers :");

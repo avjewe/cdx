@@ -47,7 +47,7 @@ pub trait LineMatch {
     fn ok(&mut self, line: &TextLine) -> bool;
     /// Resolve any named columns.
     fn lookup(&mut self, field_names: &[&str]) -> Result<()>;
-    /// Human readable desription
+    /// Human readable description
     fn show(&self) -> String;
     /// Is this line ok? If not, write explanation to stderr
     fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
@@ -69,7 +69,7 @@ pub trait Match {
     fn smatch(&self, buff: &str) -> bool;
     /// Are these bytes ok?
     fn umatch(&self, buff: &[u8]) -> bool;
-    /// Human readable desription
+    /// Human readable description
     fn show(&self) -> String {
         format!("stuff {}", 27)
     }
@@ -338,7 +338,39 @@ impl Match for PrefixMatch {
         format!("Prefix Match of {}", self.data)
     }
 }
+/*
+pub fn extend_to_lowercase(src: &str, dst: &mut String) {
+    let (mut s, rest) = convert_while_ascii(self, u8::to_ascii_lowercase);
 
+    let prefix_len = s.len();
+
+    for (i, c) in rest.char_indices() {
+        if c == 'Σ' {
+            // Σ maps to σ, except at the end of a word where it maps to ς.
+            // This is the only conditional (contextual) but language-independent mapping
+            // in `SpecialCasing.txt`,
+            // so hard-code it rather than have a generic "condition" mechanism.
+            // See https://github.com/rust-lang/rust/issues/26035
+            let sigma_lowercase = map_uppercase_sigma(self, prefix_len + i);
+            s.push(sigma_lowercase);
+        } else {
+            match conversions::to_lower(c) {
+                [a, '\0', _] => s.push(a),
+                [a, b, '\0'] => {
+                    s.push(a);
+                    s.push(b);
+                }
+                [a, b, c] => {
+                    s.push(a);
+                    s.push(b);
+                    s.push(c);
+                }
+            }
+        }
+    }
+    return s;
+}
+*/
 #[derive(Debug, Clone)]
 /// match if value contains all of these characters
 struct KeepMatch {
@@ -380,7 +412,14 @@ impl RejectMatch {
         }
     }
 }
-//    case: Case,
+fn contains_lower(haystack: &[u8], needle: u8) -> bool {
+    for ch in haystack {
+        if ch.to_ascii_lowercase() == needle {
+            return true;
+        }
+    }
+    false
+}
 
 impl Match for KeepMatch {
     fn smatch(&self, buff: &str) -> bool {
@@ -391,6 +430,9 @@ impl Match for KeepMatch {
                 }
             }
         } else {
+            if buff.is_ascii() {
+                return self.umatch(buff.as_bytes());
+            }
             let b = buff.to_lowercase();
             for ch in self.s_data.chars() {
                 if !b.contains(ch) {
@@ -400,6 +442,7 @@ impl Match for KeepMatch {
         }
         true
     }
+
     fn umatch(&self, buff: &[u8]) -> bool {
         if self.case == Case::Sens {
             for ch in &self.u_data {
@@ -408,9 +451,8 @@ impl Match for KeepMatch {
                 }
             }
         } else {
-            let b = buff.to_ascii_lowercase();
             for ch in &self.u_data {
-                if !b.contains(ch) {
+                if !contains_lower(buff, *ch) {
                     return false;
                 }
             }
@@ -421,6 +463,7 @@ impl Match for KeepMatch {
         format!("KeepMatch {self:?}")
     }
 }
+
 impl Match for RejectMatch {
     fn smatch(&self, buff: &str) -> bool {
         if self.case == Case::Sens {
@@ -430,6 +473,9 @@ impl Match for RejectMatch {
                 }
             }
         } else {
+            if buff.is_ascii() {
+                return self.umatch(buff.as_bytes());
+            }
             let b = buff.to_lowercase();
             for ch in self.s_data.chars() {
                 if b.contains(ch) {
@@ -447,9 +493,8 @@ impl Match for RejectMatch {
                 }
             }
         } else {
-            let b = buff.to_ascii_lowercase();
-            for ch in &self.u_data {
-                if b.contains(ch) {
+            for ch in buff {
+                if self.u_data.contains(&ch.to_ascii_lowercase()) {
                     return false;
                 }
             }
@@ -1998,6 +2043,14 @@ mod tests {
         let c = MatchMaker::make("reject,abc")?;
         assert!(c.umatch(b"defgh"));
         assert!(!c.umatch(b"defagh"));
+        assert!(c.smatch("defgh"));
+        assert!(!c.smatch("defcgh"));
+        let c = MatchMaker::make("reject.case,AbC")?;
+        assert!(c.umatch(b"defgh"));
+        assert!(!c.umatch(b"defagh"));
+        assert!(!c.umatch(b"defAgh"));
+        assert!(!c.umatch(b"defcgh"));
+        assert!(!c.umatch(b"defCgh"));
         assert!(c.smatch("defgh"));
         assert!(!c.smatch("defcgh"));
         Ok(())

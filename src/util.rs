@@ -204,6 +204,24 @@ pub const fn auto_escape(ch: char) -> u8 {
     }
 }
 
+/// usually return input char, but 't' means tab and such
+#[must_use]
+pub const fn auto_escape_char(ch: char) -> char {
+    if ch == 't' {
+        '\t'
+    } else if ch == 's' {
+        ' '
+    } else if ch == 'r' {
+        '\r'
+    } else if ch == 'n' {
+        '\n'
+    }
+    // FIXME - more auto-escape options
+    else {
+        ch
+    }
+}
+
 const TEXT_HELP_STRING: &str = r#"
 
 # Input Text Files #

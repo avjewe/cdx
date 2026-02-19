@@ -1,0 +1,6 @@
+#command cdx wc --agg foo,asum,occurs,,
+#stdin
+a,b
+c,,d
+#stdout
+3
