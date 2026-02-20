@@ -262,6 +262,7 @@ enum Node {
     Unary(UnaryOp),
     Binary(BinaryOp),
     Func(FuncOp, usize),
+    Dice(usize, usize),
 }
 
 #[derive(Default, Debug)]
@@ -419,6 +420,15 @@ fn apply_binary(op: BinaryOp, left: f64, right: f64) -> f64 {
     }
 }
 
+#[allow(clippy::cast_precision_loss)]
+fn roll_dice(x: usize, y: usize) -> f64 {
+    let mut ret = 0usize;
+    for _ in 0..x {
+        ret += fastrand::usize(..y) + 1;
+    }
+    ret as f64
+}
+
 impl Expr {
     /// create Expr from expression
     pub fn new(expr: &str) -> Result<Self> {
@@ -519,6 +529,9 @@ impl Expr {
         let mut e = Vec::new();
         for x in rpn {
             match x {
+                Token::Dice(x, y) => {
+                    e.push(Node::Dice(*x, *y));
+                }
                 Token::Binary(op) => {
                     let top = e.len() - 1;
                     if let Node::Value(right) = e[top]
@@ -598,6 +611,7 @@ impl Expr {
         self.stack.clear();
         for x in &self.expr {
             match x {
+                Node::Dice(x, y) => self.stack.push(roll_dice(*x, *y)),
                 Node::Value(v) => self.stack.push(*v),
                 Node::Var(v) => self.stack.push(self.vars[*v].val),
                 Node::Unary(op) => {

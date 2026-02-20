@@ -10,7 +10,7 @@ use self::Associativity::{Left, NA, Right};
 use crate::prelude::*;
 use crate::tok2::BinaryOp::{Div, EQ, GE, GT, LE, LT, Minus, NE, Plus, Pow, Rem, Times};
 use crate::tok2::Token;
-use crate::tok2::Token::{Binary, Comma, Func, LParen, Number, RParen, Unary, Var};
+use crate::tok2::Token::{Binary, Comma, Dice, Func, LParen, Number, RParen, Unary, Var};
 use crate::tok2::UnaryOp;
 
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +33,7 @@ const fn prec_assoc(token: &Token) -> (u32, Associativity) {
             UnaryOp::Plus | UnaryOp::Minus => (4, NA),
             UnaryOp::Fact => (6, NA),
         },
-        Var(_) | Number(_) | Func(..) | LParen | RParen | Comma => (0, NA),
+        Dice(..) | Var(_) | Number(_) | Func(..) | LParen | RParen | Comma => (0, NA),
     }
 }
 
@@ -49,7 +49,7 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
     for (index, token) in input.iter().enumerate() {
         let token = token.clone();
         match token {
-            Number(_) | Var(_) => output.push(token),
+            Number(_) | Var(_) | Dice(..) => output.push(token),
             Unary(_) => stack.push((index, token)),
             Binary(_) => {
                 let pa1 = prec_assoc(&token);
@@ -127,11 +127,11 @@ pub(crate) fn to_rpn(input: &[Token]) -> Result<Vec<Token>> {
     let mut n_operands = 0isize;
     for token in &output {
         match *token {
-            Var(_) | Number(_) => n_operands += 1,
+            Var(_) | Number(_) | Dice(..) => n_operands += 1,
             Unary(_) => (),
             Binary(_) => n_operands -= 1,
             Func(_, Some(n_args)) => n_operands -= n_args.cast_signed() - 1,
-            _ => panic!("Nothing else should be here"),
+            LParen | RParen | Comma | Func(_, None) => panic!("Nothing else should be here"),
         }
         if n_operands <= 0 {
             return err!("Not Enough Operands");

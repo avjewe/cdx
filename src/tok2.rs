@@ -47,6 +47,9 @@ pub(crate) enum Token {
     Var(String),
     /// A function with name and number of arguments.
     Func(String, Option<usize>),
+
+    /// Roll dice, like 3d6
+    Dice(usize, usize),
 }
 impl Token {
     fn make_func(&mut self) -> bool {
@@ -59,15 +62,35 @@ impl Token {
     }
 }
 
-const fn can_binary(tok: &Token) -> bool {
-    use Token::{Binary, Comma, Func, LParen, Number, RParen, Unary, Var};
-    match tok {
+fn is_d(x: &str) -> bool {
+    let mut iter = x.chars();
+    match iter.next() {
+        None => return false,
+        Some(ch) => {
+            if ch == 'd' {
+                for c in iter {
+                    if !c.is_ascii_digit() {
+                        return false;
+                    }
+                }
+            } else {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+const fn can_binary(token: &Token) -> bool {
+    use Token::{Binary, Comma, Dice, Func, LParen, Number, RParen, Unary, Var};
+    match token {
         Binary(_) => false,
         Unary(_) => false,
         LParen => false,
         RParen => true,
         Comma => false,
         Number(_) => true,
+        Dice(_, _) => true,
         Var(_) => true,
         Func(_, _) => true,
     }
@@ -151,11 +174,23 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                     while !input.is_empty() && input.first().is_alphanumeric() {
                         var.push(input.take_first());
                     }
-                    res.push(Token::Var(var));
+                    if is_d(&var)
+                        && !res.is_empty()
+                        && let Token::Number(n) = res[res.len() - 1]
+                    {
+                        // Token::Dice(n, )
+                        let (x, _y) = var[1..].to_f64();
+                        let pos = res.len() - 1;
+                        res[pos] = Token::Dice(n as usize, x as usize);
+                    } else {
+                        res.push(Token::Var(var));
+                    }
                 } else if ch.is_ascii_alphanumeric() {
                     let (x, y) = orig[orig.len() - prev..].to_f64();
                     input = y;
                     res.push(Token::Number(x));
+                } else if ch.is_whitespace() {
+                    // Do nothing.
                 } else {
                     return err!("Unrecognized character {ch} in {orig}");
                 }

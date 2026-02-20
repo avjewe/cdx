@@ -85,7 +85,7 @@ pub trait LineCompare {
         right_file: usize,
     ) -> bool;
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
-    fn lookup(&mut self, field_names: &[&str], file_num: usize) -> Result<()>;
+    fn lookup(&mut self, field_names: &[&str], file_num: usize, num_files: usize) -> Result<()>;
     /// initialize columns in `TextLine`?
     fn need_split(&self) -> bool {
         true
@@ -326,11 +326,16 @@ impl LineComp {
     }
     /// resolve named columns
     pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
-        self.comp.lookup(field_names, 0)
+        self.comp.lookup(field_names, 0, 1)
     }
     /// resolve named columns for the given file
-    pub fn lookup_n(&mut self, field_names: &[&str], file_num: usize) -> Result<()> {
-        self.comp.lookup(field_names, file_num)
+    pub fn lookup_n(
+        &mut self,
+        field_names: &[&str],
+        file_num: usize,
+        num_files: usize,
+    ) -> Result<()> {
+        self.comp.lookup(field_names, file_num, num_files)
     }
     /// do [`TextLine`]s need their columns to be initialized
     #[must_use]
@@ -425,7 +430,7 @@ impl LineCompare for LineCompWhole {
         self.comp.equal(left, right)
     }
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
-    fn lookup(&mut self, _field_names: &[&str], _file_num: usize) -> Result<()> {
+    fn lookup(&mut self, _field_names: &[&str], _file_num: usize, _num_files: usize) -> Result<()> {
         Ok(())
     }
     fn need_split(&self) -> bool {
@@ -476,6 +481,20 @@ impl LineCompCol {
         }
         Ok(Self { cols, comp })
     }
+}
+
+fn check_num_files(files_used: usize, num_files: usize) -> Result<()> {
+    if files_used > num_files {
+        if num_files == 1 {
+            return err!(
+                "Multi-file compare syntax, e.g. '-k this.that', can only be used with `join`. You might have meant '-k this,that'"
+            );
+        }
+        return err!(
+            "Multi-file compare syntax specified columns for {files_used} different files, but only {num_files} files were used."
+        );
+    }
+    Ok(())
 }
 
 impl LineCompare for LineCompCol {
@@ -531,7 +550,8 @@ impl LineCompare for LineCompCol {
         )
     }
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
-    fn lookup(&mut self, field_names: &[&str], file_num: usize) -> Result<()> {
+    fn lookup(&mut self, field_names: &[&str], file_num: usize, num_files: usize) -> Result<()> {
+        check_num_files(self.cols.len(), num_files)?;
         while self.cols.len() < (file_num + 1) {
             self.cols.push(self.cols[self.cols.len() - 1].clone());
         }
@@ -1333,12 +1353,17 @@ impl LineCompList {
     }
     /// resolve named columns
     pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
-        self.lookup_n(field_names, 0)
+        self.lookup_n(field_names, 0, 1)
     }
     /// resolve named columns in the given file
-    pub fn lookup_n(&mut self, field_names: &[&str], file_num: usize) -> Result<()> {
+    pub fn lookup_n(
+        &mut self,
+        field_names: &[&str],
+        file_num: usize,
+        num_files: usize,
+    ) -> Result<()> {
         for x in &mut self.c {
-            x.lookup_n(field_names, file_num)?;
+            x.lookup_n(field_names, file_num, num_files)?;
         }
         Ok(())
     }
@@ -1842,7 +1867,8 @@ impl LineCompare for LineCompExpr {
         let right_val = self.exprs[right_file].eval_line(right, delim);
         left_val == right_val
     }
-    fn lookup(&mut self, field_names: &[&str], file_num: usize) -> Result<()> {
+    fn lookup(&mut self, field_names: &[&str], file_num: usize, num_files: usize) -> Result<()> {
+        check_num_files(self.exprs.len(), num_files)?;
         while self.exprs.len() < (file_num + 1) {
             self.exprs.push(Expr::new(self.exprs[0].expr())?);
         }

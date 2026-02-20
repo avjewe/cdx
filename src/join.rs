@@ -201,7 +201,7 @@ impl Joiner {
             }
         }
         for i in 0..self.r.len() {
-            self.comp.lookup_n(&self.r[i].names(), i)?;
+            self.comp.lookup_n(&self.r[i].names(), i, self.r.len())?;
         }
 
         if config.col_specs.is_empty() {
