@@ -371,71 +371,155 @@ pub fn extend_to_lowercase(src: &str, dst: &mut String) {
     return s;
 }
 */
+
+#[derive(Debug, Clone, Copy)]
+struct CountedValue<T> {
+    thresh: usize,
+    value: T,
+}
+
+impl CountedValue<char> {
+    fn count_str(&self, data: &str) -> usize {
+        let mut ret = 0usize;
+        for x in data.chars() {
+            if x == self.value {
+                ret += 1;
+            }
+        }
+        ret
+    }
+    fn count_str_insensitive(&self, data: &str) -> usize {
+        let mut ret = 0usize;
+        for x in data.chars() {
+            let y = x.to_lowercase().next().unwrap();
+            if y == self.value {
+                ret += 1;
+            }
+        }
+        ret
+    }
+    fn keep_str(&self, data: &str) -> bool {
+        self.count_str(data) >= self.thresh
+    }
+    fn reject_str(&self, data: &str) -> bool {
+        self.count_str(data) < self.thresh
+    }
+    fn ok_str(&self, data: &str, keep: bool) -> bool {
+        if keep { self.keep_str(data) } else { self.reject_str(data) }
+    }
+    fn keep_str_insensitive(&self, data: &str) -> bool {
+        self.count_str_insensitive(data) >= self.thresh
+    }
+    fn reject_str_insensitive(&self, data: &str) -> bool {
+        self.count_str_insensitive(data) < self.thresh
+    }
+    fn ok_str_insensitive(&self, data: &str, keep: bool) -> bool {
+        if keep { self.keep_str_insensitive(data) } else { self.reject_str_insensitive(data) }
+    }
+}
+
+impl<T: Copy + PartialEq + fmt::Debug> CountedValue<T> {
+    const fn new(value: T) -> Self {
+        Self { thresh: 1, value }
+    }
+    fn count<F>(&self, data: &[T], f: F) -> usize
+    where
+        F: Fn(T) -> T,
+    {
+        let mut ret = 0usize;
+        for x in data {
+            if f(*x) == self.value {
+                ret += 1;
+            }
+        }
+        ret
+    }
+    fn increment(item: T, data: &mut Vec<Self>) {
+        for x in data.iter_mut() {
+            if item == x.value {
+                x.thresh += 1;
+                return;
+            }
+        }
+        data.push(Self::new(item));
+    }
+    fn with_data<F>(data: &[T], f: F) -> Vec<Self>
+    where
+        F: Fn(T) -> T,
+    {
+        let mut ret = Vec::with_capacity(data.len());
+        for x in data {
+            Self::increment(f(*x), &mut ret);
+        }
+        ret
+    }
+    fn keep<F>(&self, data: &[T], f: F) -> bool
+    where
+        F: Fn(T) -> T,
+    {
+        self.count(data, f) >= self.thresh
+    }
+    fn reject<F>(&self, data: &[T], f: F) -> bool
+    where
+        F: Fn(T) -> T,
+    {
+        self.count(data, f) < self.thresh
+    }
+    fn ok<F>(&self, data: &[T], keep: bool, f: F) -> bool
+    where
+        F: Fn(T) -> T,
+    {
+        if keep { self.keep(data, f) } else { self.reject(data, f) }
+    }
+}
+
 #[derive(Debug, Clone)]
 /// match if value contains all of these characters
-struct KeepMatch {
-    s_data: String,
-    u_data: Vec<u8>,
+struct OccurMatch {
+    s_data: Vec<CountedValue<char>>,
+    u_data: Vec<CountedValue<u8>>,
     case: Case,
+    keep: bool,
 }
 
-#[derive(Debug, Clone)]
-/// match if value contains any of these characters
-struct RejectMatch {
-    s_data: String,
-    u_data: Vec<u8>,
-    case: Case,
-}
-impl KeepMatch {
-    fn new(data: &str, matcher: &Matcher) -> Self {
-        if matcher.case == Case::Insens {
-            Self {
-                s_data: data.to_lowercase(),
-                u_data: data.as_bytes().to_ascii_lowercase(),
-                case: matcher.case,
+impl OccurMatch {
+    fn new(data: &str, matcher: &Matcher, keep: bool) -> Self {
+        let case = matcher.case;
+        let u_data = if case == Case::Insens {
+            CountedValue::with_data(data.as_bytes(), |x| x.to_ascii_lowercase())
+        } else {
+            CountedValue::with_data(data.as_bytes(), |x| x)
+        };
+        let mut s_data = Vec::new();
+        if case == Case::Insens {
+            for x in data.chars() {
+                if x.is_ascii() {
+                    CountedValue::increment(x.to_ascii_lowercase(), &mut s_data);
+                } else {
+                    CountedValue::increment(x.to_lowercase().next().unwrap(), &mut s_data);
+                }
             }
         } else {
-            Self { s_data: data.to_string(), u_data: data.as_bytes().to_vec(), case: matcher.case }
-        }
-    }
-}
-impl RejectMatch {
-    fn new(data: &str, matcher: &Matcher) -> Self {
-        if matcher.case == Case::Insens {
-            Self {
-                s_data: data.to_lowercase(),
-                u_data: data.as_bytes().to_ascii_lowercase(),
-                case: matcher.case,
+            for x in data.chars() {
+                CountedValue::increment(x, &mut s_data);
             }
-        } else {
-            Self { s_data: data.to_string(), u_data: data.as_bytes().to_vec(), case: matcher.case }
         }
+
+        Self { s_data, u_data, case, keep }
     }
-}
-fn contains_lower(haystack: &[u8], needle: u8) -> bool {
-    for ch in haystack {
-        if ch.to_ascii_lowercase() == needle {
-            return true;
-        }
-    }
-    false
 }
 
-impl Match for KeepMatch {
+impl Match for OccurMatch {
     fn smatch(&self, buff: &str) -> bool {
         if self.case == Case::Sens {
-            for ch in self.s_data.chars() {
-                if !buff.contains(ch) {
+            for ch in &self.s_data {
+                if !ch.ok_str(buff, self.keep) {
                     return false;
                 }
             }
         } else {
-            if buff.is_ascii() {
-                return self.umatch(buff.as_bytes());
-            }
-            let b = buff.to_lowercase();
-            for ch in self.s_data.chars() {
-                if !b.contains(ch) {
+            for ch in &self.s_data {
+                if !ch.ok_str_insensitive(buff, self.keep) {
                     return false;
                 }
             }
@@ -446,63 +530,18 @@ impl Match for KeepMatch {
     fn umatch(&self, buff: &[u8]) -> bool {
         if self.case == Case::Sens {
             for ch in &self.u_data {
-                if !buff.contains(ch) {
+                if !ch.ok(buff, self.keep, |x| x) {
                     return false;
                 }
             }
         } else {
             for ch in &self.u_data {
-                if !contains_lower(buff, *ch) {
+                if !ch.ok(buff, self.keep, |x| x.to_ascii_lowercase()) {
                     return false;
                 }
             }
         }
         true
-    }
-    fn show(&self) -> String {
-        format!("KeepMatch {self:?}")
-    }
-}
-
-impl Match for RejectMatch {
-    fn smatch(&self, buff: &str) -> bool {
-        if self.case == Case::Sens {
-            for ch in self.s_data.chars() {
-                if buff.contains(ch) {
-                    return false;
-                }
-            }
-        } else {
-            if buff.is_ascii() {
-                return self.umatch(buff.as_bytes());
-            }
-            let b = buff.to_lowercase();
-            for ch in self.s_data.chars() {
-                if b.contains(ch) {
-                    return false;
-                }
-            }
-        }
-        true
-    }
-    fn umatch(&self, buff: &[u8]) -> bool {
-        if self.case == Case::Sens {
-            for ch in &self.u_data {
-                if buff.contains(ch) {
-                    return false;
-                }
-            }
-        } else {
-            for ch in buff {
-                if self.u_data.contains(&ch.to_ascii_lowercase()) {
-                    return false;
-                }
-            }
-        }
-        true
-    }
-    fn show(&self) -> String {
-        format!("RejectMatch {self:?}")
     }
 }
 
@@ -1697,10 +1736,10 @@ impl MatchMaker {
             Ok(Box::new(crate::solve::SolverMatch::new(p)?))
         })?;
         Self::do_push("keep", "Match values that contain all of these characters.", |m, p| {
-            Ok(Box::new(KeepMatch::new(p, m)))
+            Ok(Box::new(OccurMatch::new(p, m, true)))
         })?;
         Self::do_push("reject", "Reject values that contain any of these characters.", |m, p| {
-            Ok(Box::new(RejectMatch::new(p, m)))
+            Ok(Box::new(OccurMatch::new(p, m, false)))
         })?;
         Self::do_push("float", "Valid floating point number", |_m, _p| {
             Ok(Box::new(RegexMatch::new("^[-]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?$", Case::Sens)?))
@@ -2053,6 +2092,51 @@ mod tests {
         assert!(!c.umatch(b"defCgh"));
         assert!(c.smatch("defgh"));
         assert!(!c.smatch("defcgh"));
+
+        let c = MatchMaker::make("keep,abbc")?;
+        assert!(!c.umatch(b"azbzc"));
+        assert!(c.umatch(b"azbbzc"));
+        assert!(c.umatch(b"azbbbzc"));
+        assert!(!c.smatch("azbzc"));
+        assert!(c.smatch("azbbzc"));
+        assert!(c.smatch("azbbbzc"));
+        let c = MatchMaker::make("keep.case,AbBC")?;
+        assert!(!c.umatch(b"AzbzC"));
+        assert!(!c.umatch(b"AzBzC"));
+        assert!(c.umatch(b"azbbzC"));
+        assert!(c.umatch(b"azBBzC"));
+        assert!(c.umatch(b"azBBBzC"));
+        assert!(!c.smatch("AzbzC"));
+        assert!(!c.smatch("AzBzC"));
+        assert!(c.smatch("azbbzC"));
+        assert!(c.smatch("azBBzC"));
+        assert!(c.smatch("azBBBzC"));
+        let c = MatchMaker::make("reject,abbc")?;
+        assert!(c.umatch(b"defgh"));
+        assert!(c.umatch(b"defbgh"));
+        assert!(!c.umatch(b"defbbgh"));
+        assert!(!c.umatch(b"defbbbgh"));
+        assert!(c.smatch("defgh"));
+        assert!(c.smatch("defbgh"));
+        assert!(!c.smatch("defbbgh"));
+        assert!(!c.smatch("defbbbgh"));
+        let c = MatchMaker::make("reject.case,ABbC")?;
+        assert!(c.umatch(b"defgh"));
+        assert!(c.umatch(b"defbgh"));
+        assert!(!c.umatch(b"defbbgh"));
+        assert!(!c.umatch(b"defbbbgh"));
+        assert!(c.umatch(b"defgh"));
+        assert!(c.umatch(b"defBgh"));
+        assert!(!c.umatch(b"defBBgh"));
+        assert!(!c.umatch(b"defBBBgh"));
+        assert!(c.smatch("defgh"));
+        assert!(c.smatch("defbgh"));
+        assert!(!c.smatch("defbbgh"));
+        assert!(!c.smatch("defbbbgh"));
+        assert!(c.smatch("defgh"));
+        assert!(c.smatch("defBgh"));
+        assert!(!c.smatch("defBBgh"));
+        assert!(!c.smatch("defBBBgh"));
         Ok(())
     }
 
