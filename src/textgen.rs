@@ -42,7 +42,7 @@ impl FullGen for BytesGen {
         Ok(())
     }
 }
-struct RankGen {
+pub(crate) struct RankGen {
     candidates: String,
     vocab: String,
 }
@@ -67,7 +67,7 @@ impl RankGen {
         false
     }
 
-    fn validate(word: &[u8]) -> Result<()> {
+    pub(crate) fn validate(word: &[u8]) -> Result<()> {
         for ch in word {
             if !ch.is_ascii_lowercase() {
                 return err!(
@@ -96,6 +96,16 @@ impl RankGen {
             }
             score += half - (count - half).abs();
         }
+        for pos in 0..word.len() {
+            let mut count = 0i64;
+            for c in candidates {
+                if word[pos] == c[pos] {
+                    count += 1;
+                }
+            }
+            score += half - (count - half).abs();
+        }
+
         score
     }
 }
