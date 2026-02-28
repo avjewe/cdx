@@ -69,6 +69,27 @@ pub fn is_valid_column_name(name: &str) -> bool {
     get_col_name(name) == name.len()
 }
 
+fn make_valid_column_name(name: &str) -> String {
+    if name.is_empty() {
+        return "X_".to_string();
+    }
+    let mut out = String::new();
+    let mut sp = name;
+    let mut ch = sp.take_first();
+    if ch.is_alphabetic() {
+        out.push(ch);
+    } else {
+        out.push_str("X_");
+    }
+    while !sp.is_empty() {
+        ch = sp.first();
+        let nch = if ch.is_alphanumeric() { ch } else { '_' };
+        out.push(nch);
+        sp = sp.skip_first();
+    }
+    out
+}
+
 /// throw an error is name is not a valid column name
 pub fn validate_column_name(name: &str) -> Result<()> {
     if is_valid_column_name(name) { Ok(()) } else { err!("Invalid column name {}", name) }
@@ -167,10 +188,14 @@ impl ColumnHeader {
             Ok(())
         }
     }
+    fn valid_column_name(name: &str) -> String {
+        if is_valid_column_name(name) { name.to_string() } else { make_valid_column_name(name) }
+    }
+
     /// add new column name
     pub fn push(&mut self, name: &str) -> Result<()> {
-        validate_column_name(name)?;
-        if self.contains(name) {
+        let name = Self::valid_column_name(name);
+        if self.contains(&name) {
             let mut key: Option<usize> = None;
             for (i, x) in self.rename.iter().enumerate() {
                 if x.from == name {
@@ -194,8 +219,8 @@ impl ColumnHeader {
             match self.dups {
                 DupColHandling::Fail => return err!("Duplicate column name {}", name),
                 DupColHandling::Allow => {
-                    self.cols.push(name.to_string());
                     eprintln!("Warning : creating duplicate column name {name}");
+                    self.cols.push(name);
                 }
                 DupColHandling::Numeric => {
                     for x in 1..10000 {
@@ -208,7 +233,7 @@ impl ColumnHeader {
                 }
             }
         } else {
-            self.cols.push(name.to_string());
+            self.cols.push(name);
         }
         Ok(())
     }

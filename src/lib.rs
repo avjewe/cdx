@@ -60,6 +60,11 @@
     // clippy::indexing_slicing,
     // clippy::wildcard_enum_match_arm, try again after native MPL
     clippy::unneeded_field_pattern,
+
+    clippy::perf,
+    clippy::undocumented_unsafe_blocks,
+    // clippy::unwrap_used,
+
 )]
 #![allow(clippy::multiple_crate_versions)] // nothing to be done
 #![allow(clippy::option_if_let_else)] // disagree
@@ -79,6 +84,7 @@
 // #[warn(clippy::allow_attributes_without_reason)] // REPLACE
 
 pub mod agg;
+pub mod anagram;
 pub mod binsearch;
 pub mod column;
 pub mod comp;

@@ -446,6 +446,14 @@ impl GenMaker {
             "return vocab ranked by best match to candidates. E.g. `rank,candidates,vocab`",
             |p| Ok(Box::new(RankGen::new(p)?)),
         )?;
+        Self::do_push_full("anagram", "Print anagrams of a phrase with scores", |p| {
+            Ok(Box::new(crate::anagram::Anagram::new(p, true)?))
+        })?;
+        Self::do_push_full(
+            "sub-anagram",
+            "Print individual words that can be made from a phrase.",
+            |p| Ok(Box::new(crate::anagram::Anagram::new(p, false)?)),
+        )?;
         Ok(())
     }
     pub(crate) fn init_gen() -> Result<()> {

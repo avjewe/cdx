@@ -437,7 +437,6 @@ impl TextFileMode {
                 }
             }
             HeadMode::Skip => {
-                let start = f.fill_buf()?;
                 if start.starts_with(b" CDX") {
                     self.read_string(f, line)?;
                     line.clear();
@@ -1257,8 +1256,12 @@ pub fn get_reader(name: &str) -> Result<Infile> {
     };
     let mut outer = io::BufReader::new(inner);
     let start = outer.fill_buf()?;
-    if start.starts_with(&[0x1fu8, 0x8bu8, 0x08u8]) {
+    if start.starts_with(&[0x1f, 0x8b, 0x08]) {
         outer = io::BufReader::new(Box::new(MultiGzDecoder::new(outer)));
+    }
+    let start = outer.fill_buf()?;
+    if start.starts_with(&[0xef, 0xbb, 0xbf]) {
+        outer.consume(3);
     }
     Ok(Infile::new(outer, name))
 }

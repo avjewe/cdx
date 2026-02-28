@@ -21,6 +21,7 @@ impl MemMap {
     pub fn new(fname: &str) -> Result<Self> {
         // needs delim as input if no CDX header
         let file = fs::File::open(fname)?;
+        // SAFETY: Yes, it's a memmap.
         let map = unsafe { memmap2::Mmap::map(&file)? };
         let mut delim = b'\t';
         let mut header_len = find_end(&map[..], 0);
