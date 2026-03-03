@@ -83,30 +83,6 @@ fn multi_match(word: &[u8], guess: &[Vec<LetterInfo>]) -> bool {
     true
 }
 
-#[must_use]
-/// Scores a word based on candidate lists
-#[allow(clippy::cast_precision_loss)]
-pub fn score_word(word: &[u8], candidates: &[Vec<u8>]) -> f64 {
-    let mut total = 0.0;
-    // for each result from word {
-    for ch in word {
-        let mut count = 0;
-        for c in candidates {
-            if c.contains(ch) {
-                count += 1;
-            }
-        }
-        let entropy = if count == 0 {
-            0.0
-        } else {
-            let p_x = f64::from(count) / (candidates.len() as f64);
-            p_x * (1.0 / p_x).log2()
-        };
-        total += entropy;
-    }
-    total
-}
-
 /// A matcher that solves puzzles like mastermind or wordle
 #[derive(Debug, Clone)]
 pub struct SolverMatch {

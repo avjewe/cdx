@@ -103,7 +103,7 @@ impl RankGen {
                     count += 1;
                 }
             }
-            score += half - (count - half).abs();
+            score += (half - (count - half).abs()) / 3;
         }
 
         score

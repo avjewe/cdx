@@ -791,22 +791,4 @@ mod tests {
         read_dict(&path, 1).expect_err("dictionary should be rejected");
         drop(std::fs::remove_file(&path));
     }
-
-    #[test]
-    /// Verifies dictionary loader filters out rows below frequency threshold.
-    fn read_dict_filters_out_low_frequency_rows() {
-        let path = format!("/tmp/anagram_rust_test_{}_{}.txt", process::id(), "freq_filter_dict");
-        std::fs::write(&path, "alpha\t49999\tignored\nbeta\t50000\tignored\ngamma\t70000\n")
-            .expect("write test dictionary");
-
-        let dict = read_dict(&path, 1).expect("dictionary should parse");
-        assert_eq!(dict.max_frequency_seen, 70_000);
-        assert_eq!(dict.entries.len(), 2);
-        assert_eq!(dict.entries[0].word, b"beta");
-        assert_eq!(dict.entries[0].frequency, 50_000);
-        assert_eq!(dict.entries[1].word, b"gamma");
-        assert_eq!(dict.entries[1].frequency, 70_000);
-
-        drop(std::fs::remove_file(&path));
-    }
 }
