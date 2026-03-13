@@ -128,6 +128,8 @@ pub enum NumFormat {
     Power2,
     /// power of 10 e.g. 3k
     Power10,
+    /// simplest rational approximation
+    Rational(usize),
 }
 impl Default for NumFormat {
     fn default() -> Self {
@@ -148,6 +150,8 @@ impl NumFormat {
             Ok(Self::Power2)
         } else if spec.eq_ignore_ascii_case("power10") || spec.eq_ignore_ascii_case("p10") {
             Ok(Self::Power10)
+        } else if spec.eq_ignore_ascii_case("rational") {
+            Ok(Self::Rational(3))
         } else if let Some((a, b)) = spec.split_once('.') {
             let p = b.to_usize_whole(spec.as_bytes(), "Num Format")?;
             if a.eq_ignore_ascii_case("plain") {
@@ -156,11 +160,21 @@ impl NumFormat {
                 Ok(Self::Short(Some(p)))
             } else if a.eq_ignore_ascii_case("float") {
                 Ok(Self::Float(Some(p)))
+            } else if a.eq_ignore_ascii_case("rational") {
+                if p < 1 {
+                    err!("Number of digits of precision for rational must be positive.")
+                } else {
+                    Ok(Self::Rational(p))
+                }
             } else {
-                err!("Number format must be short[.N], plain[.N], float[.N], power2 or power10")
+                err!(
+                    "Number format must be short[.N], plain[.N], float[.N], rational[.N], power2 or power10"
+                )
             }
         } else {
-            err!("Number format must be short[.N], plain[.N], float[.N], power2 or power10")
+            err!(
+                "Number format must be short[.N], plain[.N], float[.N], rational[.N], power2 or power10"
+            )
         }
     }
 
@@ -193,6 +207,11 @@ impl NumFormat {
             }
             return Ok(());
         }
+        if let Self::Rational(n) = nfmt {
+            let (x, y) = crate::format::get_rational(num, n as u32);
+            write!(w, "{x}/{y}")?;
+            return Ok(());
+        }
         num = num.round();
         if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
             write!(w, "{num}")?;
@@ -214,11 +233,11 @@ pub const P10_LETTERS: &[u8] = b"0kmgtpezyrq";
 const P2_VALUES_U: [usize; 11] = [
     1,
     1024,
-    1024 ^ 2,
-    1024 ^ 3,
-    1024 ^ 4,
-    1024 ^ 5,
-    1024 ^ 6,
+    1024 * 1024,
+    1024 * 1024 * 1024,
+    1024 * 1024 * 1024 * 1024,
+    1024 * 1024 * 1024 * 1024 * 1024,
+    1024 * 1024 * 1024 * 1024 * 1024 * 1024,
     usize::MAX,
     usize::MAX,
     usize::MAX,
@@ -240,11 +259,11 @@ const P2_VALUES_F: [f64; 11] = [
 const P10_VALUES_U: [usize; 11] = [
     1,
     1000,
-    1000 ^ 2,
-    1000 ^ 3,
-    1000 ^ 4,
-    1000 ^ 5,
-    1000 ^ 6,
+    1000 * 1000,
+    1000 * 1000 * 1000,
+    1000 * 1000 * 1000 * 1000,
+    1000 * 1000 * 1000 * 1000 * 1000,
+    1000 * 1000 * 1000 * 1000 * 1000 * 1000,
     usize::MAX,
     usize::MAX,
     usize::MAX,

@@ -1,5 +1,65 @@
 //! format numbers into human readable abbreviations
 
+/// format pi as 22/7
+/// default is 3. Given f64, max useful is 16.
+#[must_use]
+pub fn format_rational(num: f64, digits: u32) -> String {
+    let (x, y) = get_rational(num, digits);
+    format!("{x}/{y}")
+}
+
+pub(crate) fn get_rational(num: f64, digits: u32) -> (i64, u64) {
+    if num == 0.0 {
+        (0, 1)
+    } else if num == 1.0 {
+        (1, 1)
+    } else if num < 0.0 {
+        let (x, y) = get_rational2(-num, digits);
+        (-x.cast_signed(), y)
+    } else {
+        let (x, y) = get_rational2(num, digits);
+        (x.cast_signed(), y)
+    }
+}
+
+fn get_rational2(num: f64, digits: u32) -> (u64, u64) {
+    assert!(num > 0.0);
+    assert!(num != 1.0);
+    let slop = 10.0f64.powi(-(digits.cast_signed()));
+    if num <= 1.0 { get_rational3(num, slop) } else { get_rational4(num, slop) }
+}
+
+fn good_enough(numer: f64, denom: f64, num: f64, slop: f64) -> bool {
+    let guess = numer / denom;
+    (num - guess).abs() <= slop * num
+}
+
+fn get_rational3(num: f64, slop: f64) -> (u64, u64) {
+    assert!(num > 0.0);
+    assert!(num < 1.0);
+
+    let mut numer = 1.0;
+    loop {
+        let denom = (numer / num).round();
+        if good_enough(numer, denom, num, slop) {
+            return (numer.round() as u64, denom.round() as u64);
+        }
+        numer += 1.0;
+    }
+}
+
+fn get_rational4(num: f64, slop: f64) -> (u64, u64) {
+    assert!(num > 1.0);
+    let mut denom = 1.0;
+    loop {
+        let numer = (num * denom).round();
+        if good_enough(numer, denom, num, slop) {
+            return (numer.round() as u64, denom.round() as u64);
+        }
+        denom += 1.0;
+    }
+}
+
 #[must_use]
 /// Format f64 into something short and readable, like 42K or 1.5M
 /// Value is rounded to the nearest integer.
