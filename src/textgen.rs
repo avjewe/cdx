@@ -2,6 +2,7 @@
 
 use crate::expr;
 use crate::prelude::*;
+use itertools::Itertools;
 use rand_distr::{Distribution, Normal};
 use std::sync::Mutex;
 
@@ -12,13 +13,304 @@ pub struct Where {
     pub col: usize,
     /// 1-based line number
     pub line: usize,
+    /// column delimiter
+    pub col_delim: u8,
 }
 
 /// generate some text as a column value
 pub trait Gen {
     /// write one column value
     fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()>;
+    /// Return the natural number of rows for this gen to display.
+    fn count(&self) -> Option<usize> {
+        None
+    }
 }
+
+struct CombineGen {
+    items: Vec<String>,
+    count: usize,
+    iter: itertools::Combinations<std::vec::IntoIter<String>>,
+}
+impl CombineGen {
+    fn new(spec: &str) -> Result<Self> {
+        let parts = spec.split_once(':');
+        if let Some((a, b)) = parts {
+            let count = a.to_usize_whole(spec.as_bytes(), "number to select")?;
+            let items: Vec<String> = b.split(',').map(|s| s.trim().to_string()).collect();
+            if count > items.len() {
+                return err!("Can't select {count} items from a list of {} items.", items.len());
+            }
+            Ok(Self { iter: items.clone().into_iter().combinations(count), items, count })
+        } else {
+            let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
+            let count = items.len();
+            Ok(Self { iter: items.clone().into_iter().combinations(count), items, count })
+        }
+    }
+}
+impl Gen for CombineGen {
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
+        if let Some(items) = self.iter.next() {
+            let mut first = true;
+            for item in items {
+                if first {
+                    first = false;
+                } else {
+                    w.write_all(&[loc.col_delim])?;
+                }
+                w.write_all(item.as_bytes())?;
+            }
+        } else {
+            self.iter = self.items.clone().into_iter().combinations(self.count);
+            self.write(w, loc)?;
+        }
+        Ok(())
+    }
+    fn count(&self) -> Option<usize> {
+        if self.items.len() > 20 {
+            None
+        } else {
+            let n = self.items.len();
+            let r = self.count;
+            Some(fact(n) / (fact(r) * fact(n - r)))
+        }
+    }
+}
+
+struct CombineRGen {
+    items: Vec<String>,
+    count: usize,
+    iter: itertools::CombinationsWithReplacement<std::vec::IntoIter<String>>,
+}
+impl CombineRGen {
+    fn new(spec: &str) -> Result<Self> {
+        let parts = spec.split_once(':');
+        if let Some((a, b)) = parts {
+            let count = a.to_usize_whole(spec.as_bytes(), "number to select")?;
+            let items: Vec<String> = b.split(',').map(|s| s.trim().to_string()).collect();
+            if count > items.len() {
+                return err!("Can't select {count} items from a list of {} items.", items.len());
+            }
+            Ok(Self {
+                iter: items.clone().into_iter().combinations_with_replacement(count),
+                items,
+                count,
+            })
+        } else {
+            let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
+            let count = items.len();
+            Ok(Self {
+                iter: items.clone().into_iter().combinations_with_replacement(count),
+                items,
+                count,
+            })
+        }
+    }
+}
+
+impl Gen for CombineRGen {
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
+        if let Some(items) = self.iter.next() {
+            let mut first = true;
+            for item in items {
+                if first {
+                    first = false;
+                } else {
+                    w.write_all(&[loc.col_delim])?;
+                }
+                w.write_all(item.as_bytes())?;
+            }
+        } else {
+            self.iter = self.items.clone().into_iter().combinations_with_replacement(self.count);
+            self.write(w, loc)?;
+        }
+        Ok(())
+    }
+    fn count(&self) -> Option<usize> {
+        if self.items.len() > 20 {
+            None
+        } else {
+            let n = self.items.len();
+            let r = self.count;
+            Some(fact(n + r - 1) / (fact(r) * fact(n - 1)))
+        }
+    }
+}
+
+struct PermuteGen {
+    items: Vec<String>,
+    count: usize,
+    iter: itertools::Permutations<std::vec::IntoIter<String>>,
+}
+impl PermuteGen {
+    fn new(spec: &str) -> Result<Self> {
+        let parts = spec.split_once(':');
+        if let Some((a, b)) = parts {
+            let count = a.to_usize_whole(spec.as_bytes(), "number to select")?;
+            let items: Vec<String> = b.split(',').map(|s| s.trim().to_string()).collect();
+            if count > items.len() {
+                return err!("Can't select {count} items from a list of {} items.", items.len());
+            }
+            Ok(Self { iter: items.clone().into_iter().permutations(count), items, count })
+        } else {
+            let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
+            let count = items.len();
+            Ok(Self { iter: items.clone().into_iter().permutations(count), items, count })
+        }
+    }
+}
+impl Gen for PermuteGen {
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
+        if let Some(items) = self.iter.next() {
+            let mut first = true;
+            for item in items {
+                if first {
+                    first = false;
+                } else {
+                    w.write_all(&[loc.col_delim])?;
+                }
+                w.write_all(item.as_bytes())?;
+            }
+        } else {
+            self.iter = self.items.clone().into_iter().permutations(self.count);
+            self.write(w, loc)?;
+        }
+        Ok(())
+    }
+    fn count(&self) -> Option<usize> {
+        if self.items.len() > 20 {
+            None
+        } else {
+            let n = self.items.len();
+            let r = self.count;
+            Some(fact(n) / fact(n - r))
+        }
+    }
+}
+
+fn bump(x: &mut [usize], max: usize) {
+    for i in (0..x.len()).rev() {
+        x[i] += 1;
+        if x[i] < max {
+            break;
+        }
+        x[i] = 0;
+    }
+}
+struct PermuteRGen {
+    items: Vec<String>,
+    indexes: Vec<usize>,
+}
+impl PermuteRGen {
+    fn new(spec: &str) -> Result<Self> {
+        let parts = spec.split_once(':');
+        if let Some((a, b)) = parts {
+            let count = a.to_usize_whole(spec.as_bytes(), "number to select")?;
+            let items: Vec<String> = b.split(',').map(|s| s.trim().to_string()).collect();
+            if count > items.len() {
+                return err!("Can't select {count} items from a list of {} items.", items.len());
+            }
+            Ok(Self { items, indexes: vec![0; count] })
+        } else {
+            let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
+            let count = items.len();
+            Ok(Self { items, indexes: vec![0; count] })
+        }
+    }
+}
+impl Gen for PermuteRGen {
+    fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
+        let mut first = true;
+        for i in &self.indexes {
+            if first {
+                first = false;
+            } else {
+                w.write_all(&[loc.col_delim])?;
+            }
+            w.write_all(self.items[*i].as_bytes())?;
+        }
+        bump(&mut self.indexes, self.items.len());
+        Ok(())
+    }
+    fn count(&self) -> Option<usize> {
+        if self.items.len() > 20 {
+            None
+        } else {
+            let n = self.items.len();
+            let r = self.indexes.len();
+            Some(n.pow(r as u32))
+        }
+    }
+}
+
+const fn fact(n: usize) -> usize {
+    FACTORIAL[n]
+}
+#[allow(clippy::unreadable_literal)]
+const FACTORIAL: [usize; 21] = [
+    1,
+    1,
+    2,
+    6,
+    24,
+    120,
+    720,
+    5040,
+    40320,
+    362880,
+    3628800,
+    39916800,
+    479001600,
+    6227020800,
+    87178291200,
+    1307674368000,
+    20922789888000,
+    355687428096000,
+    6402373705728000,
+    121645100408832000,
+    2432902008176640000,
+];
+
+#[allow(dead_code)]
+#[allow(clippy::unreadable_literal)]
+const FACTORIAL_128: [u128; 35] = [
+    1,
+    1,
+    2,
+    6,
+    24,
+    120,
+    720,
+    5040,
+    40320,
+    362880,
+    3628800,
+    39916800,
+    479001600,
+    6227020800,
+    87178291200,
+    1307674368000,
+    20922789888000,
+    355687428096000,
+    6402373705728000,
+    121645100408832000,
+    2432902008176640000,
+    51090942171709440000,
+    1124000727777607680000,
+    25852016738884976640000,
+    620448401733239439360000,
+    15511210043330985984000000,
+    403291461126605635584000000,
+    10888869450418352160768000000,
+    304888344611713860501504000000,
+    8841761993739701954543616000000,
+    265252859812191058636308480000000,
+    8222838654177922817725562880000000,
+    263130836933693530167218012160000000,
+    8683317618811886495518194401280000000,
+    295232799039604140847618609643520000000,
+];
 
 /// generate a whole file
 pub trait FullGen {
@@ -346,6 +638,15 @@ impl Clone for FullTextGen {
     }
 }
 
+/// return the max of two optional usize, treating None as unknown
+#[must_use]
+pub fn opt_max(x: Option<usize>, y: Option<usize>) -> Option<usize> {
+    match (x, y) {
+        (Some(a), Some(b)) => Some(a.max(b)),
+        _ => x.or(y),
+    }
+}
+
 /// A List of Gen
 #[derive(Debug, Default)]
 pub struct GenList {
@@ -377,7 +678,7 @@ impl GenList {
     /// Write full line of Gens
     pub fn write(&mut self, w: &mut impl Write, delim: u8) -> Result<()> {
         self.line += 1;
-        let mut loc = Where { col: 1, line: self.line };
+        let mut loc = Where { col: 1, line: self.line, col_delim: delim };
         let mut need_delim = false;
         for x in &mut self.v {
             if need_delim {
@@ -391,6 +692,16 @@ impl GenList {
         }
         w.write_all(b"\n")?;
         Ok(())
+    }
+
+    /// Return the natural number of lines for this `GenList` to display, if it can be determined.
+    #[must_use]
+    pub fn count(&self) -> Option<usize> {
+        let mut count: Option<usize> = None;
+        for x in &self.v {
+            count = opt_max(count, x.text_gen.count());
+        }
+        count
     }
 }
 
@@ -472,6 +783,22 @@ impl GenMaker {
             Ok(Box::new(DecimalGen::new(p)))
         })?;
         Self::do_push("grid", "Produce line_col", |_p| Ok(Box::new(GridGen {})))?;
+        Self::do_push("combine", "Produce combinations of supplied tokens", |p| {
+            Ok(Box::new(CombineGen::new(p)?))
+        })?;
+        Self::do_push(
+            "combine-r",
+            "Produce combinations of supplied tokens, with replacement",
+            |p| Ok(Box::new(CombineRGen::new(p)?)),
+        )?;
+        Self::do_push("permute", "Produce permutations of supplied tokens", |p| {
+            Ok(Box::new(PermuteGen::new(p)?))
+        })?;
+        Self::do_push(
+            "permute-r",
+            "Produce permutations of supplied tokens, with replacement",
+            |p| Ok(Box::new(PermuteRGen::new(p)?)),
+        )?;
         Self::do_push("count", "Count up from starting place", |p| {
             Ok(Box::new(CountGen::new(p)?))
         })?;

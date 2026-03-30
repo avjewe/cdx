@@ -38,7 +38,7 @@ fn find_const(x: &str) -> Option<f64> {
 }
 
 fn find_func(x: &str) -> Result<FuncOp> {
-    for f in &FUNCS {
+    for f in &FUNCTIONS {
         if f.name == x {
             return Ok(f.val);
         }
@@ -48,6 +48,7 @@ fn find_func(x: &str) -> Result<FuncOp> {
 
 #[derive(Debug, Copy, Clone)]
 enum FuncOp {
+    Abs,
     Acos,
     Acosh,
     Asin,
@@ -57,50 +58,52 @@ enum FuncOp {
     Atanh,
     Cbrt,
     Ceil,
+    Clamp,
     Copysign,
     Cos,
     Cosh,
-    Erf,
+    DivEuclid,
     Exp,
     Exp2,
-    Exp10,
     Expm1,
-    Fabs,
-    Fdim,
     Floor,
-    Fma,
-    Fmax,
-    Fmin,
-    Fmod,
+    MulAdd,
+    Fract,
     Hypot,
-    J0,
-    J1,
-    Jn,
-    Ldexp,
-    Lgamma,
+    IsFinite,
+    IsInfinite,
+    IsNan,
+    IsNormal,
+    IsSignNegative,
+    IsSignPositive,
+    IsSubnormal,
+    Ln,
+    Ln1p,
     Log,
-    Log1p,
     Log2,
     Log10,
-    Nextafter,
-    Pow,
-    Remainder,
+    Max,
+    Midpoint,
+    Min,
+    NextUp,
+    NextDown,
+    PowF,
+    PowI,
+    Recip,
+    RemEuclid,
     Round,
-    Scalbn,
+    RoundTiesEven,
+    Signum,
     Sin,
     Sinh,
     Sqrt,
     Tan,
     Tanh,
-    Tgamma,
+    ToDegrees,
+    ToRadians,
+    TotalCmp,
     Trunc,
-    Y0,
-    Y1,
-    Yn,
-    Abs,
     If,
-    Max,
-    Min,
     Avg,
 }
 
@@ -116,27 +119,44 @@ macro_rules! con {
     };
 }
 
-const CONSTS: [ConstDef; 20] = [
+const CONSTS: [ConstDef; 37] = [
     con!("pi", consts::PI),
     con!("e", consts::E),
-    con!("M_E", consts::E),
-    con!("M_LOG2E", consts::LOG2_E),
-    con!("M_LOG10E", consts::LOG10_E),
-    con!("M_LN2", consts::LN_2),
-    con!("M_LN10", consts::LN_10),
-    con!("M_PI", consts::PI),
-    con!("M_PI_2", consts::FRAC_PI_2),
-    con!("M_PI_4", consts::FRAC_PI_4),
-    con!("M_1_PI", consts::FRAC_1_PI),
-    con!("M_2_PI", consts::FRAC_2_PI),
-    con!("M_2_SQRTPI", consts::FRAC_2_SQRT_PI),
-    con!("M_SQRT2", consts::SQRT_2),
-    con!("M_SQRT1_2", consts::FRAC_1_SQRT_2),
-    con!("M_INF", f64::INFINITY),
-    con!("M_NEG_INF", f64::NEG_INFINITY),
-    con!("M_MAX", f64::MAX),
-    con!("M_MIN", f64::MIN),
-    con!("M_MIN_POS", f64::MIN_POSITIVE),
+    con!("E", consts::E),
+    con!("EULER_GAMMA", consts::EULER_GAMMA),
+    con!("FRAC_1_PI", consts::FRAC_1_PI),
+    con!("FRAC_1_SQRT_2", consts::FRAC_1_SQRT_2),
+    con!("FRAC_2_SQRT_PI", consts::FRAC_2_SQRT_PI),
+    con!("FRAC_PI_2", consts::FRAC_PI_2),
+    con!("FRAC_PI_3", consts::FRAC_PI_3),
+    con!("FRAC_PI_4", consts::FRAC_PI_4),
+    con!("FRAC_PI_6", consts::FRAC_PI_6),
+    con!("FRAC_PI_8", consts::FRAC_PI_8),
+    con!("FRAC_2_PI", consts::FRAC_2_PI),
+    con!("GOLDEN_RATIO", consts::GOLDEN_RATIO),
+    con!("LN_2", consts::LN_2),
+    con!("LN_10", consts::LN_10),
+    con!("LOG2_10", consts::LOG2_10),
+    con!("LOG2_E", consts::LOG2_E),
+    con!("LOG10_2", consts::LOG10_2),
+    con!("LOG10_E", consts::LOG10_E),
+    con!("PI", consts::PI),
+    con!("SQRT_2", consts::SQRT_2),
+    con!("TAU", consts::TAU),
+    con!("DIGITS", f64::DIGITS as f64),
+    con!("EPSILON", f64::EPSILON),
+    con!("INFINITY", f64::INFINITY),
+    con!("MANTISSA_DIGITS", f64::MANTISSA_DIGITS as f64),
+    con!("MAX", f64::MAX),
+    con!("MAX_10_EXP", f64::MAX_10_EXP as f64),
+    con!("MAX_EXP", f64::MAX_EXP as f64),
+    con!("MIN", f64::MIN),
+    con!("MIN_10_EXP", f64::MIN_10_EXP as f64),
+    con!("MIN_EXP", f64::MIN_EXP as f64),
+    con!("MIN_POSITIVE", f64::MIN_POSITIVE),
+    con!("NAN", f64::NAN),
+    con!("NEG_INFINITY", f64::NEG_INFINITY),
+    con!("RADIX", f64::RADIX as f64),
 ];
 
 /// write all the constants to stdout
@@ -151,7 +171,7 @@ pub fn show_const() {
 
 /// write all the constants to stdout
 pub fn show_func() {
-    for (i, x) in FUNCS.iter().enumerate() {
+    for (i, x) in FUNCTIONS.iter().enumerate() {
         print!("{:12}", x.name);
         if i % 6 == 5 {
             println!();
@@ -171,7 +191,8 @@ macro_rules! fun {
     };
 }
 
-const FUNCS: [FuncDef; 54] = [
+const FUNCTIONS: [FuncDef; 57] = [
+    fun!("abs", FuncOp::Abs),
     fun!("acos", FuncOp::Acos),
     fun!("acosh", FuncOp::Acosh),
     fun!("asin", FuncOp::Asin),
@@ -181,77 +202,76 @@ const FUNCS: [FuncDef; 54] = [
     fun!("atanh", FuncOp::Atanh),
     fun!("cbrt", FuncOp::Cbrt),
     fun!("ceil", FuncOp::Ceil),
+    fun!("clamp", FuncOp::Clamp),
     fun!("copysign", FuncOp::Copysign),
     fun!("cos", FuncOp::Cos),
     fun!("cosh", FuncOp::Cosh),
-    fun!("erf", FuncOp::Erf),
+    fun!("div_euclid", FuncOp::DivEuclid),
     fun!("exp", FuncOp::Exp),
     fun!("exp2", FuncOp::Exp2),
-    fun!("exp10", FuncOp::Exp10),
-    fun!("expm1", FuncOp::Expm1),
-    fun!("fabs", FuncOp::Fabs),
-    fun!("fdim", FuncOp::Fdim),
+    fun!("exp_m1", FuncOp::Expm1),
     fun!("floor", FuncOp::Floor),
-    fun!("fma", FuncOp::Fma),
-    fun!("fmax", FuncOp::Fmax),
-    fun!("fmin", FuncOp::Fmin),
-    fun!("fmod", FuncOp::Fmod),
+    fun!("fract", FuncOp::Fract),
     fun!("hypot", FuncOp::Hypot),
-    fun!("j0", FuncOp::J0),
-    fun!("j1", FuncOp::J1),
-    fun!("jn", FuncOp::Jn),
-    fun!("ldexp", FuncOp::Ldexp),
-    fun!("lgamma", FuncOp::Lgamma),
+    fun!("is_finite", FuncOp::IsFinite),
+    fun!("is_infinite", FuncOp::IsInfinite),
+    fun!("is_nan", FuncOp::IsNan),
+    fun!("is_normal", FuncOp::IsNormal),
+    fun!("is_sign_negative", FuncOp::IsSignNegative),
+    fun!("is_sign_positive", FuncOp::IsSignPositive),
+    fun!("is_subnormal", FuncOp::IsSubnormal),
+    fun!("ln", FuncOp::Ln),
+    fun!("ln_1p", FuncOp::Ln1p),
     fun!("log", FuncOp::Log),
-    fun!("log1p", FuncOp::Log1p),
     fun!("log2", FuncOp::Log2),
     fun!("log10", FuncOp::Log10),
-    fun!("nextafter", FuncOp::Nextafter),
-    fun!("pow", FuncOp::Pow),
-    fun!("remainder", FuncOp::Remainder),
+    fun!("max", FuncOp::Max),
+    fun!("midpoint", FuncOp::Midpoint),
+    fun!("min", FuncOp::Min),
+    fun!("mul_add", FuncOp::MulAdd),
+    fun!("next_down", FuncOp::NextDown),
+    fun!("next_up", FuncOp::NextUp),
+    fun!("powf", FuncOp::PowF),
+    fun!("powi", FuncOp::PowI),
+    fun!("recip", FuncOp::Recip),
+    fun!("rem_euclid", FuncOp::RemEuclid),
     fun!("round", FuncOp::Round),
-    fun!("scalbn", FuncOp::Scalbn),
+    fun!("round_ties_even", FuncOp::RoundTiesEven),
+    fun!("signum", FuncOp::Signum),
     fun!("sin", FuncOp::Sin),
     fun!("sinh", FuncOp::Sinh),
     fun!("sqrt", FuncOp::Sqrt),
     fun!("tan", FuncOp::Tan),
     fun!("tanh", FuncOp::Tanh),
-    fun!("tgamma", FuncOp::Tgamma),
     fun!("trunc", FuncOp::Trunc),
-    fun!("y0", FuncOp::Y0),
-    fun!("y1", FuncOp::Y1),
-    fun!("yn", FuncOp::Yn),
-    fun!("abs", FuncOp::Abs),
+    fun!("to_degrees", FuncOp::ToDegrees),
+    fun!("to_radians", FuncOp::ToRadians),
+    fun!("total_cmp", FuncOp::TotalCmp),
     fun!("if", FuncOp::If),
-    fun!("max", FuncOp::Max),
-    fun!("min", FuncOp::Min),
     fun!("avg", FuncOp::Avg),
 ];
 
 const fn min_args(f: FuncOp) -> usize {
-    use FuncOp::{
-        Atan2, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Nextafter, Pow,
-        Remainder, Scalbn, Yn,
-    };
     match f {
-        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
-        | Remainder | Scalbn | Pow | Yn => 2,
-        Fma | If => 3,
+        FuncOp::Atan2
+        | FuncOp::Copysign
+        | FuncOp::DivEuclid
+        | FuncOp::Hypot
+        | FuncOp::Log
+        | FuncOp::Midpoint
+        | FuncOp::PowF
+        | FuncOp::PowI
+        | FuncOp::RemEuclid
+        | FuncOp::TotalCmp => 2,
+        FuncOp::Clamp | FuncOp::MulAdd | FuncOp::If => 3,
         _ => 1,
     }
 }
 
 const fn max_args(f: FuncOp) -> usize {
-    use FuncOp::{
-        Atan2, Avg, Copysign, Fdim, Fma, Fmax, Fmin, Fmod, Hypot, If, Jn, Ldexp, Max, Min,
-        Nextafter, Pow, Remainder, Scalbn, Yn,
-    };
     match f {
-        Atan2 | Copysign | Fmin | Fdim | Fmax | Fmod | Hypot | Jn | Ldexp | Nextafter
-        | Remainder | Scalbn | Pow | Yn => 2,
-        Fma | If => 3,
-        Min | Max | Avg => 0,
-        _ => 1,
+        FuncOp::Min | FuncOp::Max | FuncOp::Avg => 0,
+        _ => min_args(f),
     }
 }
 
@@ -302,98 +322,82 @@ fn apply_unary(op: UnaryOp, x: f64) -> f64 {
 #[allow(clippy::missing_asserts_for_indexing)]
 #[allow(clippy::cast_precision_loss)]
 fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
-    use FuncOp::{
-        Abs, Acos, Acosh, Asin, Asinh, Atan, Atan2, Atanh, Avg, Cbrt, Ceil, Copysign, Cos, Cosh,
-        Erf, Exp, Exp2, Exp10, Expm1, Fabs, Fdim, Floor, Fma, Fmax, Fmin, Fmod, Hypot, If, J0, J1,
-        Jn, Ldexp, Lgamma, Log, Log1p, Log2, Log10, Max, Min, Nextafter, Pow, Remainder, Round,
-        Scalbn, Sin, Sinh, Sqrt, Tan, Tanh, Tgamma, Trunc, Y0, Y1, Yn,
-    };
     match op {
-        Acos => args[0].abs(),
-        Acosh => args[0].acosh(),
-        Asinh => args[0].asinh(),
-        Asin => args[0].asin(),
-        Atan => args[0].atan(),
-        Atan2 => args[0].atan2(args[1]),
-        Atanh => args[0].atanh(),
-        Cbrt => args[0].cbrt(),
-        Ceil => args[0].ceil(),
-        // clamp classify
-        Copysign => args[0].copysign(args[1]),
-        Cos => args[0].cos(),
-        Cosh => args[0].cosh(),
-        // div_euclid
-        Erf => libm::erf(args[0]),
-        Exp => args[0].exp(),
-        Exp2 => args[0].exp2(),
-        Exp10 => libm::exp10(args[0]),
-        Expm1 => args[0].exp_m1(),
-        Fabs => args[0].abs(),
-        Fdim => libm::fdim(args[0], args[1]),
-        Floor => args[0].floor(),
-        // fract
-        Fma => args[0].mul_add(args[1], args[2]),
-        Fmax => args[0].max(args[1]),
-        Fmin => args[0].min(args[1]),
-        Fmod => libm::fmod(args[0], args[1]),
-        Hypot => args[0].hypot(args[1]),
-        // is_*
-        J0 => libm::j0(args[0]),
-        J1 => libm::j1(args[0]),
-        Jn => libm::jn(args[0] as i32, args[1]),
-        Ldexp => libm::ldexp(args[0], args[1] as i32),
-        Lgamma => libm::lgamma(args[0]),
-        // log(x, y)
-        Log => args[0].ln(),
-        Log1p => args[0].ln_1p(),
-        Log2 => args[0].log2(),
-        Log10 => args[0].log10(),
-        Nextafter => libm::nextafter(args[0], args[1]),
-        Pow => args[0].powf(args[1]),
-        // recip
-        // rem_euclid
-        Remainder => libm::remainder(args[0], args[1]),
-        Round => args[0].round(),
-        Scalbn => libm::scalbn(args[0], args[1] as i32),
-        // signum
-        Sin => args[0].sin(),
-        Sinh => args[0].sinh(),
-        Sqrt => args[0].sqrt(),
-        Tan => args[0].tan(),
-        Tanh => args[0].tanh(),
-        // to_degreees to_radians
-        Tgamma => libm::tgamma(args[0]),
-        Trunc => args[0].trunc(),
-        Y0 => libm::y0(args[0]),
-        Y1 => libm::y1(args[0]),
-        Yn => libm::yn(args[0] as i32, args[1]),
-        Abs => args[0].abs(),
-        Max => {
+        FuncOp::Acos => args[0].acos(),
+        FuncOp::Acosh => args[0].acosh(),
+        FuncOp::Asinh => args[0].asinh(),
+        FuncOp::Asin => args[0].asin(),
+        FuncOp::Atan => args[0].atan(),
+        FuncOp::Atan2 => args[0].atan2(args[1]),
+        FuncOp::Atanh => args[0].atanh(),
+        FuncOp::Cbrt => args[0].cbrt(),
+        FuncOp::Ceil => args[0].ceil(),
+        FuncOp::Clamp => args[0].clamp(args[1], args[2]),
+        FuncOp::Copysign => args[0].copysign(args[1]),
+        FuncOp::Cos => args[0].cos(),
+        FuncOp::Cosh => args[0].cosh(),
+        FuncOp::DivEuclid => args[0].div_euclid(args[1]),
+        FuncOp::Exp => args[0].exp(),
+        FuncOp::Exp2 => args[0].exp2(),
+        FuncOp::Expm1 => args[0].exp_m1(),
+        FuncOp::Floor => args[0].floor(),
+        FuncOp::Fract => args[0].fract(),
+        FuncOp::Hypot => args[0].hypot(args[1]),
+        FuncOp::IsFinite => to_f(args[0].is_finite()),
+        FuncOp::IsInfinite => to_f(args[0].is_infinite()),
+        FuncOp::IsNan => to_f(args[0].is_nan()),
+        FuncOp::IsNormal => to_f(args[0].is_normal()),
+        FuncOp::IsSignNegative => to_f(args[0].is_sign_negative()),
+        FuncOp::IsSignPositive => to_f(args[0].is_sign_positive()),
+        FuncOp::IsSubnormal => to_f(args[0].is_subnormal()),
+        FuncOp::Ln => args[0].ln(),
+        FuncOp::Ln1p => args[0].ln_1p(),
+        FuncOp::Log => args[0].log(args[1]),
+        FuncOp::Log2 => args[0].log2(),
+        FuncOp::Log10 => args[0].log10(),
+        FuncOp::Midpoint => args[0].midpoint(args[1]),
+        FuncOp::MulAdd => args[0].mul_add(args[1], args[2]),
+        FuncOp::NextDown => args[0].next_down(),
+        FuncOp::NextUp => args[0].next_up(),
+        FuncOp::PowF => args[0].powf(args[1]),
+        FuncOp::PowI => args[0].powi(args[1].round() as i32),
+        FuncOp::Recip => args[0].recip(),
+        FuncOp::RemEuclid => args[0].rem_euclid(args[1]),
+        FuncOp::Round => args[0].round(),
+        FuncOp::RoundTiesEven => args[0].round_ties_even(),
+        FuncOp::Signum => args[0].signum(),
+        FuncOp::Sin => args[0].sin(),
+        FuncOp::Sinh => args[0].sinh(),
+        FuncOp::Sqrt => args[0].sqrt(),
+        FuncOp::Tan => args[0].tan(),
+        FuncOp::Tanh => args[0].tanh(),
+        FuncOp::ToDegrees => args[0].to_degrees(),
+        FuncOp::ToRadians => args[0].to_radians(),
+        FuncOp::TotalCmp => f64::from(args[0].total_cmp(&args[1]) as i32),
+        FuncOp::Trunc => args[0].trunc(),
+        FuncOp::Abs => args[0].abs(),
+        FuncOp::Max => {
             let mut v: f64 = args[0];
             for x in &args[1..] {
-                if *x > v {
-                    v = *x;
-                }
+                v = v.max(*x);
             }
             v
         }
-        Min => {
+        FuncOp::Min => {
             let mut v: f64 = args[0];
             for x in &args[1..] {
-                if *x < v {
-                    v = *x;
-                }
+                v = v.min(*x);
             }
             v
         }
-        Avg => {
+        FuncOp::Avg => {
             let mut v: f64 = 0.0;
             for x in args {
                 v += *x;
             }
             v / (args.len() as f64)
         }
-        If => {
+        FuncOp::If => {
             if args[0] == 0.0 {
                 args[2]
             } else {

@@ -12,7 +12,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     ];
     let (args, _files) = args::parse(&prog, &A, argv, settings)?;
 
-    let mut num_lines = 10;
+    let mut num_lines = None;
     let mut list = GenList::new();
     let mut header = false;
     let mut full = String::new();
@@ -21,7 +21,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     for x in args {
         if x.name == "lines" {
             bad_full = true;
-            num_lines = x.value.to_usize_whole(x.value.as_bytes(), "number of lines")?;
+            num_lines = Some(x.value.to_usize_whole(x.value.as_bytes(), "number of lines")?);
         } else if x.name == "with-header" {
             header = true;
         } else if x.name == "column" {
@@ -47,6 +47,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             unreachable!();
         }
     }
+    num_lines = cdx::textgen::opt_max(num_lines, list.count());
+    let num_lines = num_lines.unwrap_or(10);
+
     if !full.is_empty() {
         if bad_full {
             return err!("When using --full, you may not use --lines, --column or -multi.");

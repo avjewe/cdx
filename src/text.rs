@@ -79,7 +79,7 @@ pub trait Text {
     fn is_blank(&self, ch: Self::Char) -> bool;
     /// length in bytes
     fn len(&self) -> usize;
-    /// lenght in characters
+    /// length in characters
     fn num_chars(&self) -> usize;
     /// bytes
     fn as_bytes(&self) -> &[u8];
@@ -727,11 +727,8 @@ impl Text for [u8] {
                 3 => {
                     ret *= 1000.0;
                 }
-                //  	    These two lose accuracy
-                //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LOG2_10).exp2();},
-                //	    _ => {ret *= ((exponent as f64) * std::f64::consts::LN_10).exp();},
                 _ => {
-                    ret *= libm::exp10(f64::from(exponent));
+                    ret *= 10.0_f64.powi(exponent);
                 }
             }
         }
