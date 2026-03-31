@@ -33,6 +33,10 @@ struct CombineGen {
     iter: itertools::Combinations<std::vec::IntoIter<String>>,
 }
 impl CombineGen {
+    fn new2(items: Vec<String>, count: usize) -> Self {
+        Self { iter: items.clone().into_iter().combinations(count), items, count }
+    }
+
     fn new(spec: &str) -> Result<Self> {
         let parts = spec.split_once(':');
         if let Some((a, b)) = parts {
@@ -41,11 +45,11 @@ impl CombineGen {
             if count > items.len() {
                 return err!("Can't select {count} items from a list of {} items.", items.len());
             }
-            Ok(Self { iter: items.clone().into_iter().combinations(count), items, count })
+            Ok(Self::new2(items, count))
         } else {
             let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
             let count = items.len();
-            Ok(Self { iter: items.clone().into_iter().combinations(count), items, count })
+            Ok(Self::new2(items, count))
         }
     }
 }
