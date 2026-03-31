@@ -30,11 +30,15 @@ pub trait Gen {
 struct CombineGen {
     items: Vec<String>,
     count: usize,
-    iter: itertools::Combinations<std::vec::IntoIter<String>>,
+    iter: itertools::Combinations<std::vec::IntoIter<usize>>,
 }
 impl CombineGen {
-    fn new2(items: Vec<String>, count: usize) -> Self {
-        Self { iter: items.clone().into_iter().combinations(count), items, count }
+    fn make_iter(
+        items: &[String],
+        count: usize,
+    ) -> itertools::Combinations<std::vec::IntoIter<usize>> {
+        let indexes: Vec<usize> = (0..items.len()).collect();
+        indexes.into_iter().combinations(count)
     }
 
     fn new(spec: &str) -> Result<Self> {
@@ -45,11 +49,13 @@ impl CombineGen {
             if count > items.len() {
                 return err!("Can't select {count} items from a list of {} items.", items.len());
             }
-            Ok(Self::new2(items, count))
+            let iter = Self::make_iter(&items, count);
+            Ok(Self { items, count, iter })
         } else {
             let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
             let count = items.len();
-            Ok(Self::new2(items, count))
+            let iter = Self::make_iter(&items, count);
+            Ok(Self { items, count, iter })
         }
     }
 }
@@ -63,10 +69,10 @@ impl Gen for CombineGen {
                 } else {
                     w.write_all(&[loc.col_delim])?;
                 }
-                w.write_all(item.as_bytes())?;
+                w.write_all(self.items[item].as_bytes())?;
             }
         } else {
-            self.iter = self.items.clone().into_iter().combinations(self.count);
+            self.iter = Self::make_iter(&self.items, self.count);
             self.write(w, loc)?;
         }
         Ok(())
@@ -85,9 +91,16 @@ impl Gen for CombineGen {
 struct CombineRGen {
     items: Vec<String>,
     count: usize,
-    iter: itertools::CombinationsWithReplacement<std::vec::IntoIter<String>>,
+    iter: itertools::CombinationsWithReplacement<std::vec::IntoIter<usize>>,
 }
 impl CombineRGen {
+    fn make_iter(
+        items: &[String],
+        count: usize,
+    ) -> itertools::CombinationsWithReplacement<std::vec::IntoIter<usize>> {
+        let indexes: Vec<usize> = (0..items.len()).collect();
+        indexes.into_iter().combinations_with_replacement(count)
+    }
     fn new(spec: &str) -> Result<Self> {
         let parts = spec.split_once(':');
         if let Some((a, b)) = parts {
@@ -96,19 +109,13 @@ impl CombineRGen {
             if count > items.len() {
                 return err!("Can't select {count} items from a list of {} items.", items.len());
             }
-            Ok(Self {
-                iter: items.clone().into_iter().combinations_with_replacement(count),
-                items,
-                count,
-            })
+            let iter = Self::make_iter(&items, count);
+            Ok(Self { items, count, iter })
         } else {
             let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
             let count = items.len();
-            Ok(Self {
-                iter: items.clone().into_iter().combinations_with_replacement(count),
-                items,
-                count,
-            })
+            let iter = Self::make_iter(&items, count);
+            Ok(Self { items, count, iter })
         }
     }
 }
@@ -123,10 +130,10 @@ impl Gen for CombineRGen {
                 } else {
                     w.write_all(&[loc.col_delim])?;
                 }
-                w.write_all(item.as_bytes())?;
+                w.write_all(self.items[item].as_bytes())?;
             }
         } else {
-            self.iter = self.items.clone().into_iter().combinations_with_replacement(self.count);
+            self.iter = Self::make_iter(&self.items, self.count);
             self.write(w, loc)?;
         }
         Ok(())
@@ -145,9 +152,16 @@ impl Gen for CombineRGen {
 struct PermuteGen {
     items: Vec<String>,
     count: usize,
-    iter: itertools::Permutations<std::vec::IntoIter<String>>,
+    iter: itertools::Permutations<std::vec::IntoIter<usize>>,
 }
 impl PermuteGen {
+    fn make_iter(
+        items: &[String],
+        count: usize,
+    ) -> itertools::Permutations<std::vec::IntoIter<usize>> {
+        let indexes: Vec<usize> = (0..items.len()).collect();
+        indexes.into_iter().permutations(count)
+    }
     fn new(spec: &str) -> Result<Self> {
         let parts = spec.split_once(':');
         if let Some((a, b)) = parts {
@@ -156,11 +170,11 @@ impl PermuteGen {
             if count > items.len() {
                 return err!("Can't select {count} items from a list of {} items.", items.len());
             }
-            Ok(Self { iter: items.clone().into_iter().permutations(count), items, count })
+            Ok(Self { iter: Self::make_iter(&items, count), items, count })
         } else {
             let items: Vec<String> = spec.split(',').map(|s| s.trim().to_string()).collect();
             let count = items.len();
-            Ok(Self { iter: items.clone().into_iter().permutations(count), items, count })
+            Ok(Self { iter: Self::make_iter(&items, count), items, count })
         }
     }
 }
@@ -174,10 +188,10 @@ impl Gen for PermuteGen {
                 } else {
                     w.write_all(&[loc.col_delim])?;
                 }
-                w.write_all(item.as_bytes())?;
+                w.write_all(self.items[item].as_bytes())?;
             }
         } else {
-            self.iter = self.items.clone().into_iter().permutations(self.count);
+            self.iter = Self::make_iter(&self.items, self.count);
             self.write(w, loc)?;
         }
         Ok(())
