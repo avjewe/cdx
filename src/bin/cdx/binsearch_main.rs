@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::prelude::*;
 use cdx::binsearch::{MemMap, equal_range_n, find_end, find_prev};
 use cdx::prelude::*;
@@ -60,9 +58,9 @@ impl Context {
     fn new() -> Self {
         Self::default()
     }
-    fn is_empty(&self) -> bool {
-        *self == Self::default()
-    }
+    // fn is_empty(&self) -> bool {
+    //     *self == Self::default()
+    // }
     fn get(&self, is_empty: bool) -> (usize, usize) {
         if is_empty {
             (self.before_non, self.after_non)

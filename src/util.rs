@@ -1,5 +1,4 @@
 //! Misc utility stuff
-//#![allow(dead_code)]
 use crate::comp::{CompMaker, Compare};
 use crate::prelude::*;
 use anyhow;

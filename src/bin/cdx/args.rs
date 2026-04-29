@@ -181,6 +181,6 @@ pub fn parse(
     if prog.files != FileCount::Zero && files.is_empty() {
         files.push("-".to_string());
     }
-    v.sort_by(|a, b| a.index.cmp(&b.index));
+    v.sort_by_key(|a| a.index);
     Ok((v, files))
 }

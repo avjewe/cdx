@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::prelude::*;
 use cdx::expr::{calc, parse_fmt_expr};
 use cdx::prelude::*;

@@ -62,6 +62,7 @@ impl Token {
     }
 }
 
+#[expect(clippy::collapsible_match, reason = "I think clippy is wrong")]
 fn is_d(x: &str) -> bool {
     let mut iter = x.chars();
     match iter.next() {
