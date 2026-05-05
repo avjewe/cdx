@@ -1102,6 +1102,25 @@ impl Infile {
     pub fn new(f: io::BufReader<Box<dyn Read>>, n: &str) -> Self {
         Self(f, n.to_string())
     }
+    /// Build an `InFile` from any readable source using default buffering.
+    #[must_use]
+    pub fn from_reader<R>(reader: R, source_name: impl Into<String>) -> Self
+    where
+        R: Read + 'static,
+    {
+        Self(io::BufReader::new(Box::new(reader)), source_name.into())
+    }
+    /// Build an `InFile` from any readable source with an explicit buffer capacity.
+    #[must_use]
+    pub fn with_capacity<R>(capacity: usize, reader: R, source_name: impl Into<String>) -> Self
+    where
+        R: Read + 'static,
+    {
+        Self(
+            io::BufReader::with_capacity(capacity, Box::new(reader)),
+            source_name.into(),
+        )
+    }
 }
 
 impl Default for Infile {
@@ -1243,7 +1262,6 @@ fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
 pub fn get_reader(name: &str) -> Result<Infile> {
     let inner: Box<dyn Read> = {
         if name == "-" {
-            //	    unsafe { Box::new(std::fs::File::from_raw_fd(1)) }
             Box::new(io::stdin())
         } else if name.starts_with("s3://") {
             new_s3_reader(name)?

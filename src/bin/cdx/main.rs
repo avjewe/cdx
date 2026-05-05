@@ -19,6 +19,7 @@ mod sort_main;
 mod tabs_main;
 mod tooltest_main;
 mod transpose_main;
+// mod new_uniq_main;
 mod uniq_main;
 mod verify_main;
 mod wc_main;
@@ -92,11 +93,11 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
     for i in 2..globals::global_args().len() {
         let name = globals::global_args()[i].name;
         if matches.get_one::<String>(name).is_some() {
-            globals::Settings::show_std_help(name);
+            globals::Settings::show_std_help(name)?;
         }
     }
     if matches.get_one::<String>("std-help").is_some() {
-        globals::Settings::show_std_help("std-help");
+        globals::Settings::show_std_help("std-help")?;
     }
 
     Ok(())

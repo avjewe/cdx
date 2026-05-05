@@ -12,9 +12,11 @@ use cdx::textgen::GenMaker;
 use cdx::trans::TransMaker;
 use cdx::util::HeaderChecker;
 
-const A: [ArgSpec; 10] = [
+const A: [ArgSpec; 12] = [
     arg! {"text-in", "", "Format", "Input text file format"},
     arg! {"text-out", "", "Format", "Output text file format"},
+    arg! {"Input", "I", "Format", "Input text file format"},
+    arg! {"Output", "O", "Format", "Output text file format"},
     arg! {"std-agg", "", "", "Show aggregators"},
     arg! {"std-comp", "", "", "Show comparators"},
     arg! {"std-const", "", "", "Show constants"},
@@ -35,6 +37,9 @@ pub struct Settings {
     pub checker: HeaderChecker,
     pub text_in: TextFileMode,
     pub text_out: Option<TextFileMode>,
+
+    pub input: cdx::input::Config,
+    pub output: cdx::output::Spec,
 }
 
 impl Settings {
@@ -56,6 +61,10 @@ impl Settings {
                 ret
             }
         }
+    }
+    pub fn output(&self, input : &cdx::input::Config) -> Result<cdx::output::Config>
+    {
+        Ok(cdx::output::Config::from_input_and_spec(input, self.output))
     }
     pub fn add_std_help(a: clap::Command) -> clap::Command {
         add_arg(a, &arg! {"std-help", "", "", "Show help for standard args."}, false)
@@ -80,7 +89,7 @@ impl Settings {
             eprintln!("{:12} {} {}", x.name, x.value, x.help);
         }
     }
-    pub fn show_std_help(name: &str) {
+    pub fn show_std_help(name: &str) -> Result<()> {
         if name == "std-agg" {
             AggMaker::help();
         } else if name == "std-comp" {
@@ -100,8 +109,9 @@ impl Settings {
         } else if name == "std-help" {
             Self::help();
         } else {
-            unreachable!();
+            bail!("Unknown standard help topic: {}", name);
         }
+        Ok(())
     }
     pub fn consume(&mut self, args: &[ArgValue]) -> Result<()> {
         for x in args {
@@ -109,8 +119,12 @@ impl Settings {
                 self.text_in = TextFileMode::new(&x.value)?;
             } else if x.name == "text-out" {
                 self.text_out = Some(TextFileMode::new(&x.value)?);
+            } else if x.name == "input" {
+                self.input = cdx::input::Config::from_spec(&x.value)?;
+            } else if x.name == "output" {
+                self.output = cdx::output::Spec::from_spec(&x.value)?;
             } else {
-                Self::show_std_help(&x.name);
+                Self::show_std_help(&x.name)?;
                 return cdx_err(CdxError::NoError);
             }
         }

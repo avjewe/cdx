@@ -3,13 +3,15 @@
 //! It is hoped that the associated library will be useful for third party tools.
 
 #![warn(
+    rustdoc::all,
     absolute_paths_not_starting_with_crate,
     deprecated_in_future,
     explicit_outlives_requirements,
+    future_incompatible,
     keyword_idents,
     impl_trait_redundant_captures,
     keyword_idents_2024,
-    let_underscore_drop,
+    let_underscore,
     macro_use_extern_crate,
     missing_debug_implementations,
     missing_copy_implementations,
@@ -19,10 +21,9 @@
     noop_method_call,
     redundant_imports,
     redundant_lifetimes,
-    rust_2021_incompatible_closure_captures,
-    rust_2021_incompatible_or_patterns,
-    rust_2021_prefixes_incompatible_syntax,
-    rust_2021_prelude_collisions,
+    rust_2018_compatibility,
+    rust_2021_compatibility,
+    rust_2024_compatibility,
     rust_2018_idioms,
     single_use_lifetimes,
     trivial_numeric_casts,
@@ -30,6 +31,7 @@
     unit_bindings,
     unreachable_pub,
     unsafe_op_in_unsafe_fn,
+    unused,
     unused_crate_dependencies,
     unused_extern_crates,
     unused_lifetimes,
@@ -58,7 +60,7 @@
     clippy::tests_outside_test_module,
 
     // clippy::indexing_slicing,
-    // clippy::wildcard_enum_match_arm, try again after native MPL
+    // clippy::wildcard_enum_match_arm
     clippy::unneeded_field_pattern,
 
     clippy::perf,
@@ -89,10 +91,13 @@ pub mod binsearch;
 pub mod column;
 pub mod comp;
 pub mod expr;
+pub mod input;
 pub mod join;
 pub mod matcher;
 pub mod num;
+pub mod output;
 pub mod prelude;
+pub mod recyclable_vec;
 pub mod sampler;
 mod shunting_yard;
 pub mod solve;
