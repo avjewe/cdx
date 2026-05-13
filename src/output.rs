@@ -1,7 +1,9 @@
 //! Column-oriented output formatting for delimited text.
 
-use crate::input;
+use crate::*;
 use memchr::{memchr2, memchr3};
+use read_line::BackslashMode;
+use read_line::Quotes;
 use std::collections::HashSet;
 use std::fmt;
 use std::io;
@@ -33,7 +35,9 @@ pub enum Escape {
 /// Whether to emit a header record when writing tabular output.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Header {
-    /// Emit a header record.
+    /// Emit a CDX header record.
+    Cdx,
+    /// Emit a plain header record.
     Yes,
     /// Do not emit a header record.
     No,
@@ -50,7 +54,7 @@ pub struct Config {
     pub header: Header,
 }
 
-/// Optional output overrides resolved against an [`input::Config`](crate::input::Config).
+/// Optional output overrides resolved against an [`input_file::Config`](crate::input_file::Config).
 ///
 /// Each `Some(...)` value overrides the corresponding output setting.
 /// Each `None` value is derived from the input configuration.
@@ -215,10 +219,7 @@ fn find_backslash_escape_target(haystack: &[u8], delimiter: u8) -> Option<usize>
         return memchr3(b'\n', b'\r', b'\\', haystack);
     }
 
-    match (
-        memchr3(b'\n', b'\r', b'\\', haystack),
-        memchr::memchr(delimiter, haystack),
-    ) {
+    match (memchr3(b'\n', b'\r', b'\\', haystack), memchr::memchr(delimiter, haystack)) {
         (Some(left), Some(right)) => Some(left.min(right)),
         (Some(left), None) => Some(left),
         (None, Some(right)) => Some(right),
@@ -313,59 +314,59 @@ fn write_replaced_or_deleted(
 /// Collapse input quote modes into an optional single quote pair for output derivation.
 ///
 /// `Quotes::Multi` uses only the first pair. An empty `Multi` is treated as no quotes.
-fn input_quote_pair(quotes: &input::Quotes) -> Option<(u8, u8)> {
+fn input_quote_pair(quotes: &Quotes) -> Option<(u8, u8)> {
     match quotes {
-        input::Quotes::None => None,
-        input::Quotes::Single(open, close) => Some((*open, *close)),
-        input::Quotes::Multi(pairs) => pairs.first().copied(),
+        Quotes::None => None,
+        Quotes::Single(open, close) => Some((*open, *close)),
+        Quotes::Multi(pairs) => pairs.first().copied(),
     }
 }
 
 /// Derive output delimiter when `Spec.delimiter` is not explicitly provided.
-const fn derive_delimiter(input: &input::Config, spec: Spec) -> u8 {
+const fn derive_delimiter(input: &input_file::Config, spec: Spec) -> u8 {
     if let Some(delimiter) = spec.delimiter {
         return delimiter;
     }
 
-    match input.delimiter {
+    match input.column_config.delimiter {
         input::Delimiter::Char(delimiter) => delimiter,
         _ => b'\t',
     }
 }
 
 /// Derive output escape mode when `Spec.escape` is not explicitly provided.
-fn derive_escape(input: &input::Config, spec: Spec, output_delimiter: u8) -> Escape {
+fn derive_escape(input: &input_file::Config, spec: Spec, output_delimiter: u8) -> Escape {
     if let Some(escape) = spec.escape {
         return escape;
     }
 
-    match (input.backslash, input_quote_pair(&input.quotes)) {
-        (input::BackslashMode::Off, None) => {
+    match (input.column_config.backslash, input_quote_pair(&input.column_config.quotes)) {
+        (BackslashMode::Off, None) => {
             let replacement = if output_delimiter == b' ' { b'.' } else { b' ' };
             Escape::Replace(replacement)
         }
-        (input::BackslashMode::Off, Some((open, close))) => Escape::QuoteDoubled(open, close),
-        (input::BackslashMode::On, None) => Escape::Backslash,
-        (input::BackslashMode::On, Some((open, close))) => Escape::QuoteBackslash(open, close),
+        (BackslashMode::Off, Some((open, close))) => Escape::QuoteDoubled(open, close),
+        (BackslashMode::On, None) => Escape::Backslash,
+        (BackslashMode::On, Some((open, close))) => Escape::QuoteBackslash(open, close),
     }
 }
 
 /// Derive output header mode when `Spec.header` is not explicitly provided.
-const fn derive_header(input: &input::Config, spec: Spec) -> Header {
+const fn derive_header(input: &input_file::Config, spec: Spec) -> Header {
     if let Some(header) = spec.header {
         return header;
     }
 
     if let Some(saw_header) = input.saw_header {
         return match saw_header {
-            input::SawHeader::Yes | input::SawHeader::Cdx => Header::Yes,
-            input::SawHeader::No | input::SawHeader::Empty => Header::No,
+            input_file::SawHeader::Yes | input_file::SawHeader::Cdx => Header::Yes,
+            input_file::SawHeader::No | input_file::SawHeader::Empty => Header::No,
         };
     }
 
     match input.header {
-        input::Header::Yes => Header::Yes,
-        input::Header::No => Header::No,
+        input_file::Header::Yes => Header::Yes,
+        input_file::Header::No => Header::No,
     }
 }
 
@@ -373,21 +374,13 @@ impl Spec {
     /// Construct an empty spec that derives all output fields from input config.
     #[must_use]
     pub const fn new() -> Self {
-        Self {
-            delimiter: None,
-            escape: None,
-            header: None,
-        }
+        Self { delimiter: None, escape: None, header: None }
     }
 
     /// Construct a spec equivalent to [`Config::tsv`], with every field explicitly set.
     #[must_use]
     pub const fn tsv() -> Self {
-        Self {
-            delimiter: Some(b'\t'),
-            escape: Some(Escape::Backslash),
-            header: Some(Header::Yes),
-        }
+        Self { delimiter: Some(b'\t'), escape: Some(Escape::Backslash), header: Some(Header::Yes) }
     }
 
     /// Construct a spec equivalent to [`Config::csv`], with every field explicitly set.
@@ -428,9 +421,7 @@ impl Spec {
         }
 
         let mut parts = trimmed.split(',').map(str::trim);
-        let first = parts
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("missing output spec"))?;
+        let first = parts.next().ok_or_else(|| anyhow::anyhow!("missing output spec"))?;
 
         let mut out;
         let mut escape_kind;
@@ -457,10 +448,8 @@ impl Spec {
                 }
             };
 
-            let (kind, pair, replace) = escape_parts(
-                out.escape
-                    .expect("Spec::csv and Spec::tsv always set escape"),
-            );
+            let (kind, pair, replace) =
+                escape_parts(out.escape.expect("Spec::csv and Spec::tsv always set escape"));
             escape_kind = Some(kind);
             quote_pair = Some(pair);
             replace_value = replace;
@@ -472,9 +461,7 @@ impl Spec {
             }
 
             let (key_raw, value_raw) = part.split_once('=').ok_or_else(|| {
-                anyhow::anyhow!(format!(
-                    "output spec override `{part}` must be in key=value form"
-                ))
+                anyhow::anyhow!(format!("output spec override `{part}` must be in key=value form"))
             })?;
 
             let key_norm = normalize_token(key_raw);
@@ -484,9 +471,7 @@ impl Spec {
                 ))
             })?;
             if !seen_keys.insert(key) {
-                return Err(anyhow::anyhow!(format!(
-                    "duplicate output spec key `{key_raw}`"
-                )));
+                return Err(anyhow::anyhow!(format!("duplicate output spec key `{key_raw}`")));
             }
 
             match key {
@@ -578,11 +563,7 @@ impl Config {
     /// ```
     #[must_use]
     pub const fn new(delimiter: u8, escape: Escape) -> Self {
-        Self {
-            delimiter,
-            escape,
-            header: Header::Yes,
-        }
+        Self { delimiter, escape, header: Header::Yes }
     }
 
     /// Construct a `Config` with an explicit header policy.
@@ -596,11 +577,7 @@ impl Config {
     /// ```
     #[must_use]
     pub const fn with_header(delimiter: u8, escape: Escape, header: Header) -> Self {
-        Self {
-            delimiter,
-            escape,
-            header,
-        }
+        Self { delimiter, escape, header }
     }
 
     /// Recommended default for TSV-like output.
@@ -617,11 +594,7 @@ impl Config {
     /// ```
     #[must_use]
     pub const fn tsv() -> Self {
-        Self {
-            delimiter: b'\t',
-            escape: Escape::Backslash,
-            header: Header::Yes,
-        }
+        Self { delimiter: b'\t', escape: Escape::Backslash, header: Header::Yes }
     }
 
     /// Recommended default for CSV output.
@@ -638,11 +611,7 @@ impl Config {
     /// ```
     #[must_use]
     pub const fn csv() -> Self {
-        Self {
-            delimiter: b',',
-            escape: Escape::QuoteDoubled(b'"', b'"'),
-            header: Header::Yes,
-        }
+        Self { delimiter: b',', escape: Escape::QuoteDoubled(b'"', b'"'), header: Header::Yes }
     }
 
     /// Build output config by applying `spec` overrides to values derived from `input`.
@@ -659,15 +628,11 @@ impl Config {
     ///   - if `input.saw_header` is present, `Yes/Cdx => Yes`, `No => No`
     ///   - otherwise mirrors `input.header`.
     #[must_use]
-    pub fn from_input_and_spec(input: &input::Config, spec: Spec) -> Self {
+    pub fn from_input_and_spec(input: &input_file::Config, spec: Spec) -> Self {
         let delimiter = derive_delimiter(input, spec);
         let escape = derive_escape(input, spec, delimiter);
         let header = derive_header(input, spec);
-        Self {
-            delimiter,
-            escape,
-            header,
-        }
+        Self { delimiter, escape, header }
     }
 
     /// Encode one column into `out` according to this config.
@@ -1057,7 +1022,7 @@ impl LineWriter {
     pub fn begin_column(&mut self) -> anyhow::Result<()> {
         if self.column_open {
             return Err(
-                io::Error::new(io::ErrorKind::InvalidInput, "chunked column already open").into(),
+                io::Error::new(io::ErrorKind::InvalidInput, "chunked column already open").into()
             );
         }
         self.column_buf.clear();
@@ -1069,7 +1034,7 @@ impl LineWriter {
     pub fn write_column_chunk(&mut self, data: &[u8]) -> anyhow::Result<()> {
         if !self.column_open {
             return Err(
-                io::Error::new(io::ErrorKind::InvalidInput, "no open chunked column").into(),
+                io::Error::new(io::ErrorKind::InvalidInput, "no open chunked column").into()
             );
         }
         self.column_buf.extend_from_slice(data);
@@ -1080,7 +1045,7 @@ impl LineWriter {
     pub fn end_column(&mut self) -> anyhow::Result<()> {
         if !self.column_open {
             return Err(
-                io::Error::new(io::ErrorKind::InvalidInput, "no open chunked column").into(),
+                io::Error::new(io::ErrorKind::InvalidInput, "no open chunked column").into()
             );
         }
 
@@ -1265,10 +1230,7 @@ mod tests {
     #[test]
     fn write_column_backslash_escapes_special_bytes() {
         let config = OutputConfig::with_header(b',', Escape::Backslash, Header::No);
-        assert_eq!(
-            output(config, b"a,b\nc\rd\\e").unwrap(),
-            b"a\\,b\\nc\\rd\\\\e"
-        );
+        assert_eq!(output(config, b"a,b\nc\rd\\e").unwrap(), b"a\\,b\\nc\\rd\\\\e");
     }
 
     #[test]
@@ -1331,11 +1293,7 @@ mod tests {
     fn output_config_safe_constructors() {
         assert_eq!(
             OutputConfig::tsv(),
-            OutputConfig {
-                delimiter: b'\t',
-                escape: Escape::Backslash,
-                header: Header::Yes,
-            }
+            OutputConfig { delimiter: b'\t', escape: Escape::Backslash, header: Header::Yes }
         );
         assert_eq!(
             OutputConfig::csv(),
@@ -1451,14 +1409,7 @@ mod tests {
     /// Verifies empty spec leaves all output fields unresolved for input-driven derivation.
     #[test]
     fn output_spec_new_is_all_none() {
-        assert_eq!(
-            Spec::new(),
-            Spec {
-                delimiter: None,
-                escape: None,
-                header: None,
-            }
-        );
+        assert_eq!(Spec::new(), Spec { delimiter: None, escape: None, header: None });
     }
 
     /// Verifies `Spec::any` is an alias of `Spec::new`.
@@ -1491,7 +1442,7 @@ mod tests {
     /// Verifies input-driven derivation for standard CSV options.
     #[test]
     fn output_config_from_input_and_spec_csv_defaults() {
-        let input = input::Config::csv();
+        let input = input_file::Config::csv();
         let output = Config::from_input_and_spec(&input, Spec::new());
 
         assert_eq!(output.delimiter, b',');
@@ -1502,24 +1453,20 @@ mod tests {
     /// Verifies non-char delimiters fall back to tab and off+none maps to replacement escaping.
     #[test]
     fn output_config_from_input_and_spec_non_char_delimiter_fallback() {
-        let input = input::Config::new(input::Delimiter::Whole);
+        let input = input_file::Config::whole();
         let output = Config::from_input_and_spec(&input, Spec::new());
 
         assert_eq!(output.delimiter, b'\t');
         assert_eq!(output.escape, Escape::Replace(b' '));
-        assert_eq!(output.header, Header::Yes);
+        assert_eq!(output.header, Header::No); // whole-file input has no header
     }
 
     /// Verifies off+none uses dot replacement when the output delimiter is space.
     #[test]
     fn output_config_from_input_and_spec_replace_dot_for_space_delimiter() {
-        let input = input::Config::new(input::Delimiter::Char(b','));
-        let spec = Spec {
-            delimiter: Some(b' '),
-            escape: None,
-            header: None,
-        };
-
+        let input = input_file::Config::from_delim(input::Delimiter::Char(b','));
+        let spec = Spec { delimiter: Some(b' '), escape: None, header: None };
+        eprintln!("input: {input:#?}\nspec: {spec:#?}");
         let output = Config::from_input_and_spec(&input, spec);
         assert_eq!(output.escape, Escape::Replace(b'.'));
     }
@@ -1527,9 +1474,9 @@ mod tests {
     /// Verifies `Quotes::Multi` uses its first quote pair for output-escape derivation.
     #[test]
     fn output_config_from_input_and_spec_multi_quotes_uses_first_pair() {
-        let mut input = input::Config::new(input::Delimiter::Char(b','));
-        input.backslash = input::BackslashMode::On;
-        input.quotes = input::Quotes::Multi(vec![(b'<', b'>'), (b'[', b']')]);
+        let mut input = input_file::Config::from_delim(input::Delimiter::Char(b','));
+        input.column_config.backslash = BackslashMode::On;
+        input.column_config.quotes = Quotes::Multi(vec![(b'<', b'>'), (b'[', b']')]);
 
         let output = Config::from_input_and_spec(&input, Spec::new());
         assert_eq!(output.escape, Escape::QuoteBackslash(b'<', b'>'));
@@ -1538,14 +1485,14 @@ mod tests {
     /// Verifies observed header state takes precedence over configured input header.
     #[test]
     fn output_config_from_input_and_spec_header_precedence() {
-        let mut input = input::Config::csv();
-        input.header = input::Header::No;
-        input.saw_header = Some(input::SawHeader::Cdx);
+        let mut input = input_file::Config::csv();
+        input.header = input_file::Header::No;
+        input.saw_header = Some(input_file::SawHeader::Cdx);
 
         let output = Config::from_input_and_spec(&input, Spec::new());
         assert_eq!(output.header, Header::Yes);
 
-        input.saw_header = Some(input::SawHeader::No);
+        input.saw_header = Some(input_file::SawHeader::No);
         let output = Config::from_input_and_spec(&input, Spec::new());
         assert_eq!(output.header, Header::No);
     }
@@ -1553,22 +1500,12 @@ mod tests {
     /// Verifies explicit spec values override all input-derived output values.
     #[test]
     fn output_config_from_input_and_spec_overrides() {
-        let input = input::Config::csv();
-        let spec = Spec {
-            delimiter: Some(b'|'),
-            escape: Some(Escape::Delete),
-            header: Some(Header::No),
-        };
+        let input = input_file::Config::csv();
+        let spec =
+            Spec { delimiter: Some(b'|'), escape: Some(Escape::Delete), header: Some(Header::No) };
 
         let output = Config::from_input_and_spec(&input, spec);
-        assert_eq!(
-            output,
-            Config {
-                delimiter: b'|',
-                escape: Escape::Delete,
-                header: Header::No,
-            }
-        );
+        assert_eq!(output, Config { delimiter: b'|', escape: Escape::Delete, header: Header::No });
     }
 
     #[test]
@@ -1634,9 +1571,7 @@ mod tests {
         let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
         let mut line_writer = LineWriter::new(config, b"\r\n".to_vec(), Box::new(sink));
 
-        line_writer
-            .write_columns([&b"aa"[..], &b"bb"[..], &b"cc"[..]])
-            .unwrap();
+        line_writer.write_columns([&b"aa"[..], &b"bb"[..], &b"cc"[..]]).unwrap();
         line_writer.finish_record().unwrap();
 
         assert_eq!(sink_view.snapshot(), b"aa\tbb\tcc\r\n");
@@ -1683,9 +1618,7 @@ mod tests {
         let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
 
         line_writer.write_column(b"left").unwrap();
-        line_writer
-            .write_column_chunks([&b"a\""[..], &b"b\\c"[..]])
-            .unwrap();
+        line_writer.write_column_chunks([&b"a\""[..], &b"b\\c"[..]]).unwrap();
         line_writer.finish_record().unwrap();
 
         assert_eq!(sink_view.snapshot(), b"left,\"a\\\"b\\\\c\"\n");
@@ -1704,9 +1637,7 @@ mod tests {
         line_writer.write_column_chunk(b"a\"").unwrap();
         line_writer.write_column_chunk(b"b\\c").unwrap();
         line_writer.end_column().unwrap();
-        line_writer
-            .write_column_chunks([&b"x"[..], &b"y"[..]])
-            .unwrap();
+        line_writer.write_column_chunks([&b"x"[..], &b"y"[..]]).unwrap();
         line_writer.finish_record().unwrap();
 
         assert_eq!(sink_view.snapshot(), b"left,\"a\\\"b\\\\c\",xy\n");

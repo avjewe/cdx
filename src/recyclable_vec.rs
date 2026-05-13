@@ -1,15 +1,15 @@
-//! `RecyclableVec<T>` is a vector-like collection that keeps previously active
+//! `RVec<T>` is a vector-like collection that keeps previously active
 //! elements initialized after logical shrink operations.
 //!
 //! This is useful for values such as `String` and `Vec<U>` that repeatedly grow
-//! and shrink. Calling [`clear`](RecyclableVec::clear) or
-//! [`truncate`](RecyclableVec::truncate) only changes the active length, so later
+//! and shrink. Calling [`clear`](RVec::clear) or
+//! [`truncate`](RVec::truncate) only changes the active length, so later
 //! growth can reuse the inactive values and their internal allocations.
 //!
 //! ```
-//! use cdx::recyclable_vec::{Recycle, RecyclableVec};
+//! use cdx::recyclable_vec::{Recycle, RVec};
 //!
-//! let mut values = RecyclableVec::new();
+//! let mut values = RVec::new();
 //! values.push(String::from("large allocation"));
 //! let ptr = values[0].as_ptr();
 //!
@@ -40,29 +40,29 @@
 //!
 //! # Behavior model
 //!
-//! `RecyclableVec` has three related sizes:
+//! `RVec` has three related sizes:
 //!
 //! | Region | Meaning |
 //! | --- | --- |
-//! | active | Logically present elements, returned by [`active`](RecyclableVec::active). |
-//! | inactive | Initialized reusable storage, returned by [`inactive`](RecyclableVec::inactive). |
-//! | capacity | Raw backing `Vec` capacity, returned by [`capacity`](RecyclableVec::capacity). |
+//! | active | Logically present elements, returned by [`active`](RVec::active). |
+//! | inactive | Initialized reusable storage, returned by [`inactive`](RVec::inactive). |
+//! | capacity | Raw backing `Vec` capacity, returned by [`capacity`](RVec::capacity). |
 //!
 //! Mutation methods are recycling-first. Use methods such as
-//! [`clear`](RecyclableVec::clear), [`truncate`](RecyclableVec::truncate),
-//! [`recycle_pop`](RecyclableVec::recycle_pop),
-//! [`recycle_remove`](RecyclableVec::recycle_remove),
-//! [`recycle_swap_remove`](RecyclableVec::recycle_swap_remove),
-//! [`recycle_drain`](RecyclableVec::recycle_drain), and
-//! [`recycle_split_off`](RecyclableVec::recycle_split_off) when you want removed
+//! [`clear`](RVec::clear), [`truncate`](RVec::truncate),
+//! [`recycle_pop`](RVec::recycle_pop),
+//! [`recycle_remove`](RVec::recycle_remove),
+//! [`recycle_swap_remove`](RVec::recycle_swap_remove),
+//! [`recycle_drain`](RVec::recycle_drain), and
+//! [`recycle_split_off`](RVec::recycle_split_off) when you want removed
 //! active elements to remain initialized for later reuse.
 //!
 //! When you really need ownership of removed elements, use the explicit `take_*`
-//! methods: [`take_pop`](RecyclableVec::take_pop),
-//! [`take_remove`](RecyclableVec::take_remove),
-//! [`take_swap_remove`](RecyclableVec::take_swap_remove),
-//! [`take_drain`](RecyclableVec::take_drain), and
-//! [`take_split_off`](RecyclableVec::take_split_off). These remove values from
+//! methods: [`take_pop`](RVec::take_pop),
+//! [`take_remove`](RVec::take_remove),
+//! [`take_swap_remove`](RVec::take_swap_remove),
+//! [`take_drain`](RVec::take_drain), and
+//! [`take_split_off`](RVec::take_split_off). These remove values from
 //! the recycling pool because ownership is transferred to the caller.
 //!
 //! | Method family | Keeps initialized values for reuse? | Transfers ownership out? |
@@ -73,9 +73,9 @@
 //! # Ensuring reusable values
 //!
 //! ```
-//! use cdx::recyclable_vec::RecyclableVec;
+//! use cdx::recyclable_vec::RVec;
 //!
-//! let mut rows = RecyclableVec::<Vec<u8>>::with_recycled_capacity(2);
+//! let mut rows = RVec::<Vec<u8>>::with_recycled_capacity(2);
 //! rows.ensure_active_len(2);
 //! rows[0].extend_from_slice(b"abc");
 //! rows[1].extend_from_slice(b"def");
@@ -94,14 +94,14 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice;
 
-/// Creates a [`RecyclableVec`] containing the given elements.
+/// Creates a [`RVec`] containing the given elements.
 ///
 /// This mirrors the standard `vec!` macro:
 ///
 /// ```
 /// use cdx::rvec;
 ///
-/// let empty: cdx::recyclable_vec::RecyclableVec<i32> = rvec![];
+/// let empty: cdx::recyclable_vec::RVec<i32> = rvec![];
 /// assert!(empty.is_empty());
 ///
 /// let values = rvec![1, 2, 3];
@@ -113,13 +113,13 @@ use std::slice;
 #[macro_export]
 macro_rules! rvec {
     () => {
-        $crate::recyclable_vec::RecyclableVec::new()
+        $crate::recyclable_vec::RVec::new()
     };
     ($elem:expr; $n:expr) => {
-        $crate::recyclable_vec::RecyclableVec::from_vec(::std::vec![$elem; $n])
+        $crate::recyclable_vec::RVec::from_vec(::std::vec![$elem; $n])
     };
     ($($element:expr),+ $(,)?) => {
-        $crate::recyclable_vec::RecyclableVec::from_vec(::std::vec![$($element),+])
+        $crate::recyclable_vec::RVec::from_vec(::std::vec![$($element),+])
     };
 }
 
@@ -143,20 +143,20 @@ impl<T> Recycle for Vec<T> {
 
 /// A vector-like collection that keeps previously used elements around.
 ///
-/// `RecyclableVec` exposes only the first `active_len` elements as logically
+/// `RVec` exposes only the first `active_len` elements as logically
 /// present. Elements past that point remain allocated and initialized so later
 /// growth can reuse their internal allocations.
 ///
 /// This is most useful for values like `String` and `Vec<U>` that can be
 /// cleared and refilled many times.
 #[derive(Clone)]
-pub struct RecyclableVec<T> {
+pub struct RVec<T> {
     // Invariant: active_len <= storage.len().
     storage: Vec<T>,
     active_len: usize,
 }
 
-impl<T> RecyclableVec<T> {
+impl<T> RVec<T> {
     fn debug_assert_invariant(&self) {
         debug_assert!(
             self.active_len <= self.storage.len(),
@@ -166,38 +166,29 @@ impl<T> RecyclableVec<T> {
         );
     }
 
-    /// Creates an empty `RecyclableVec`.
+    /// Creates an empty `RVec`.
     #[must_use]
     pub const fn new() -> Self {
-        Self {
-            storage: Vec::new(),
-            active_len: 0,
-        }
+        Self { storage: Vec::new(), active_len: 0 }
     }
 
-    /// Creates an empty `RecyclableVec` with at least the given storage capacity.
+    /// Creates an empty `RVec` with at least the given storage capacity.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            storage: Vec::with_capacity(capacity),
-            active_len: 0,
-        }
+        Self { storage: Vec::with_capacity(capacity), active_len: 0 }
     }
 
-    /// Creates an empty `RecyclableVec` with `len` inactive initialized slots.
+    /// Creates an empty `RVec` with `len` inactive initialized slots.
     #[must_use]
     pub fn with_storage_len(len: usize) -> Self
     where
         T: Default,
     {
         let storage = std::iter::repeat_with(T::default).take(len).collect();
-        Self {
-            storage,
-            active_len: 0,
-        }
+        Self { storage, active_len: 0 }
     }
 
-    /// Creates an empty `RecyclableVec` with `capacity` inactive initialized slots.
+    /// Creates an empty `RVec` with `capacity` inactive initialized slots.
     #[must_use]
     pub fn with_recycled_capacity(capacity: usize) -> Self
     where
@@ -210,10 +201,7 @@ impl<T> RecyclableVec<T> {
     #[must_use]
     pub const fn from_vec(storage: Vec<T>) -> Self {
         let active_len = storage.len();
-        Self {
-            storage,
-            active_len,
-        }
+        Self { storage, active_len }
     }
 
     /// Returns the active length.
@@ -515,10 +503,7 @@ impl<T> RecyclableVec<T> {
     /// Reserves enough backing capacity for `additional` more active elements,
     /// accounting for already-initialized inactive slots.
     pub fn reserve_active(&mut self, additional: usize) {
-        let target = self
-            .active_len
-            .checked_add(additional)
-            .expect("capacity overflow");
+        let target = self.active_len.checked_add(additional).expect("capacity overflow");
         if target > self.storage.capacity() {
             self.storage.reserve(target - self.storage.len());
         }
@@ -532,10 +517,7 @@ impl<T> RecyclableVec<T> {
     /// Reserves the minimum backing capacity for `additional` more active
     /// elements, accounting for already-initialized inactive slots.
     pub fn reserve_active_exact(&mut self, additional: usize) {
-        let target = self
-            .active_len
-            .checked_add(additional)
-            .expect("capacity overflow");
+        let target = self.active_len.checked_add(additional).expect("capacity overflow");
         if target > self.storage.capacity() {
             self.storage.reserve_exact(target - self.storage.len());
         }
@@ -937,13 +919,13 @@ impl<T> RecyclableVec<T> {
     }
 }
 
-impl<T> Default for RecyclableVec<T> {
+impl<T> Default for RVec<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Deref for RecyclableVec<T> {
+impl<T> Deref for RVec<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
@@ -951,13 +933,13 @@ impl<T> Deref for RecyclableVec<T> {
     }
 }
 
-impl<T> DerefMut for RecyclableVec<T> {
+impl<T> DerefMut for RVec<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut_slice()
     }
 }
 
-impl<T, I> Index<I> for RecyclableVec<T>
+impl<T, I> Index<I> for RVec<T>
 where
     I: slice::SliceIndex<[T]>,
 {
@@ -968,7 +950,7 @@ where
     }
 }
 
-impl<T, I> IndexMut<I> for RecyclableVec<T>
+impl<T, I> IndexMut<I> for RVec<T>
 where
     I: slice::SliceIndex<[T]>,
 {
@@ -977,7 +959,7 @@ where
     }
 }
 
-impl<T> Extend<T> for RecyclableVec<T> {
+impl<T> Extend<T> for RVec<T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for value in iter {
             self.push(value);
@@ -985,7 +967,7 @@ impl<T> Extend<T> for RecyclableVec<T> {
     }
 }
 
-impl<'a, T: 'a + Clone> Extend<&'a T> for RecyclableVec<T> {
+impl<'a, T: 'a + Clone> Extend<&'a T> for RVec<T> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
         for value in iter {
             self.push_cloned(value);
@@ -993,26 +975,26 @@ impl<'a, T: 'a + Clone> Extend<&'a T> for RecyclableVec<T> {
     }
 }
 
-impl<T> From<Vec<T>> for RecyclableVec<T> {
+impl<T> From<Vec<T>> for RVec<T> {
     fn from(value: Vec<T>) -> Self {
         Self::from_vec(value)
     }
 }
 
-impl<T> From<RecyclableVec<T>> for Vec<T> {
-    fn from(value: RecyclableVec<T>) -> Self {
+impl<T> From<RVec<T>> for Vec<T> {
+    fn from(value: RVec<T>) -> Self {
         value.into_vec()
     }
 }
 
-impl<T> FromIterator<T> for RecyclableVec<T> {
+impl<T> FromIterator<T> for RVec<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let storage: Vec<T> = iter.into_iter().collect();
         Self::from_vec(storage)
     }
 }
 
-impl<T> IntoIterator for RecyclableVec<T> {
+impl<T> IntoIterator for RVec<T> {
     type Item = T;
     type IntoIter = std::vec::IntoIter<T>;
 
@@ -1021,7 +1003,7 @@ impl<T> IntoIterator for RecyclableVec<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a RecyclableVec<T> {
+impl<'a, T> IntoIterator for &'a RVec<T> {
     type Item = &'a T;
     type IntoIter = slice::Iter<'a, T>;
 
@@ -1030,7 +1012,7 @@ impl<'a, T> IntoIterator for &'a RecyclableVec<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a mut RecyclableVec<T> {
+impl<'a, T> IntoIterator for &'a mut RVec<T> {
     type Item = &'a mut T;
     type IntoIter = slice::IterMut<'a, T>;
 
@@ -1039,57 +1021,57 @@ impl<'a, T> IntoIterator for &'a mut RecyclableVec<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for RecyclableVec<T> {
+impl<T: fmt::Debug> fmt::Debug for RVec<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.as_slice()).finish()
     }
 }
 
-impl<T: PartialEq> PartialEq for RecyclableVec<T> {
+impl<T: PartialEq> PartialEq for RVec<T> {
     fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
     }
 }
 
-impl<T: Eq> Eq for RecyclableVec<T> {}
+impl<T: Eq> Eq for RVec<T> {}
 
-impl<T: PartialOrd> PartialOrd for RecyclableVec<T> {
+impl<T: PartialOrd> PartialOrd for RVec<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_slice().partial_cmp(other.as_slice())
     }
 }
 
-impl<T: Ord> Ord for RecyclableVec<T> {
+impl<T: Ord> Ord for RVec<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_slice().cmp(other.as_slice())
     }
 }
 
-impl<T: Hash> Hash for RecyclableVec<T> {
+impl<T: Hash> Hash for RVec<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_slice().hash(state);
     }
 }
 
-impl<T> AsRef<[T]> for RecyclableVec<T> {
+impl<T> AsRef<[T]> for RVec<T> {
     fn as_ref(&self) -> &[T] {
         self.as_slice()
     }
 }
 
-impl<T> AsMut<[T]> for RecyclableVec<T> {
+impl<T> AsMut<[T]> for RVec<T> {
     fn as_mut(&mut self) -> &mut [T] {
         self.as_mut_slice()
     }
 }
 
-impl<T> Borrow<[T]> for RecyclableVec<T> {
+impl<T> Borrow<[T]> for RVec<T> {
     fn borrow(&self) -> &[T] {
         self.as_slice()
     }
 }
 
-impl<T> BorrowMut<[T]> for RecyclableVec<T> {
+impl<T> BorrowMut<[T]> for RVec<T> {
     fn borrow_mut(&mut self) -> &mut [T] {
         self.as_mut_slice()
     }
@@ -1099,7 +1081,7 @@ impl<T> BorrowMut<[T]> for RecyclableVec<T> {
 mod tests {
     use super::*;
 
-    fn assert_invariant<T>(vec: &RecyclableVec<T>) {
+    fn assert_invariant<T>(vec: &RVec<T>) {
         assert!(
             vec.active_len <= vec.storage.len(),
             "active_len ({}) must be <= storage.len() ({})",
@@ -1110,7 +1092,7 @@ mod tests {
 
     #[test]
     fn clear_retains_elements_for_reuse() {
-        let mut vec = RecyclableVec::new();
+        let mut vec = RVec::new();
         vec.push(String::from("alpha"));
         vec.push(String::from("beta"));
         let first_ptr = vec[0].as_ptr();
@@ -1133,7 +1115,7 @@ mod tests {
 
     #[test]
     fn macro_creates_empty_recyclable_vec() {
-        let vec: RecyclableVec<i32> = crate::rvec![];
+        let vec: RVec<i32> = crate::rvec![];
 
         assert!(vec.is_empty());
         assert_eq!(vec.storage_len(), 0);
@@ -1157,7 +1139,7 @@ mod tests {
 
     #[test]
     fn truncate_retains_tail_slots() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 4]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 4]);
         vec.truncate(2);
 
         assert_eq!(vec.as_slice(), &[1, 2]);
@@ -1171,10 +1153,8 @@ mod tests {
 
     #[test]
     fn resize_with_recycle_reuses_inactive_values() {
-        let mut vec = RecyclableVec::from_vec(vec![
-            String::from("wide allocation"),
-            String::from("other allocation"),
-        ]);
+        let mut vec =
+            RVec::from_vec(vec![String::from("wide allocation"), String::from("other allocation")]);
         let ptr = vec[1].as_ptr();
 
         vec.truncate(1);
@@ -1193,7 +1173,7 @@ mod tests {
 
     #[test]
     fn resize_uses_clone_from_for_inactive_values() {
-        let mut vec = RecyclableVec::from_vec(vec![String::from("wide allocation")]);
+        let mut vec = RVec::from_vec(vec![String::from("wide allocation")]);
         let ptr = vec[0].as_ptr();
 
         vec.clear();
@@ -1205,7 +1185,7 @@ mod tests {
 
     #[test]
     fn push_default_uses_clone_from_for_inactive_values() {
-        let mut vec = RecyclableVec::from_vec(vec![String::from("wide allocation")]);
+        let mut vec = RVec::from_vec(vec![String::from("wide allocation")]);
         let ptr = vec[0].as_ptr();
 
         vec.clear();
@@ -1217,7 +1197,7 @@ mod tests {
 
     #[test]
     fn push_recycled_uses_recycle_trait_for_inactive_values() {
-        let mut vec = RecyclableVec::from_vec(vec![String::from("wide allocation")]);
+        let mut vec = RVec::from_vec(vec![String::from("wide allocation")]);
         let ptr = vec[0].as_ptr();
 
         vec.clear();
@@ -1230,19 +1210,19 @@ mod tests {
 
     #[test]
     fn default_constructors_preinitialize_inactive_storage() {
-        let vec = RecyclableVec::<String>::with_storage_len(2);
+        let vec = RVec::<String>::with_storage_len(2);
 
         assert!(vec.active().is_empty());
         assert_eq!(vec.inactive(), ["", ""]);
         assert_eq!(vec.storage_len(), 2);
 
-        let vec = RecyclableVec::<Vec<u8>>::with_recycled_capacity(3);
+        let vec = RVec::<Vec<u8>>::with_recycled_capacity(3);
         assert_eq!(vec.inactive_len(), 3);
     }
 
     #[test]
     fn push_recycled_with_configures_the_new_slot() {
-        let mut vec = RecyclableVec::from_vec(vec![String::from("wide allocation")]);
+        let mut vec = RVec::from_vec(vec![String::from("wide allocation")]);
         let ptr = vec[0].as_ptr();
 
         vec.clear();
@@ -1254,7 +1234,7 @@ mod tests {
 
     #[test]
     fn resize_recycled_uses_recycle_trait_for_inactive_values() {
-        let mut vec = RecyclableVec::from_vec(vec![String::from("wide allocation")]);
+        let mut vec = RVec::from_vec(vec![String::from("wide allocation")]);
         let ptr = vec[0].as_ptr();
 
         vec.clear();
@@ -1266,7 +1246,7 @@ mod tests {
 
     #[test]
     fn ensure_active_len_only_grows_when_needed() {
-        let mut vec = RecyclableVec::from_vec(vec![
+        let mut vec = RVec::from_vec(vec![
             String::from("wide allocation"),
             String::from("other wide allocation"),
         ]);
@@ -1284,7 +1264,7 @@ mod tests {
 
     #[test]
     fn recycle_active_resets_values_before_making_them_inactive() {
-        let mut vec = RecyclableVec::from_vec(vec![String::from("wide allocation")]);
+        let mut vec = RVec::from_vec(vec![String::from("wide allocation")]);
         let ptr = vec[0].as_ptr();
 
         vec.recycle_active();
@@ -1296,7 +1276,7 @@ mod tests {
 
     #[test]
     fn active_and_inactive_aliases_expose_the_two_regions() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3]);
         vec.truncate(1);
 
         assert_eq!(vec.active_len(), 1);
@@ -1313,7 +1293,7 @@ mod tests {
 
     #[test]
     fn reserve_active_accounts_for_inactive_slots() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 4]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 4]);
         vec.truncate(1);
         let capacity = vec.capacity();
 
@@ -1326,13 +1306,12 @@ mod tests {
 
     #[test]
     fn extend_recycled_from_preserves_both_recycling_pools() {
-        let mut left = RecyclableVec::from_vec(vec![String::from(
-            "large left allocation with spare capacity",
-        )]);
+        let mut left =
+            RVec::from_vec(vec![String::from("large left allocation with spare capacity")]);
         let left_ptr = left[0].as_ptr();
         left.clear();
 
-        let mut right = RecyclableVec::from_vec(vec![String::from("right allocation")]);
+        let mut right = RVec::from_vec(vec![String::from("right allocation")]);
         let right_ptr = right[0].as_ptr();
 
         left.extend_recycled_from(&mut right);
@@ -1346,7 +1325,7 @@ mod tests {
 
     #[test]
     fn extend_from_slice_uses_clone_from_for_inactive_values() {
-        let mut vec = RecyclableVec::from_vec(vec![String::from("wide allocation")]);
+        let mut vec = RVec::from_vec(vec![String::from("wide allocation")]);
         let ptr = vec[0].as_ptr();
 
         vec.clear();
@@ -1358,7 +1337,7 @@ mod tests {
 
     #[test]
     fn iterators_only_visit_active_elements() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3]);
         vec.truncate(2);
 
         assert_eq!(vec.iter().copied().collect::<Vec<_>>(), vec![1, 2]);
@@ -1373,7 +1352,7 @@ mod tests {
 
     #[test]
     fn into_iterator_consumes_only_active_elements() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3]);
         vec.truncate(2);
 
         assert_eq!(vec.into_iter().collect::<Vec<_>>(), vec![1, 2]);
@@ -1381,7 +1360,7 @@ mod tests {
 
     #[test]
     fn vec_like_mutators_work_on_active_elements() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 2, 3, 4]);
+        let mut vec = RVec::from_vec(vec![1, 2, 2, 3, 4]);
         vec.truncate(4);
         vec.insert(1, 9);
         assert_eq!(vec.as_slice(), &[1, 9, 2, 2, 3]);
@@ -1399,7 +1378,7 @@ mod tests {
 
     #[test]
     fn extend_and_collect_are_vec_like() {
-        let mut vec = RecyclableVec::new();
+        let mut vec = RVec::new();
         vec.extend([1, 2, 3]);
         vec.truncate(1);
         vec.extend([4, 5]);
@@ -1407,13 +1386,13 @@ mod tests {
         assert_eq!(vec.as_slice(), &[1, 4, 5]);
         assert_eq!(Vec::from(vec), vec![1, 4, 5]);
 
-        let collected: RecyclableVec<_> = [7, 8].into_iter().collect();
+        let collected: RVec<_> = [7, 8].into_iter().collect();
         assert_eq!(collected.as_slice(), &[7, 8]);
     }
 
     #[test]
     fn shrink_to_never_discards_active_elements() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 4]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 4]);
         vec.truncate(3);
 
         vec.shrink_to(1);
@@ -1426,7 +1405,7 @@ mod tests {
 
     #[test]
     fn shrink_to_fit_discards_inactive_elements() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 4]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 4]);
         vec.truncate(2);
 
         vec.shrink_to_fit();
@@ -1438,7 +1417,7 @@ mod tests {
 
     #[test]
     fn recycle_drain_preserves_invariant_and_reuses_removed_values() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 4, 5]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 4, 5]);
         vec.truncate(4);
 
         vec.recycle_drain(1..3);
@@ -1450,7 +1429,7 @@ mod tests {
 
     #[test]
     fn recycle_split_off_preserves_invariant_and_storage() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 4]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 4]);
         vec.truncate(3);
 
         vec.recycle_split_off(1);
@@ -1462,8 +1441,8 @@ mod tests {
 
     #[test]
     fn append_preserves_other_invariant() {
-        let mut left = RecyclableVec::from_vec(vec![1]);
-        let mut right = RecyclableVec::from_vec(vec![2, 3, 4]);
+        let mut left = RVec::from_vec(vec![1]);
+        let mut right = RVec::from_vec(vec![2, 3, 4]);
         right.truncate(2);
 
         left.append(&mut right);
@@ -1477,7 +1456,7 @@ mod tests {
 
     #[test]
     fn recycle_swap_remove_uses_last_active_element() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 99]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 99]);
         vec.truncate(3);
 
         vec.recycle_swap_remove(0);
@@ -1489,7 +1468,7 @@ mod tests {
 
     #[test]
     fn recycle_pop_retains_last_active_element() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3]);
 
         assert!(vec.recycle_pop());
         assert_invariant(&vec);
@@ -1502,7 +1481,7 @@ mod tests {
 
     #[test]
     fn take_methods_transfer_ownership_out_of_storage() {
-        let mut vec = RecyclableVec::from_vec(vec![1, 2, 3, 4, 5]);
+        let mut vec = RVec::from_vec(vec![1, 2, 3, 4, 5]);
         vec.truncate(4);
 
         assert_eq!(vec.take_pop(), Some(4));

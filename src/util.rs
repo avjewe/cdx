@@ -1116,10 +1116,7 @@ impl Infile {
     where
         R: Read + 'static,
     {
-        Self(
-            io::BufReader::with_capacity(capacity, Box::new(reader)),
-            source_name.into(),
-        )
+        Self(io::BufReader::with_capacity(capacity, Box::new(reader)), source_name.into())
     }
 }
 
@@ -1363,11 +1360,25 @@ impl InfileContext {
 #[derive(Debug, Default, Clone)]
 pub struct FileLocData {
     /// full file name
-    name: String,
+    pub name: String,
     /// byte offset, uncompressed
-    bytes: usize,
+    pub bytes: usize,
     /// line number
-    line: usize,
+    pub line: usize,
+}
+
+impl FileLocData {
+    /// new
+    #[must_use]
+    pub fn new(name: &str) -> Self {
+        Self { name: name.to_string(), bytes: 0, line: 0 }
+    }
+    /// update location data for a new line
+    pub fn new_line(&mut self, name: &str, bytes: usize) {
+        self.name = name.to_string();
+        self.bytes = bytes;
+        self.line += 1;
+    }
 }
 
 /// types of file location data
