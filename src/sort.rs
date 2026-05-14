@@ -22,10 +22,10 @@ struct MergeContext<'a> {
 }
 impl MergeContext<'_> {
     fn compare(&mut self, a: usize, b: usize) -> Ordering {
-        self.cmp.comp_cols(self.open[a].curr_line(), self.open[b].curr_line()).reverse()
+        self.cmp.comp_cols(&self.open[a].curr_line(), &self.open[b].curr_line()).reverse()
     }
     fn equal(&mut self, a: &TextLine, b: usize) -> bool {
-        self.cmp.equal_cols(a, self.open[b].curr_line())
+        self.cmp.equal_cols(a, &self.open[b].curr_line())
     }
 }
 
@@ -100,7 +100,7 @@ impl SortConfig {
                 return Ok(());
             }
             let first = heap.pop().unwrap();
-            let mut prev = mc.borrow().open[first].curr_line().clone();
+            let mut prev = mc.borrow().open[first].curr_line();
             if !mc.borrow_mut().open[first].get_line()? {
                 heap.push(first);
             }
@@ -112,7 +112,7 @@ impl SortConfig {
                     if !eq {
                         let mcm = mc.borrow();
                         w.write_all(mcm.open[x].curr_line().line())?;
-                        prev.assign(mcm.open[x].curr_line());
+                        prev = mcm.open[x].curr_line();
                     }
                     if !mc.borrow_mut().open[x].get_line()? {
                         heap.push(x);
@@ -171,17 +171,17 @@ impl SortConfig {
             }
             let x = x.unwrap();
             w.write_all(open_files[x].curr_line().line())?;
-            let mut prev = open_files[x].curr_line().clone();
+            let mut prev = open_files[x].curr_line();
             loop {
                 let x = mm.next(cmp, &mut open_files)?;
                 if x.is_none() {
                     break;
                 }
                 let x = x.unwrap();
-                if !cmp.equal_cols(&prev, open_files[x].curr_line()) {
+                if !cmp.equal_cols(&prev, &open_files[x].curr_line()) {
                     w.write_all(open_files[x].curr_line().line())?;
                 }
-                prev.assign(open_files[x].curr_line());
+                prev = open_files[x].curr_line();
             }
         } else {
             loop {
@@ -520,10 +520,10 @@ impl NodeData {
     const fn new(left: NodeType, right: NodeType) -> Self {
         Self { left, right, left_data: None, right_data: None }
     }
-    fn left_cols<'a>(&self, files: &'a [Reader]) -> &'a TextLine {
+    fn left_cols(&self, files: &[Reader]) -> TextLine {
         files[self.left_data.unwrap()].curr_line()
     }
-    fn right_cols<'a>(&self, files: &'a [Reader]) -> &'a TextLine {
+    fn right_cols(&self, files: &[Reader]) -> TextLine {
         files[self.right_data.unwrap()].curr_line()
     }
 }
@@ -589,7 +589,7 @@ impl MergeTreeItem {
                     n.left_data = None;
                     Ok(tmp)
                 } else {
-                    let c = cmp.comp_cols(n.left_cols(files), n.right_cols(files));
+                    let c = cmp.comp_cols(&n.left_cols(files), &n.right_cols(files));
                     if c == Ordering::Greater {
                         let tmp = n.right_data;
                         n.right_data = None;

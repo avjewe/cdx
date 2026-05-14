@@ -126,20 +126,20 @@ impl Count {
     fn assign(&mut self, tmp: &mut TextLine, new: &TextLine) {
         match self.which {
             Which::First => {}
-            Which::Last => tmp.assign(new),
+            Which::Last => *tmp = new.clone(),
             Which::Min => {
                 if self.comp.comp_cols(tmp, new) == Ordering::Greater {
-                    tmp.assign(new);
+                    *tmp = new.clone();
                 }
             }
             Which::Max => {
                 if self.comp.comp_cols(tmp, new) == Ordering::Less {
-                    tmp.assign(new);
+                    *tmp = new.clone();
                 }
             }
         }
     }
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &[String]) -> Result<()> {
         self.comp.lookup(field_names)
     }
 }
@@ -224,21 +224,21 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     f.do_split(comp.need_split());
     let mut matches = 1;
     if !agg.is_empty() {
-        agg.add(f.curr_line());
-        let mut tmp = f.curr_line().clone();
+        agg.add(&f.curr_line());
+        let mut tmp = f.curr_line();
         loop {
             if f.get_line()? {
                 c_write.write(&mut w.0, &tmp)?;
                 break;
             }
-            if comp.equal_cols(f.prev_line(1), f.curr_line()) {
-                count.assign(&mut tmp, f.curr_line());
-                agg.add(f.curr_line());
+            if comp.equal_cols(&f.prev_line(1), &f.curr_line()) {
+                count.assign(&mut tmp, &f.curr_line());
+                agg.add(&f.curr_line());
             } else {
                 c_write.write(&mut w.0, &tmp)?;
-                tmp.assign(f.curr_line());
+                tmp = f.curr_line().clone();
                 agg.reset();
-                agg.add(f.curr_line());
+                agg.add(&f.curr_line());
             }
         }
     } else if count.which == Which::Last {
@@ -247,7 +247,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 count.write(&mut w.0, matches, f.prev_line(1).line(), f.delim())?;
                 break;
             }
-            if comp.equal_cols(f.prev_line(1), f.curr_line()) {
+            if comp.equal_cols(&f.prev_line(1), &f.curr_line()) {
                 matches += 1;
             } else {
                 count.write(&mut w.0, matches, f.prev_line(1).line(), f.delim())?;
@@ -260,7 +260,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if f.get_line()? {
                 break;
             }
-            if !comp.equal_cols(f.prev_line(1), f.curr_line()) {
+            if !comp.equal_cols(&f.prev_line(1), &f.curr_line()) {
                 f.write_curr(&mut w.0)?;
             }
         }
@@ -271,12 +271,12 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 count.write(&mut w.0, matches, tmp.line(), f.delim())?;
                 break;
             }
-            if comp.equal_cols(f.prev_line(1), f.curr_line()) {
-                count.assign(&mut tmp, f.curr_line());
+            if comp.equal_cols(&f.prev_line(1), &f.curr_line()) {
+                count.assign(&mut tmp, &f.curr_line());
                 matches += 1;
             } else {
                 count.write(&mut w.0, matches, tmp.line(), f.delim())?;
-                tmp.assign(f.curr_line());
+                tmp = f.curr_line().clone();
                 matches = 1;
             }
         }

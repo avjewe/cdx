@@ -249,7 +249,8 @@ impl Joiner {
     }
     fn join_quick(&mut self, config: &JoinConfig) -> Result<()> {
         if !self.r[0].is_done() && !self.r[1].is_done() {
-            let mut cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+            let mut cmp =
+                self.comp.comp_cols_n(&self.r[0].curr_line(), &self.r[1].curr_line(), 0, 1);
             'outer: loop {
                 match cmp {
                     Ordering::Equal => loop {
@@ -263,12 +264,22 @@ impl Joiner {
                             self.r[1].get_line()?;
                             break 'outer;
                         }
-                        cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                        cmp = self.comp.comp_cols_n(
+                            &self.r[0].curr_line(),
+                            &self.r[1].curr_line(),
+                            0,
+                            1,
+                        );
                         if cmp != Ordering::Equal {
                             if self.r[1].get_line()? {
                                 break 'outer;
                             }
-                            cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                            cmp = self.comp.comp_cols_n(
+                                &self.r[0].curr_line(),
+                                &self.r[1].curr_line(),
+                                0,
+                                1,
+                            );
                             break;
                         }
                     },
@@ -279,7 +290,12 @@ impl Joiner {
                         if self.r[0].get_line()? {
                             break;
                         }
-                        cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                        cmp = self.comp.comp_cols_n(
+                            &self.r[0].curr_line(),
+                            &self.r[1].curr_line(),
+                            0,
+                            1,
+                        );
                     }
                     Ordering::Greater => {
                         if let Some(x) = &mut self.no_match[1] {
@@ -288,7 +304,12 @@ impl Joiner {
                         if self.r[1].get_line()? {
                             break;
                         }
-                        cmp = self.comp.comp_cols_n(self.r[0].curr(), self.r[1].curr(), 0, 1);
+                        cmp = self.comp.comp_cols_n(
+                            &self.r[0].curr_line(),
+                            &self.r[1].curr_line(),
+                            0,
+                            1,
+                        );
                     }
                 }
             }

@@ -60,7 +60,7 @@ impl MemMap {
     }
     /// column names, suitable for lookup
     #[must_use]
-    pub fn names(&self) -> Vec<&str> {
+    pub fn names(&self) -> Vec<String> {
         self.header.vec()
     }
 }

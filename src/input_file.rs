@@ -226,6 +226,13 @@ pub struct TextLine {
     pub eol: read_line::ReadResult,
 }
 
+impl std::ops::Index<usize> for TextLine {
+    type Output = [u8];
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index)
+    }
+}
+
 impl TextLine {
     /// Write the original line to the given writer, including the EOL.
     pub fn write(&self, w: &mut impl Write) -> Result<()> {
@@ -233,40 +240,114 @@ impl TextLine {
         w.write_all(self.eol.as_bytes())?;
         Ok(())
     }
+    /// Get one column. Return an empty column if index is too big.
+    #[must_use]
+    pub fn get(&self, index: usize) -> &[u8] {
+        if index >= self.values.columns.len() { &[] } else { &self.values.columns[index] }
+    }
+    /// Clear the line and columns.
+    pub fn clear(&mut self) {
+        self.line.clear();
+        self.values.columns.clear();
+        self.eol = read_line::ReadResult::Lf;
+    }
+    /// Get a reference to the columns.
+    #[must_use]
+    pub const fn columns(&self) -> &RVec<Vec<u8>> {
+        &self.values.columns
+    }
+    /// Get a reference to the original line.
+    #[must_use]
+    pub fn line(&self) -> &[u8] {
+        &self.line
+    }
+    /// Split the line into columns according to the given config.
+    pub fn split(&mut self, options: &input::Config) {
+        self.values.read(&self.line, options);
+    }
+    /// Split the line into columns according to the given delimiter.
+    pub fn split_plain(&mut self, delim: u8) {
+        self.values.read_plain(&self.line, delim);
+    }
 }
 
 /// A text file being read, including the reader, config, column names, and current line values.
 #[derive(Debug)]
 pub struct TextFile {
     /// what to read
-    pub reader: util::Infile,
+    reader: util::Infile,
     /// how to interpret
-    pub options: Config,
+    options: Config,
     /// The names of the columns. c1, c1... are auto generated if needed
-    pub column_names: Vec<String>,
+    column_names: Vec<String>,
     /// The column values
-    pub column_values: TextLine,
+    column_values: TextLine,
     /// Have we hit EOF?
-    pub done: bool,
+    done: bool,
     /// Do we bother splitting into columns?
-    pub do_split: bool,
+    do_split: bool,
     /// Where are we in the file? (line number, byte offset, etc.)
-    pub loc: util::FileLocData,
+    loc: util::FileLocData,
 }
 
+/// A `TextFile` along with the previous line, for operations that need to compare adjacent lines.
+#[derive(Debug)]
+pub struct TextFilePrev(
+    /// The current text file.
+    pub TextFile,
+    /// The previous line's column values, for comparison with the current line.
+    pub TextLine,
+);
+
+impl TextFilePrev {
+    /// Create a new `TextFilePrev` with the given reader and options.
+    pub fn new(file_name: &str, options: Config) -> Result<Self> {
+        Ok(Self(TextFile::new(file_name, options)?, TextLine::default()))
+    }
+    /// Read the first line of the file and initialize the previous line to be empty.
+    pub fn read_first_line(&mut self) -> anyhow::Result<()> {
+        self.0.read_first_line()
+    }
+    /// Get the next line of the file, updating the previous line and current line values.
+    pub fn get_line(&mut self) -> Result<bool> {
+        std::mem::swap(&mut self.1, &mut self.0.column_values);
+        self.0.get_line()
+    }
+}
 impl TextFile {
     /// Create a new `TextFile` with the given reader and options.
-    #[must_use]
-    pub fn new(reader: util::Infile, options: Config) -> Self {
-        Self {
-            reader,
+    pub fn new(file_name: &str, options: Config) -> Result<Self> {
+        let mut me = Self {
+            reader: util::get_reader(file_name)?,
             options,
             column_names: Vec::new(),
             column_values: TextLine::default(),
             done: false,
             do_split: true,
             loc: util::FileLocData::default(),
-        }
+        };
+        me.read_first_line()?;
+        Ok(me)
+    }
+    /// Get the column names.
+    #[must_use]
+    pub const fn is_done(&self) -> bool {
+        self.done
+    }
+    /// Get the column names.
+    #[must_use]
+    pub fn names(&self) -> &[String] {
+        &self.column_names
+    }
+    /// Get the column values.
+    #[must_use]
+    pub const fn values(&self) -> &TextLine {
+        &self.column_values
+    }
+    /// open file for reading
+    pub fn open(&mut self, name: &str) -> Result<()> {
+        self.reader = util::get_reader(name)?;
+        self.read_first_line()
     }
 
     fn copy_column_names(&mut self) -> Result<()> {
@@ -288,9 +369,11 @@ impl TextFile {
         Ok(())
     }
     fn split(&mut self) {
-        self.column_values.values.read(&self.column_values.line, &self.options.column_config);
+        // self.column_values.values.read(&self.column_values.line, &self.options.column_config);
+        self.column_values.split(&self.options.column_config);
     }
-    fn get_line(&mut self) -> Result<bool> {
+    /// Read the next line of the file, returning true if EOF is reached.
+    pub fn get_line(&mut self) -> Result<bool> {
         self.read_line()?;
         if self.column_values.eol == read_line::ReadResult::Eof {
             self.done = true;
@@ -365,10 +448,16 @@ impl TextFile {
                     self.column_names =
                         Self::generate_column_names(self.column_values.values.columns.len());
                     self.options.saw_header = Some(SawHeader::No);
+                    eprintln!("AAA");
+                    if self.do_split {
+                        eprintln!("BBB");
+                        self.split();
+                    }
                 }
             },
         }
 
+        eprintln!("CCC");
         Ok(())
     }
 }

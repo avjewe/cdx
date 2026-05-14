@@ -100,7 +100,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     if do_header {
         w.write_all(header.get_head(&settings.text_out()).as_bytes())?;
     }
-    dflt.lookup(&header.field_names())?;
+    dflt.lookup(header.field_names())?;
     while num_live > 0 {
         if end_mode == EndMode::Exact && num_dead != 0 && num_live != 0 {
             let mut s = String::new();

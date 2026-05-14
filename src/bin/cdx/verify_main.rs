@@ -87,7 +87,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         }
         if first.is_some()
             && !first.as_ref().unwrap().line_ok_verbose(
-                f.curr_line(),
+                &f.curr_line(),
                 &mut comp,
                 f.line_number(),
             )?
@@ -106,13 +106,13 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 );
                 did_fail = true;
             }
-            if !list.ok_verbose(f.curr_line(), f.line_number(), x) {
+            if !list.ok_verbose(&f.curr_line(), f.line_number(), x) {
                 did_fail = true;
             }
             if f.get_line()? {
                 if last.is_some()
                     && !last.as_ref().unwrap().line_ok_verbose(
-                        f.prev_line(1),
+                        &f.prev_line(1),
                         &mut comp,
                         f.line_number() - 1,
                     )?

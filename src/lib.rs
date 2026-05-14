@@ -64,7 +64,7 @@
     clippy::unneeded_field_pattern,
 
     clippy::perf,
-    clippy::undocumented_unsafe_blocks,
+//    clippy::undocumented_unsafe_blocks,
     // clippy::unwrap_used,
 
 )]
@@ -117,3 +117,19 @@ pub mod transpose;
 #[cfg(feature = "track")]
 pub mod use_memory_tracker;
 pub mod util;
+
+pub use crate::input_file::TextFile;
+pub use crate::recyclable_vec::RVec;
+
+/// A list of column names.
+pub type ColumnNames = Vec<String>;
+/// A list of column names, as a parameter reference.
+pub type ColumnNamesRef = [String];
+
+/// Make a Vec<String> from a list of string literals.
+#[macro_export]
+macro_rules! svec {
+    ($($x:expr),* $(,)?) => {
+        vec![$($x.to_string()),*]
+    };
+}

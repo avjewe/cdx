@@ -2,6 +2,7 @@
 
 use crate::prelude::*;
 use crate::util::FakeSlice;
+use crate::*;
 use base64::Engine;
 use base64::engine::general_purpose;
 use std::sync::Mutex;
@@ -11,7 +12,7 @@ pub trait Trans {
     /// Transform `src` into a new value, and append to `dst`
     fn trans(&mut self, src: &[u8], cont: &TextLine, dst: &mut Vec<u8>) -> Result<()>;
     /// Resolve any named columns, typically needed only if `TextLine` is used in `trans`
-    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())
     }
 }
@@ -28,9 +29,9 @@ impl SelectTrans {
     #[must_use]
     const fn mode(delim: char) -> TextFileMode {
         TextFileMode {
-            head_mode: crate::util::HeadMode::No,
-            col_mode: crate::util::QuoteMode::Plain,
-            delim: crate::util::auto_escape(delim),
+            head_mode: util::HeadMode::No,
+            col_mode: util::QuoteMode::Plain,
+            delim: util::auto_escape(delim),
             line_break: b'\n',
             repl: b' ',
         }
@@ -54,10 +55,10 @@ impl Trans for SelectTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
         self.text.line.clear();
         self.text.line.extend_from_slice(src);
-        self.text.split(&self.in_mode);
+        self.text.split_plain(self.in_mode.delim);
         self.cols.write3(dst, &self.text, &self.out_mode)
     }
-    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         self.cols.lookup(&[])?;
         Ok(())
     }
@@ -229,7 +230,7 @@ impl Transform {
     fn trans(&mut self, src: &[u8], cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
         self.trans.trans(src, cont, dst)
     }
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.trans.lookup(field_names)
     }
 }
@@ -280,7 +281,7 @@ impl TransList {
     }
 
     /// Resolve any named columns
-    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         for x in &mut self.v {
             x.lookup(field_names)?;
         }

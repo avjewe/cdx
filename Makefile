@@ -7,7 +7,7 @@ update:
 
 check:
 	cargo clippy
-	cargo test -q
+	cargo test -q -- --no-capture
 	./run_tests
 
 publish: update check

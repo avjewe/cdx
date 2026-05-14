@@ -11,6 +11,7 @@
 //!
 //!```
 //! use cdx::matcher::*;
+//! use cdx::*;
 //! use cdx::prelude::*;
 //! cdx::util::init();
 //! let matcher = MatchMaker::make("prefix,abc")?;
@@ -22,19 +23,18 @@
 //! let mut list = LineMatcherList::new_with(Combiner::And);
 //! list.push("two,glob,b*")?;
 //! let input = "<< CDX\tone\ttwo\naaa\tbbb\nccc\tddd\n";
-//! let mut reader = Reader::new(&TextFileMode::default());
-//! reader.open(input);
+//! let mut reader = TextFile::new(input, input_file::Config::default())?;
 //! list.lookup(&reader.names())?;
-//! assert!(list.ok(reader.curr_line()));
+//! assert!(list.ok(reader.values()));
 //! reader.get_line()?;
-//! assert!(!list.ok(reader.curr_line()));
+//! assert!(!list.ok(reader.values()));
 //! # Ok::<(), cdx::util::Error>(())
 //!```
 
 use crate::comp::{Comp, CompMaker};
-use crate::num;
 use crate::prelude::*;
-use crate::util::{self, CheckBuff, CompareOp};
+use crate::util::{CheckBuff, CompareOp};
+use crate::*;
 use memchr::memmem::find;
 use regex::Regex;
 use std::collections::HashSet;
@@ -46,7 +46,7 @@ pub trait LineMatch {
     /// Is this line ok?
     fn ok(&mut self, line: &TextLine) -> bool;
     /// Resolve any named columns.
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()>;
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()>;
     /// Human readable description
     fn show(&self) -> String;
     /// Is this line ok? If not, write explanation to stderr
@@ -1043,7 +1043,7 @@ struct ColGroup {
     has_col: bool,
 }
 impl ColGroup {
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.col.lookup(field_names)
     }
     fn new_with(spec: &str) -> Result<(Self, &str)> {
@@ -1139,7 +1139,7 @@ impl LineMatch for CompMatcher {
         }
         self.col.det.match_final(yes, no)
     }
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.target.lookup(field_names)?;
         self.col.lookup(field_names)
     }
@@ -1166,13 +1166,13 @@ impl LineMatch for WholeMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
         self.matcher.negate
             ^ if self.matcher.string {
-                self.matcher.smatch(&String::from_utf8_lossy(line.line_nl()))
+                self.matcher.smatch(&String::from_utf8_lossy(line.line()))
             } else {
-                self.matcher.umatch(line.line_nl())
+                self.matcher.umatch(line.line())
             }
     }
 
-    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())
     }
     fn show(&self) -> String {
@@ -1195,10 +1195,10 @@ impl CountMatcher {
 // LineMatch::matcher could return Result<bool> and then we can put strict back
 impl LineMatch for CountMatcher {
     fn ok(&mut self, line: &TextLine) -> bool {
-        line.len() == self.count
+        line.columns().len() == self.count
     }
 
-    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())
     }
     fn show(&self) -> String {
@@ -1211,7 +1211,7 @@ impl LineMatch for CountMatcher {
                 "Line {} of {} had {} columns where {} were expected.",
                 line_num,
                 fname,
-                line.len(),
+                line.columns().len(),
                 self.count
             );
         }
@@ -1265,7 +1265,7 @@ impl LineMatch for ColSetMatcher {
         self.matcher.negate ^ self.det.match_final(yes, no)
     }
 
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.col.lookup(field_names)
     }
     fn show(&self) -> String {
@@ -1301,7 +1301,7 @@ impl LineMatch for ColMatcher {
             }
     }
 
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.col.lookup(field_names)
     }
     fn show(&self) -> String {
@@ -1413,7 +1413,7 @@ impl LineMatcherList {
         self.ok_verbose_tagged(line, self.multi, line_num, fname)
     }
     /// resolve any named columns
-    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         for x in &mut self.matchers {
             x.lookup(field_names)?;
         }
@@ -1442,7 +1442,7 @@ impl LineMatch for LineMatcherList {
     fn ok_verbose(&mut self, line: &TextLine, line_num: usize, fname: &str) -> bool {
         self.ok_verbose(line, line_num, fname)
     }
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.lookup(field_names)
     }
     fn show(&self) -> String {
@@ -1733,7 +1733,7 @@ impl MatchMaker {
             })
         })?;
         Self::do_push("solve", "Does the target match the given solver pattern?", |_m, p| {
-            Ok(Box::new(crate::solve::SolverMatch::new(p)?))
+            Ok(Box::new(solve::SolverMatch::new(p)?))
         })?;
         Self::do_push("keep", "Match values that contain all of these characters.", |m, p| {
             Ok(Box::new(OccurMatch::new(p, m, true)))
@@ -2052,7 +2052,7 @@ impl LineMatch for ExprMatcher {
             true
         }
     }
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.con.lookup(field_names)
     }
 

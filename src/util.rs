@@ -1,6 +1,7 @@
 //! Misc utility stuff
 use crate::comp::{CompMaker, Compare};
 use crate::prelude::*;
+use crate::*;
 use anyhow;
 use flate2::read::MultiGzDecoder;
 use fs_err as fs;
@@ -14,11 +15,11 @@ use std::str;
 use std::sync::LazyLock;
 
 fn do_init() -> Result<()> {
-    crate::agg::AggMaker::init()?;
+    agg::AggMaker::init()?;
     CompMaker::init()?;
-    crate::matcher::MatchMaker::init()?;
-    crate::textgen::GenMaker::init()?;
-    crate::trans::TransMaker::init()?;
+    matcher::MatchMaker::init()?;
+    textgen::GenMaker::init()?;
+    trans::TransMaker::init()?;
     Ok(())
 }
 
@@ -379,7 +380,7 @@ impl TextFileMode {
         }
     }
     /// split data line into columns
-    pub fn split(&self, line: &mut TextLine) {
+    pub fn split(&self, line: &mut OldTextLine) {
         match self.col_mode {
             QuoteMode::Plain => split_plain(&mut line.parts, &line.line, self.delim),
             QuoteMode::Backslash => {
@@ -712,7 +713,7 @@ pub fn split_quotes(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, 
 /// use cdx::util::TextFileMode;
 /// let mut data = b"one\ttwo\tthree\n";
 /// let mut dp = &data[..];
-/// let mut line = cdx::util::TextLine::new();
+/// let mut line = cdx::util::OldTextLine::new();
 /// let eof = line.read(&mut dp).unwrap();
 /// assert_eq!(eof, false);
 /// assert_eq!(line.strlen(), 14);
@@ -723,7 +724,7 @@ pub fn split_quotes(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, 
 ///```
 #[derive(Debug, Clone, Default)]
 // pub(crate) because the borrow checker can be a nuisance.
-pub struct TextLine {
+pub struct OldTextLine {
     // The whole input line, with newline, decoded as necessary
     pub(crate) line: Vec<u8>,
     // the individual columns, without newline
@@ -732,7 +733,21 @@ pub struct TextLine {
     pub(crate) orig: Vec<u8>,
 }
 
-/// as `TextLine`, but [String] rather than `Vec<u8>`
+/// convert `OldTextLine` to `TextLine`
+#[must_use]
+pub fn old_to_new(old: &OldTextLine) -> TextLine {
+    let mut cols = RVec::new();
+    for i in 0..old.parts.len() {
+        cols.push(old.get(i).into());
+    }
+    TextLine {
+        line: old.line().into(),
+        values: input::Columns { columns: cols },
+        eol: read_line::ReadResult::Lf,
+    }
+}
+
+/// as `OldTextLine`, but [String] rather than `Vec<u8>`
 #[derive(Debug, Clone, Default)]
 pub struct StringLine {
     /// The whole input line, with newline
@@ -743,7 +758,7 @@ pub struct StringLine {
     pub orig: String,
 }
 
-impl fmt::Display for TextLine {
+impl fmt::Display for OldTextLine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for i in self {
             write!(f, "{} ", str::from_utf8(i).unwrap())?;
@@ -761,7 +776,7 @@ impl fmt::Display for StringLine {
     }
 }
 
-impl std::ops::Index<usize> for TextLine {
+impl std::ops::Index<usize> for OldTextLine {
     type Output = [u8];
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index)
@@ -786,7 +801,7 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
     Ok(())
 }
 
-impl TextLine {
+impl OldTextLine {
     /// whole line, with newline
     pub const fn parts(&mut self) -> &mut Vec<FakeSlice> {
         &mut self.parts
@@ -805,22 +820,22 @@ impl TextLine {
     pub const fn raw(&mut self) -> &mut Vec<u8> {
         &mut self.line
     }
-    /// assign `TextLine` into existing `TextLine`, avoiding allocation if possible
+    /// assign `OldTextLine` into existing `OldTextLine`, avoiding allocation if possible
     pub fn assign(&mut self, x: &Self) {
         self.line.clear();
         self.line.extend_from_slice(&x.line[..]);
         self.parts.clear();
         self.parts.extend_from_slice(&x.parts[..]);
     }
-    /// make a new `TextLine`
+    /// make a new `OldTextLine`
     #[must_use]
     pub const fn new() -> Self {
         Self { line: Vec::new(), parts: Vec::new(), orig: Vec::new() }
     }
     /// Iterator over columns in the line
     #[must_use]
-    pub const fn iter(&self) -> TextLineIter<'_> {
-        TextLineIter { line: self, index: 0 }
+    pub const fn iter(&self) -> OldTextLineIter<'_> {
+        OldTextLineIter { line: self, index: 0 }
     }
     /// empty the line
     pub fn clear(&mut self) {
@@ -945,8 +960,9 @@ impl StringLine {
     }
     /// return all parts as a vector
     #[must_use]
-    pub fn vec(&self) -> Vec<&str> {
-        self.iter().collect()
+    #[expect(clippy::redundant_closure_for_method_calls)]
+    pub fn vec(&self) -> Vec<String> {
+        self.iter().map(|s| s.to_string()).collect()
     }
     /// whole line, with newline
     #[must_use]
@@ -955,12 +971,12 @@ impl StringLine {
     }
 }
 
-impl<'a> IntoIterator for &'a TextLine {
+impl<'a> IntoIterator for &'a OldTextLine {
     type Item = &'a [u8];
-    type IntoIter = TextLineIter<'a>;
+    type IntoIter = OldTextLineIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        TextLineIter { line: self, index: 0 }
+        OldTextLineIter { line: self, index: 0 }
     }
 }
 
@@ -973,10 +989,10 @@ impl<'a> IntoIterator for &'a StringLine {
     }
 }
 
-/// Iterator over the columns in a `TextLine`
+/// Iterator over the columns in a `OldTextLine`
 #[derive(Debug, Clone)]
-pub struct TextLineIter<'a> {
-    line: &'a TextLine,
+pub struct OldTextLineIter<'a> {
+    line: &'a OldTextLine,
     index: usize,
 }
 
@@ -987,7 +1003,7 @@ pub struct StringLineIter<'a> {
     index: usize,
 }
 
-impl<'a> Iterator for TextLineIter<'a> {
+impl<'a> Iterator for OldTextLineIter<'a> {
     // we will be counting with usize
     type Item = &'a [u8];
 
@@ -1312,7 +1328,7 @@ pub fn make_header(line: &[u8]) -> StringLine {
 }
 
 // if CDX and specified and different, then strip header
-/// Reader header line, if any, and first line of text
+/// Read header line, if any, and first line of text
 impl InfileContext {
     #[allow(clippy::trivially_copy_pass_by_ref)]
     const fn new(text_in: &TextFileMode) -> Self {
@@ -1324,7 +1340,7 @@ impl InfileContext {
             text: *text_in,
         }
     }
-    fn read_header(&mut self, file: &mut impl BufRead, line: &mut TextLine) -> Result<()> {
+    fn read_header(&mut self, file: &mut impl BufRead, line: &mut OldTextLine) -> Result<()> {
         self.is_empty = self.text.read_header(file, &mut self.header.line)?;
         if self.is_empty {
             return Ok(());
@@ -1506,18 +1522,14 @@ impl FileLocList {
 }
 
 /// Text file reader. Lines broken into columns, with lookback
+#[derive(Debug)]
 pub struct Reader {
     file: Infile,
-    lines: Vec<TextLine>,
+    lines: Vec<OldTextLine>,
     cont: InfileContext,
     do_split: bool,
     curr: usize,
     loc: FileLocData,
-}
-impl fmt::Debug for Reader {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Reader")
-    }
 }
 
 impl Default for Reader {
@@ -1538,14 +1550,17 @@ impl Reader {
         Self::new_with(1, text_in)
     }
     /// set to false to skip breaking into columns
-    pub const fn do_split(&mut self, val: bool) {
+    pub fn do_split(&mut self, val: bool) {
         self.do_split = val;
+        if !val {
+            self.lines[0].parts.clear();
+        }
     }
     /// make a new Reader, with explicit lookback
     #[must_use]
     pub fn new_with(lookback: usize, text_in: &TextFileMode) -> Self {
-        let mut lines: Vec<TextLine> = Vec::new();
-        lines.resize(lookback + 1, TextLine::new());
+        let mut lines: Vec<OldTextLine> = Vec::new();
+        lines.resize(lookback + 1, OldTextLine::new());
         Self {
             file: Infile::default(),
             lines,
@@ -1565,8 +1580,8 @@ impl Reader {
     }
     /// make a new Reader
     pub fn new_open_with(name: &str, lookback: usize, text_in: &TextFileMode) -> Result<Self> {
-        let mut lines: Vec<TextLine> = Vec::new();
-        lines.resize(lookback + 1, TextLine::new());
+        let mut lines: Vec<OldTextLine> = Vec::new();
+        lines.resize(lookback + 1, OldTextLine::new());
         let mut tmp = Self {
             file: get_reader(name)?,
             lines,
@@ -1584,13 +1599,13 @@ impl Reader {
     /// get current line contents, without the trailing newline
     #[must_use]
     pub fn curr_nl(&self) -> &[u8] {
-        let line = self.curr_line();
+        let line = self.curr_line_old();
         &line.line[0..line.line.len() - 1]
     }
     /// get previous line contents, without the trailing newline
     #[must_use]
     pub fn prev_nl(&self, n: usize) -> &[u8] {
-        let line = self.prev_line(n);
+        let line = self.prev_line_old(n);
         &line.line[0..line.line.len() - 1]
     }
     /// get delimiter
@@ -1600,7 +1615,7 @@ impl Reader {
     }
     /// get column names
     #[must_use]
-    pub fn names(&self) -> Vec<&str> {
+    pub fn names(&self) -> Vec<String> {
         self.cont.header.vec()
     }
     /// write the current text line with newline
@@ -1611,7 +1626,8 @@ impl Reader {
     /// open file for reading
     pub fn open(&mut self, name: &str) -> Result<()> {
         self.file = get_reader(name)?;
-        self.cont.read_header(&mut *self.file, &mut self.lines[0])
+        self.cont.read_header(&mut *self.file, &mut self.lines[0])?;
+        Ok(())
     }
     /// The full text of the header, without the trailing newline
     #[must_use]
@@ -1653,26 +1669,42 @@ impl Reader {
     }
     /// get current line of text
     #[must_use]
-    pub fn curr_line(&self) -> &TextLine {
+    pub fn curr_line_old(&self) -> &OldTextLine {
         &self.lines[self.curr]
     }
     /// get current line of text
-    pub fn curr_mut(&mut self) -> &mut TextLine {
+    #[must_use]
+    pub fn curr_line(&self) -> TextLine {
+        old_to_new(&self.lines[self.curr])
+    }
+    /// get current line of text
+    #[must_use]
+    pub fn curr_mut(&mut self) -> &mut OldTextLine {
         &mut self.lines[self.curr]
     }
     /// get current line of text
     #[must_use]
-    pub fn curr(&self) -> &TextLine {
+    pub fn curr(&self) -> &OldTextLine {
         &self.lines[self.curr]
     }
     /// get a previous line of text
     /// looking back from the start of the file shows empty lines.
     #[must_use]
-    pub fn prev_line(&self, lookback: usize) -> &TextLine {
+    pub fn prev_line_old(&self, lookback: usize) -> &OldTextLine {
         if lookback <= self.curr {
             &self.lines[self.curr - lookback]
         } else {
             &self.lines[self.curr + self.lines.len() - lookback]
+        }
+    }
+    /// get a previous line of text
+    /// looking back from the start of the file shows empty lines.
+    #[must_use]
+    pub fn prev_line(&self, lookback: usize) -> TextLine {
+        if lookback <= self.curr {
+            old_to_new(&self.lines[self.curr - lookback])
+        } else {
+            old_to_new(&self.lines[self.curr + self.lines.len() - lookback])
         }
     }
     /// write the current text line with newline

@@ -7,6 +7,7 @@
 //!  which is usually aggregated into a [`LineCompList`]
 //!
 //! ```
+//! use cdx::*;
 //! use cdx::comp::LineCompList;
 //! use cdx::prelude::*;
 //! cdx::util::init();
@@ -14,13 +15,12 @@
 //! comp.add("price,float")?;
 //! comp.add("quant,num")?;
 //! let input = "<< CDX\tname\tquant\tprice\naaa\t42\t1.23\nbbb\t12\t2.34\nccc\t12\t2.34\n";
-//! let mut reader = Reader::new_with(2, &TextFileMode::default());
-//! reader.open(input);
-//! comp.lookup(&reader.names())?;
+//! let mut reader = input_file::TextFilePrev::new(input, input_file::Config::default())?;
+//! comp.lookup(reader.0.names())?;
 //! reader.get_line()?;
+//! assert_eq!(comp.comp_cols(&reader.1, &reader.0.values()), std::cmp::Ordering::Less);
 //! reader.get_line()?;
-//! assert_eq!(comp.comp_cols(reader.curr_line(), reader.prev_line(1)), std::cmp::Ordering::Equal);
-//! assert_eq!(comp.comp_cols(reader.prev_line(2), reader.prev_line(1)), std::cmp::Ordering::Less);
+//! assert_eq!(comp.comp_cols(&reader.1, &reader.0.values()), std::cmp::Ordering::Equal);
 //! # Ok::<(), cdx::util::Error>(())
 //! ```
 
@@ -28,6 +28,7 @@ use crate::column::get_col;
 use crate::num::{Junk, JunkType, JunkVal, fcmp, ulp_to_ulong};
 use crate::prelude::*;
 use crate::util::prerr_n;
+use crate::*;
 use std::sync::Mutex;
 
 /// method of comparing two slices
@@ -85,7 +86,12 @@ pub trait LineCompare {
         right_file: usize,
     ) -> bool;
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
-    fn lookup(&mut self, field_names: &[&str], file_num: usize, num_files: usize) -> Result<()>;
+    fn lookup(
+        &mut self,
+        field_names: &ColumnNamesRef,
+        file_num: usize,
+        num_files: usize,
+    ) -> Result<()>;
     /// initialize columns in `TextLine`?
     fn need_split(&self) -> bool {
         true
@@ -325,13 +331,13 @@ impl LineComp {
         self.comp.equal_lines(left, right, self.delim, left_file, right_file)
     }
     /// resolve named columns
-    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.comp.lookup(field_names, 0, 1)
     }
     /// resolve named columns for the given file
     pub fn lookup_n(
         &mut self,
-        field_names: &[&str],
+        field_names: &ColumnNamesRef,
         file_num: usize,
         num_files: usize,
     ) -> Result<()> {
@@ -430,7 +436,12 @@ impl LineCompare for LineCompWhole {
         self.comp.equal(left, right)
     }
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
-    fn lookup(&mut self, _field_names: &[&str], _file_num: usize, _num_files: usize) -> Result<()> {
+    fn lookup(
+        &mut self,
+        _field_names: &ColumnNamesRef,
+        _file_num: usize,
+        _num_files: usize,
+    ) -> Result<()> {
         Ok(())
     }
     fn need_split(&self) -> bool {
@@ -550,7 +561,12 @@ impl LineCompare for LineCompCol {
         )
     }
     /// resolve named columns; illegal to call any of the others with a file that has not been looked up
-    fn lookup(&mut self, field_names: &[&str], file_num: usize, num_files: usize) -> Result<()> {
+    fn lookup(
+        &mut self,
+        field_names: &ColumnNamesRef,
+        file_num: usize,
+        num_files: usize,
+    ) -> Result<()> {
         check_num_files(self.cols.len(), num_files)?;
         while self.cols.len() < (file_num + 1) {
             self.cols.push(self.cols[self.cols.len() - 1].clone());
@@ -1352,13 +1368,13 @@ impl LineCompList {
         true
     }
     /// resolve named columns
-    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.lookup_n(field_names, 0, 1)
     }
     /// resolve named columns in the given file
     pub fn lookup_n(
         &mut self,
-        field_names: &[&str],
+        field_names: &ColumnNamesRef,
         file_num: usize,
         num_files: usize,
     ) -> Result<()> {
@@ -1867,7 +1883,12 @@ impl LineCompare for LineCompExpr {
         let right_val = self.exprs[right_file].eval_line(right, delim);
         left_val == right_val
     }
-    fn lookup(&mut self, field_names: &[&str], file_num: usize, num_files: usize) -> Result<()> {
+    fn lookup(
+        &mut self,
+        field_names: &ColumnNamesRef,
+        file_num: usize,
+        num_files: usize,
+    ) -> Result<()> {
         check_num_files(self.exprs.len(), num_files)?;
         while self.exprs.len() < (file_num + 1) {
             self.exprs.push(Expr::new(self.exprs[0].expr())?);
@@ -1908,7 +1929,7 @@ impl LineCompare for LineCompExpr {
 /// return true if ordering is bad.
 /// print appropriate message to stderr
 pub fn comp_check(f: &Reader, cmp: &mut LineCompList, unique: bool) -> bool {
-    let c = cmp.comp_cols(f.prev_line(1), f.curr_line());
+    let c = cmp.comp_cols(&f.prev_line(1), &f.curr_line());
     let bad = match c {
         Ordering::Less => false,
         Ordering::Equal => unique,

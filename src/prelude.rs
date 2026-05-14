@@ -20,10 +20,12 @@ pub use crate::textgen::GenList;
 pub use crate::trans::TransList;
 #[doc(inline)]
 pub use crate::util::{
-    CdxError, Error, FileLocList, Reader, Result, StringLine, TextFileMode, TextLine, Tri, cdx_err,
-    err, get_writer, prerr,
+    CdxError, Error, FileLocList, Reader, Result, StringLine, TextFileMode, Tri, cdx_err, err,
+    get_writer, prerr,
 };
 
+#[doc(inline)]
+pub use crate::input_file::TextLine;
 #[doc(inline)]
 pub use anyhow::anyhow;
 #[doc(inline)]

@@ -3,7 +3,7 @@
 use crate::column::{ColumnFun, ColumnSingle};
 use crate::comp::{Comp, CompMaker};
 use crate::prelude::*;
-use crate::util::split_plain;
+use crate::*;
 use std::cell::RefCell;
 use std::cmp;
 use std::rc::Rc;
@@ -55,7 +55,7 @@ pub trait LineAgg {
         0.0
     }
     /// resolve any named columns
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()>;
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()>;
     /// return self's column within head
     fn replace<'a>(&self, head: &'a StringLine) -> &'a str;
     /// is the replace function available
@@ -105,7 +105,7 @@ impl LineAgger {
         self.agg.borrow().value()
     }
     /// resolve any named columns
-    fn lookup(&self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&self, field_names: &ColumnNamesRef) -> Result<()> {
         self.agg.borrow_mut().lookup(field_names)
     }
     /// return self's column within head
@@ -197,7 +197,7 @@ impl LineAgg for ExprAgg {
     fn value(&self) -> f64 {
         self.val
     }
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.expr.lookup(field_names)
     }
     fn replace<'a>(&self, _head: &'a StringLine) -> &'a str {
@@ -243,7 +243,7 @@ impl CountChar {
         let ret = match &iter.next() {
             None => return err!("`occurs` needs a single character, got the empty string"),
             Some(ch) => {
-                let ch = crate::util::auto_escape_char(*ch);
+                let ch = util::auto_escape_char(*ch);
                 if ch.is_ascii() {
                     Self { uchar: Some(ch as u8), ch }
                 } else {
@@ -406,7 +406,7 @@ impl LineAgg for AggCol {
         self.agg.add(data.get(self.src.num));
     }
     /// resolve any named columns
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.src.lookup(field_names)
     }
 
@@ -452,7 +452,7 @@ impl ColumnFun for LineAgger {
         self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
-    fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.agg.borrow_mut().lookup(field_names)
     }
 }
@@ -481,7 +481,7 @@ impl ColumnFun for Agger {
         self.agg.borrow_mut().result(w, self.fmt)
     }
     /// resolve any named columns
-    fn lookup(&mut self, _field_names: &[&str]) -> Result<()> {
+    fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())
     }
 }
@@ -680,7 +680,7 @@ impl LineAggList {
         }
     }
     /// resolve any named columns
-    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         for x in &mut self.v {
             x.lookup(field_names)?;
         }
@@ -819,35 +819,31 @@ impl Merge {
 impl Agg for Merge {
     fn add(&mut self, data: &[u8]) {
         if !data.is_empty() {
-            if !self.data.line().is_empty() {
-                self.data.raw().push(self.delim);
+            if !self.data.line.is_empty() {
+                self.data.line.push(self.delim);
             }
-            self.data.raw().extend_from_slice(data);
+            self.data.line.extend_from_slice(data);
         }
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        split_plain(&mut self.data.parts, &self.data.line, self.delim);
+        self.data.values.read_plain(&self.data.line, self.delim);
         if self.do_sort {
-            self.data
-                .parts
-                .sort_by(|a, b| self.comp.comp(a.get(&self.data.line), b.get(&self.data.line)));
+            self.data.values.columns.sort_by(|a, b| self.comp.comp(a, b));
         }
         if self.do_uniq {
-            self.data
-                .parts
-                .dedup_by(|a, b| self.comp.equal(a.get(&self.data.line), b.get(&self.data.line)));
+            self.data.values.columns.dedup_by(|a, b| self.comp.equal(a, b));
         }
         if self.do_count {
             #[allow(clippy::cast_precision_loss)]
-            fmt.print(self.data.parts().len() as f64, w)?;
+            fmt.print(self.data.values.columns().len() as f64, w)?;
         } else {
             let mut num_written = 0;
-            for x in &self.data.parts {
+            for x in &self.data.values.columns {
                 if x.len() >= self.min_len && x.len() <= self.max_len {
                     if num_written > 0 {
                         w.write_all(&[self.out_delim])?;
                     }
-                    w.write_all(x.get(self.data.line()))?;
+                    w.write_all(x)?;
                     num_written += 1;
                     if num_written >= self.max_parts {
                         break;

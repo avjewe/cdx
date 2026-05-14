@@ -72,7 +72,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             continue;
         }
         loop {
-            if list.ok(f.curr_line()) ^ reverse {
+            if list.ok(&f.curr_line()) ^ reverse {
                 // write previous lines of context if necessary
                 loc.write_data(&mut w.0, b'\t', f.loc())?;
                 f.write_curr(&mut w.0)?;

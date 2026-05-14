@@ -2,6 +2,7 @@
 
 use crate::prelude::*;
 use crate::textgen::FullGen;
+use crate::*;
 
 pub(crate) struct Anagram {
     file_name: String,
@@ -584,16 +585,16 @@ impl Solver {
 
 /// Read counted dictionary rows and retain entries above the frequency cutoff.
 fn read_dict(path: &str, min_length: usize) -> Result<Dictionary> {
-    let mode = TextFileMode::default();
-    let mut file = Reader::new_open(path, &mode)?;
+    let mode = input_file::Config::default();
+    let mut file = TextFile::new(path, mode)?;
     let mut words = Vec::new();
     let mut max_frequency_seen = 0usize;
     if file.is_done() {
         return err!("Anagram Vocab file must not be empty.");
     }
     loop {
-        let word = file.curr_line().get(0);
-        let freq = file.curr_line().get(1);
+        let word = file.values().get(0);
+        let freq = file.values().get(1);
 
         if !word.iter().all(|b: &u8| b.is_ascii_lowercase()) {
             return err!("invalid dictionary entry : {}", String::from_utf8_lossy(word));

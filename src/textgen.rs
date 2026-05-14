@@ -431,7 +431,7 @@ impl FullGen for RankGen {
         let mut candidates = Vec::new();
         let len = cand.curr_line().get(0).len();
         loop {
-            let word = cand.curr_line().get(0);
+            let word = cand.curr_line_old().get(0);
             if word.len() != len {
                 return err!(
                     "All candidate words must have same length. Saw {len} and {}",
@@ -449,7 +449,7 @@ impl FullGen for RankGen {
             return Ok(());
         }
         loop {
-            let word = vocab.curr_line().get(0);
+            let word = vocab.curr_line_old().get(0);
             if word.len() == len {
                 Self::validate(word)?;
                 let score = Self::get_score(&candidates, word);

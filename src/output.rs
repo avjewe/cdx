@@ -1466,7 +1466,6 @@ mod tests {
     fn output_config_from_input_and_spec_replace_dot_for_space_delimiter() {
         let input = input_file::Config::from_delim(input::Delimiter::Char(b','));
         let spec = Spec { delimiter: Some(b' '), escape: None, header: None };
-        eprintln!("input: {input:#?}\nspec: {spec:#?}");
         let output = Config::from_input_and_spec(&input, spec);
         assert_eq!(output.escape, Escape::Replace(b'.'));
     }

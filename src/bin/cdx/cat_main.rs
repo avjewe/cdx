@@ -174,9 +174,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             loop {
                 if !removes.umatch(f.curr_nl()) {
                     if skips.umatch(f.curr_nl()) {
-                        not_v.write(&mut w.0, f.curr())?;
+                        not_v.write(&mut w.0, &f.curr_line())?;
                     } else {
-                        v.write(&mut w.0, f.curr())?;
+                        v.write(&mut w.0, &f.curr_line())?;
                     }
                 }
                 if f.get_line()? {

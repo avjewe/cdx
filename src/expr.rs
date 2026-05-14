@@ -5,6 +5,7 @@ use crate::prelude::*;
 use crate::shunting_yard::to_rpn;
 use crate::tok2::{BinaryOp, Token, UnaryOp, tokenize};
 use crate::util::find_close;
+use crate::*;
 use regex::Regex;
 use std::f64::consts;
 use std::fmt::Write;
@@ -462,7 +463,7 @@ impl Expr {
         self.rpn_to_expr(&rpn)
     }
     /// resolve named columns
-    pub fn lookup(&mut self, field_names: &[&str]) -> Result<()> {
+    pub fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         let mut n = self.expr_str.clone();
         while let Some(pos) = n.find('[') {
             let len = find_close(&n[pos..])?;

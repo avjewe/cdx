@@ -4,12 +4,12 @@
 //! parsed column buffers are reused across calls to [`Columns::read`].
 
 use crate::prelude::*;
-use crate::read_line::BackslashMode;
-use crate::read_line::Config;
-use crate::read_line::Quotes;
-use crate::read_line::UnterminatedQuoteMode;
-use crate::recyclable_vec::RVec;
+pub use crate::read_line::BackslashMode;
+pub use crate::read_line::Config;
+pub use crate::read_line::Quotes;
+pub use crate::read_line::UnterminatedQuoteMode;
 use crate::*;
+use memchr::memchr_iter;
 use std::collections::HashSet;
 
 /// How input records are split into columns.
@@ -505,8 +505,41 @@ impl Columns {
         self.finish_columns(1);
     }
 
+    /// Ensure `columns[index]` exists, reset it for writing, and return it.
+    fn clear_column_mut(&mut self, index: usize) -> &mut Vec<u8> {
+        if index == self.columns.len() {
+            self.columns.push(Vec::new());
+        }
+        // let column = &mut self.columns[index];
+        let column = unsafe { self.columns.get_unchecked_mut(index) };
+        column.clear();
+        column
+    }
+
+    /// Parse a record with a single-byte delimiter and no escape or quote handling.
+    pub fn read_plain(&mut self, record: &[u8], delimiter: u8) {
+        let mut column_index = 0usize;
+        let mut start = 0usize;
+        let mut column = self.clear_column_mut(column_index);
+
+        for delimiter_index in memchr_iter(delimiter, record) {
+            // column.extend_from_slice(&record[start..delimiter_index]);
+            column.extend_from_slice(unsafe { record.get_unchecked(start..delimiter_index) });
+            column_index += 1;
+            column = self.clear_column_mut(column_index);
+            start = delimiter_index + 1;
+        }
+
+        // column.extend_from_slice(&record[start..]);
+        column.extend_from_slice(unsafe { record.get_unchecked(start..) });
+        self.finish_columns(column_index + 1);
+    }
+
     /// Parse a record with a single-byte delimiter.
     fn read_char(&mut self, record: &[u8], delimiter: u8, options: &Config) {
+        if options.backslash == BackslashMode::Off && options.quotes == Quotes::None {
+            return self.read_plain(record, delimiter);
+        }
         self.clear_column(0);
         let mut column_index = 0usize;
         let mut i = 0;

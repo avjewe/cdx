@@ -74,7 +74,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             unreachable!();
         }
     }
-    let empty_line = TextLine::new();
+    let empty_line = TextLine::default();
     let mut w = get_writer("-")?;
     let mut first_file = true;
     let mut totals = Vec::new();
@@ -107,7 +107,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 break;
             }
             loop {
-                for (i, x) in f.curr_line().iter().enumerate() {
+                for (i, x) in f.curr_line().columns().iter().enumerate() {
                     aggs[col_map[i]].agg.add(x);
                 }
                 if f.get_line()? {
