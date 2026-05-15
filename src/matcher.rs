@@ -778,14 +778,14 @@ impl Match for ExactMatch {
 }
 
 fn load_hashset(data: &mut HashSet<Vec<u8>>, fname: &str) -> Result<()> {
-    let mut f = Reader::new(&TextFileMode::default());
+    let mut f = TextFile::new_cdx(fname)?;
     f.do_split(false);
     f.open(fname)?;
     if f.is_done() {
         return Ok(());
     }
     loop {
-        let line = &f.curr().line();
+        let line = f.line();
         if line.len() > 1 {
             data.insert(line[0..line.len() - 1].to_vec());
         }
@@ -822,14 +822,14 @@ impl Match for FileExactMatch {
 }
 
 fn load_hashset_c(data: &mut HashSet<Vec<u8>>, fname: &str, unicode: bool) -> Result<()> {
-    let mut f = Reader::new(&TextFileMode::default());
+    let mut f = TextFile::new_cdx(fname)?;
     f.do_split(false);
     f.open(fname)?;
     if f.is_done() {
         return Ok(());
     }
     loop {
-        let mut line: &[u8] = f.curr().line();
+        let mut line: &[u8] = f.line();
         if line.len() > 1 {
             if line.last().unwrap() == &b'\n' {
                 line = &line[..line.len() - 1];

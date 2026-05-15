@@ -30,7 +30,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     }
     if files.len() == 1 {
         let mut v = Vec::new();
-        tabs::show2(&files[0], &tabs::Rect::from_screen(), &mut v, &settings.text_in)?;
+        tabs::show2(&files[0], &tabs::Rect::from_screen(), &mut v, &settings.input)?;
         for x in v {
             println!("{}", x);
         }
@@ -41,7 +41,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         for x in &files {
             let mut v = Vec::new();
             let r = tabs::Rect::new(base_rect.width, lines_left / files_left);
-            let real = tabs::show2(x, &r, &mut v, &settings.text_in)?;
+            let real = tabs::show2(x, &r, &mut v, &settings.input)?;
             print_centered(x, real);
             for x in &v {
                 println!("{}", x);

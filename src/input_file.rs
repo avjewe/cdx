@@ -10,9 +10,9 @@ use std::collections::HashSet;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum Header {
     /// Use CDX if present, otherwise first line is column names
-    #[default]
     Yes,
     /// Use CDX if present, otherwise first line is data
+    #[default]
     No,
 }
 
@@ -95,6 +95,14 @@ fn parse_cdx_mode(value: &str) -> Result<CdxMode> {
     }
 }
 
+/// true if the first of the comma delimited parts does not contain a comma, i.e. there is a base config before the overrides
+fn has_base(x: &str) -> bool {
+    match x.split_once(',') {
+        Some(base) => base.0.contains(','),
+        None => x.contains(','),
+    }
+}
+
 impl Config {
     /// new Config with the given column config and expecting a header.
     #[must_use]
@@ -156,11 +164,11 @@ impl Config {
 
     pub(crate) fn add_spec(&mut self, key: &str, value: &str) -> Result<()> {
         match key {
-            "delimiter" => {
+            "header" => {
                 self.header = parse_header_mode(value)?;
                 Ok(())
             }
-            "quotes" => {
+            "cdx" => {
                 self.cdx = parse_cdx_mode(value)?;
                 Ok(())
             }
@@ -187,10 +195,12 @@ impl Config {
         }
 
         let mut parts = trimmed.split(',').map(str::trim);
-        let base = parts.next().ok_or_else(|| anyhow!("missing input config base"))?;
-
-        let mut config = Self::from_base(base)?;
-
+        let mut config = if has_base(trimmed) {
+            let base = parts.next().ok_or_else(|| anyhow!("missing input config base"))?;
+            Self::from_base(base)?
+        } else {
+            Self::default()
+        };
         let mut seen_keys: HashSet<&'static str> = HashSet::new();
         for part in parts {
             if part.is_empty() {
@@ -233,6 +243,44 @@ impl std::ops::Index<usize> for TextLine {
     }
 }
 
+/// A line of text input, including the original line and the parsed column values.
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
+pub struct HeaderLine {
+    /// The whole header line, without newline, bytes untouched
+    pub line: Vec<u8>,
+    /// column names, decoded and unquoted
+    pub values: Vec<String>,
+    /// The EOL observed at the end of the header line.
+    pub eol: read_line::ReadResult,
+}
+
+impl std::ops::Index<usize> for HeaderLine {
+    type Output = str;
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index)
+    }
+}
+
+impl HeaderLine {
+    /// Get one column. Return an empty column if index is too big.
+    #[must_use]
+    pub fn get(&self, index: usize) -> &str {
+        if index >= self.values.len() { "" } else { self.values[index].as_str() }
+    }
+    /// Write the original header line to the given writer, including the EOL.
+    pub fn write(&self, w: &mut impl Write) -> Result<()> {
+        w.write_all(&self.line)?;
+        w.write_all(self.eol.as_bytes())?;
+        Ok(())
+    }
+    /// Clear the header line and column names.
+    pub fn clear(&mut self) {
+        self.line.clear();
+        self.values.clear();
+        self.eol = read_line::ReadResult::Lf;
+    }
+}
+
 impl TextLine {
     /// Write the original line to the given writer, including the EOL.
     pub fn write(&self, w: &mut impl Write) -> Result<()> {
@@ -269,6 +317,21 @@ impl TextLine {
     pub fn split_plain(&mut self, delim: u8) {
         self.values.read_plain(&self.line, delim);
     }
+    /// Get the columns parsed from the last record, as Strings, with lossy utf-8 decoding.
+    #[must_use]
+    pub fn as_strings(&self) -> Vec<String> {
+        self.values.as_strings()
+    }
+
+    /// Get the columns parsed from the last record, as Strings, fail if not utf8-encoded.
+    pub fn as_strings_strict(&self) -> anyhow::Result<Vec<String>> {
+        self.values.as_strings_strict()
+    }
+
+    /// Get the columns parsed from the last record, as Strings, fail if not utf8-encoded.
+    pub fn into_strings(self) -> anyhow::Result<Vec<String>> {
+        self.values.into_strings()
+    }
 }
 
 /// A text file being read, including the reader, config, column names, and current line values.
@@ -279,7 +342,7 @@ pub struct TextFile {
     /// how to interpret
     options: Config,
     /// The names of the columns. c1, c1... are auto generated if needed
-    column_names: Vec<String>,
+    header: HeaderLine,
     /// The column values
     column_values: TextLine,
     /// Have we hit EOF?
@@ -288,6 +351,13 @@ pub struct TextFile {
     do_split: bool,
     /// Where are we in the file? (line number, byte offset, etc.)
     loc: util::FileLocData,
+}
+
+impl std::ops::Index<usize> for TextFile {
+    type Output = [u8];
+    fn index(&self, index: usize) -> &Self::Output {
+        self.column_values.get(index)
+    }
 }
 
 /// A `TextFile` along with the previous line, for operations that need to compare adjacent lines.
@@ -303,6 +373,10 @@ impl TextFilePrev {
     /// Create a new `TextFilePrev` with the given reader and options.
     pub fn new(file_name: &str, options: Config) -> Result<Self> {
         Ok(Self(TextFile::new(file_name, options)?, TextLine::default()))
+    }
+    /// Create a new `TextFilePrev` with the given reader and default options.
+    pub fn new_cdx(file_name: &str) -> Result<Self> {
+        Self::new(file_name, Config::default())
     }
     /// Read the first line of the file and initialize the previous line to be empty.
     pub fn read_first_line(&mut self) -> anyhow::Result<()> {
@@ -320,7 +394,7 @@ impl TextFile {
         let mut me = Self {
             reader: util::get_reader(file_name)?,
             options,
-            column_names: Vec::new(),
+            header: HeaderLine::default(),
             column_values: TextLine::default(),
             done: false,
             do_split: true,
@@ -329,6 +403,48 @@ impl TextFile {
         me.read_first_line()?;
         Ok(me)
     }
+    /// Is the file zero bytes?
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.options.saw_header == Some(SawHeader::Empty)
+    }
+    /// Is the file zero bytes?
+    #[must_use]
+    pub fn has_header(&self) -> bool {
+        self.options.saw_header == Some(SawHeader::Yes)
+            || self.options.saw_header == Some(SawHeader::Cdx)
+    }
+    /// Create a new `TextFile` with the given reader and default options.
+    pub fn new_cdx(file_name: &str) -> Result<Self> {
+        Self::new(file_name, Config::default())
+    }
+    /// Set whether to split lines into columns.
+    pub const fn do_split(&mut self, do_split: bool) {
+        self.do_split = do_split;
+    }
+    /// Do not split lines into columns.
+    pub const fn no_split(&mut self) {
+        self.do_split(false);
+    }
+    /// Get the original bytes of the current line
+    #[must_use]
+    pub fn line(&self) -> &[u8] {
+        &self.column_values.line
+    }
+    /// Get the original bytes of the header line
+    #[must_use]
+    pub fn header_line(&self) -> &[u8] {
+        &self.header.line
+    }
+    /// Write value line with eol
+    pub fn write_value_line(&self, w: &mut impl Write) -> Result<()> {
+        self.column_values.write(w)
+    }
+    /// Write header line with eol
+    pub fn write_header_line(&self, w: &mut impl Write) -> Result<()> {
+        self.header.write(w)
+    }
+
     /// Get the column names.
     #[must_use]
     pub const fn is_done(&self) -> bool {
@@ -337,12 +453,22 @@ impl TextFile {
     /// Get the column names.
     #[must_use]
     pub fn names(&self) -> &[String] {
-        &self.column_names
+        &self.header.values
+    }
+    /// Get one column. Return an empty column if index is too big.
+    #[must_use]
+    pub fn name(&self, index: usize) -> &str {
+        self.header.get(index)
     }
     /// Get the column values.
     #[must_use]
     pub const fn values(&self) -> &TextLine {
         &self.column_values
+    }
+    /// Get the column values.
+    #[must_use]
+    pub const fn values_mut(&mut self) -> &mut TextLine {
+        &mut self.column_values
     }
     /// open file for reading
     pub fn open(&mut self, name: &str) -> Result<()> {
@@ -351,11 +477,13 @@ impl TextFile {
     }
 
     fn copy_column_names(&mut self) -> Result<()> {
-        self.column_names.clear();
+        self.header.values.clear();
         for v in self.column_values.values.as_ref() {
-            self.column_names.push(String::from_utf8(v.clone())?);
+            self.header.values.push(String::from_utf8(v.clone())?);
         }
         // FIXME - validate column names
+        self.header.line.clone_from(&self.column_values.line);
+        self.header.eol = self.column_values.eol;
         Ok(())
     }
 
@@ -396,6 +524,7 @@ impl TextFile {
 
     /// Read column names and the first data record according to header and CDX settings.
     pub fn read_first_line(&mut self) -> anyhow::Result<()> {
+        self.header.clear();
         if self.options.saw_header.is_some() {
             return Err(anyhow::anyhow!(
                 "read_first_line cannot be called after header state is set",
@@ -445,19 +574,37 @@ impl TextFile {
                     self.column_values
                         .values
                         .read(&self.column_values.line, &self.options.column_config);
-                    self.column_names =
+                    self.header.values =
                         Self::generate_column_names(self.column_values.values.columns.len());
+                    self.header.eol = read_line::ReadResult::Eof;
+                    self.header.line.clear();
                     self.options.saw_header = Some(SawHeader::No);
-                    eprintln!("AAA");
                     if self.do_split {
-                        eprintln!("BBB");
                         self.split();
                     }
                 }
             },
         }
-
-        eprintln!("CCC");
         Ok(())
+    }
+    /// Get the columns parsed from the last record, as Strings, with lossy utf-8 decoding.
+    #[must_use]
+    pub fn as_strings(&self) -> Vec<String> {
+        self.column_values.as_strings()
+    }
+
+    /// Get the columns parsed from the last record, as Strings, fail if not utf8-encoded.
+    pub fn as_strings_strict(&self) -> anyhow::Result<Vec<String>> {
+        self.column_values.as_strings_strict()
+    }
+
+    /// Get the columns parsed from the last record, as Strings, fail if not utf8-encoded.
+    pub fn into_strings(self) -> anyhow::Result<Vec<String>> {
+        self.column_values.into_strings()
+    }
+    /// Get one column. Return an empty column if index is too big.
+    #[must_use]
+    pub fn get(&self, index: usize) -> &[u8] {
+        self.column_values.get(index)
     }
 }

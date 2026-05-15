@@ -4,6 +4,7 @@ use crate::column::{OutCol, ScopedValue};
 use crate::comp::CompMaker;
 use crate::prelude::*;
 use crate::util::Outfile;
+use crate::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -92,6 +93,10 @@ pub struct JoinConfig {
     pub use_other: bool,
     /// default value for non-matching lines. Scoped with respect to the output columns.
     pub empty: ScopedValue,
+    /// input file format config
+    pub input_config: input_file::Config,
+    /// output file format config
+    pub output_config: output::Config,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -107,12 +112,12 @@ impl OneOutCol {
     const fn new_plain(file: usize, col: usize) -> Self {
         Self { file, col: OutCol::from_num(col) }
     }
-    fn write(&self, mut w: impl Write, f: &[Reader]) -> Result<()> {
-        w.write_all(f[self.file].curr().get(self.col.num))?;
+    fn write(&self, mut w: impl Write, f: &[TextFile]) -> Result<()> {
+        w.write_all(&f[self.file][self.col.num])?;
         Ok(())
     }
-    fn write_head(&self, mut w: impl Write, f: &[Reader]) -> Result<()> {
-        w.write_all(f[self.file].header().get(self.col.num).as_bytes())?;
+    fn write_head(&self, mut w: impl Write, f: &[TextFile]) -> Result<()> {
+        w.write_all(f[self.file].name(self.col.num).as_bytes())?;
         Ok(())
     }
 }
@@ -138,7 +143,7 @@ type SharedOutFile = Rc<RefCell<Outfile>>;
 #[derive(Default)]
 /// does the actual joining
 struct Joiner {
-    r: Vec<Reader>,
+    r: Vec<TextFile>,
     comp: LineCompList,
     yes_match: Outfile,
     no_match: Vec<Option<SharedOutFile>>,
@@ -166,7 +171,7 @@ impl Joiner {
         }
 
         for x in &config.infiles {
-            self.r.push(Reader::new_open2(x)?);
+            self.r.push(TextFile::new(x, config.input_config.clone())?);
         }
 
         for _x in 0..config.infiles.len() {
@@ -184,8 +189,7 @@ impl Joiner {
             if self.no_match[num].is_none() {
                 let (flag, w) = self.get_shared_writer(&x.file_name)?;
                 if flag {
-                    // self.r[num].write_header(&mut Rc::get_mut(&mut w).unwrap().0)?;
-                    self.r[num].write_header(&mut w.borrow_mut().0)?;
+                    self.r[num].write_header_line(&mut w.borrow_mut().0)?;
                 }
                 self.no_match[num] = Some(w);
             } else {
@@ -201,7 +205,7 @@ impl Joiner {
             }
         }
         for i in 0..self.r.len() {
-            self.comp.lookup_n(&self.r[i].names(), i, self.r.len())?;
+            self.comp.lookup_n(self.r[i].names(), i, self.r.len())?;
         }
 
         if config.col_specs.is_empty() {
@@ -223,7 +227,7 @@ impl Joiner {
                         x.file
                     );
                 }
-                x.cols.lookup(&self.r[x.file].names())?;
+                x.cols.lookup(self.r[x.file].names())?;
                 for y in x.cols.get_cols() {
                     self.out_cols.push(OneOutCol::new(x.file, y));
                 }
@@ -249,8 +253,7 @@ impl Joiner {
     }
     fn join_quick(&mut self, config: &JoinConfig) -> Result<()> {
         if !self.r[0].is_done() && !self.r[1].is_done() {
-            let mut cmp =
-                self.comp.comp_cols_n(&self.r[0].curr_line(), &self.r[1].curr_line(), 0, 1);
+            let mut cmp = self.comp.comp_cols_n(self.r[0].values(), self.r[1].values(), 0, 1);
             'outer: loop {
                 match cmp {
                     Ordering::Equal => loop {
@@ -264,65 +267,50 @@ impl Joiner {
                             self.r[1].get_line()?;
                             break 'outer;
                         }
-                        cmp = self.comp.comp_cols_n(
-                            &self.r[0].curr_line(),
-                            &self.r[1].curr_line(),
-                            0,
-                            1,
-                        );
+                        cmp = self.comp.comp_cols_n(self.r[0].values(), self.r[1].values(), 0, 1);
                         if cmp != Ordering::Equal {
                             if self.r[1].get_line()? {
                                 break 'outer;
                             }
-                            cmp = self.comp.comp_cols_n(
-                                &self.r[0].curr_line(),
-                                &self.r[1].curr_line(),
-                                0,
-                                1,
-                            );
+                            cmp =
+                                self.comp.comp_cols_n(self.r[0].values(), self.r[1].values(), 0, 1);
                             break;
                         }
                     },
                     Ordering::Less => {
                         if let Some(x) = &mut self.no_match[0] {
-                            self.r[0].write(&mut x.borrow_mut().0)?;
+                            x.borrow_mut().0.write_all(self.r[0].line())?;
+                            x.borrow_mut().0.write_all(b"\n")?;
                         }
                         if self.r[0].get_line()? {
                             break;
                         }
-                        cmp = self.comp.comp_cols_n(
-                            &self.r[0].curr_line(),
-                            &self.r[1].curr_line(),
-                            0,
-                            1,
-                        );
+                        cmp = self.comp.comp_cols_n(self.r[0].values(), self.r[1].values(), 0, 1);
                     }
                     Ordering::Greater => {
                         if let Some(x) = &mut self.no_match[1] {
-                            self.r[1].write(&mut x.borrow_mut().0)?;
+                            x.borrow_mut().0.write_all(self.r[1].line())?;
+                            x.borrow_mut().0.write_all(b"\n")?;
                         }
                         if self.r[1].get_line()? {
                             break;
                         }
-                        cmp = self.comp.comp_cols_n(
-                            &self.r[0].curr_line(),
-                            &self.r[1].curr_line(),
-                            0,
-                            1,
-                        );
+                        cmp = self.comp.comp_cols_n(self.r[0].values(), self.r[1].values(), 0, 1);
                     }
                 }
             }
         }
         while !self.r[0].is_done() {
             if let Some(x) = &mut self.no_match[0] {
-                self.r[0].write(&mut x.borrow_mut().0)?;
+                x.borrow_mut().0.write_all(self.r[0].line())?;
+                x.borrow_mut().0.write_all(b"\n")?;
             }
             self.r[0].get_line()?;
         }
         while !self.r[1].is_done() {
             if let Some(x) = &mut self.no_match[1] {
-                self.r[1].write(&mut x.borrow_mut().0)?;
+                x.borrow_mut().0.write_all(self.r[1].line())?;
+                x.borrow_mut().0.write_all(b"\n")?;
             }
             self.r[1].get_line()?;
         }

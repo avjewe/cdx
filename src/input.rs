@@ -432,6 +432,27 @@ impl Columns {
         &self.columns
     }
 
+    /// Get the columns parsed from the last record, as Strings, with lossy utf-8 decoding.
+    #[must_use]
+    pub fn as_strings(&self) -> Vec<String> {
+        self.columns.iter().map(|v| String::from_utf8_lossy(v).into_owned()).collect()
+    }
+
+    /// Get the columns parsed from the last record, as Strings, fail if not utf8-encoded.
+    pub fn as_strings_strict(&self) -> anyhow::Result<Vec<String>> {
+        self.columns
+            .iter()
+            .map(|v| String::from_utf8(v.clone()).map_err(anyhow::Error::from))
+            .collect()
+    }
+
+    /// Get the columns parsed from the last record, as Strings, fail if not utf8-encoded.
+    pub fn into_strings(self) -> anyhow::Result<Vec<String>> {
+        self.columns
+            .into_iter()
+            .map(|v| String::from_utf8(v).map_err(anyhow::Error::from))
+            .collect()
+    }
     /// Ensure `columns[index]` exists and reset it for writing.
     fn clear_column(&mut self, index: usize) {
         if index == self.columns.len() {

@@ -1173,14 +1173,17 @@ impl AsMut<io::BufReader<Box<dyn Read>>> for Infile {
         &mut self.0
     }
 }
+/// Necessary functionality for writers
+pub trait MyWrite: Write + Send + Sync + fmt::Debug {}
+impl<T> MyWrite for T where T: Write + Send + Sync + fmt::Debug {}
 
 /// output file type
-pub struct Outfile(pub io::BufWriter<Box<dyn Write>>, pub String);
+pub struct Outfile(pub io::BufWriter<Box<dyn MyWrite>>, pub String);
 
 impl Outfile {
     /// create a new input file
     #[must_use]
-    pub fn new(f: io::BufWriter<Box<dyn Write>>, n: &str) -> Self {
+    pub fn new(f: io::BufWriter<Box<dyn MyWrite>>, n: &str) -> Self {
         Self(f, n.to_string())
     }
 }
@@ -1198,7 +1201,7 @@ impl fmt::Debug for Outfile {
 }
 
 impl Deref for Outfile {
-    type Target = io::BufWriter<Box<dyn Write>>;
+    type Target = io::BufWriter<Box<dyn MyWrite>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1211,21 +1214,21 @@ impl DerefMut for Outfile {
     }
 }
 
-impl AsRef<io::BufWriter<Box<dyn Write>>> for Outfile {
-    fn as_ref(&self) -> &io::BufWriter<Box<dyn Write>> {
+impl AsRef<io::BufWriter<Box<dyn MyWrite>>> for Outfile {
+    fn as_ref(&self) -> &io::BufWriter<Box<dyn MyWrite>> {
         &self.0
     }
 }
 
-impl AsMut<io::BufWriter<Box<dyn Write>>> for Outfile {
-    fn as_mut(&mut self) -> &mut io::BufWriter<Box<dyn Write>> {
+impl AsMut<io::BufWriter<Box<dyn MyWrite>>> for Outfile {
+    fn as_mut(&mut self) -> &mut io::BufWriter<Box<dyn MyWrite>> {
         &mut self.0
     }
 }
 
 /// Make an Outfile from a file name
 pub fn get_writer(name: &str) -> Result<Outfile> {
-    let inner: Box<dyn Write> = {
+    let inner: Box<dyn MyWrite> = {
         if name == "-" {
             Box::new(io::stdout())
         } else if name == "--" {

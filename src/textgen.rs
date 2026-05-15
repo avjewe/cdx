@@ -1,7 +1,7 @@
 //! Generate random text
 
-use crate::expr;
 use crate::prelude::*;
+use crate::*;
 use itertools::Itertools;
 use rand_distr::{Distribution, Normal};
 use std::sync::Mutex;
@@ -421,17 +421,16 @@ impl RankGen {
 }
 impl FullGen for RankGen {
     fn write(&mut self, w: &mut dyn Write) -> Result<()> {
-        let mode = TextFileMode::default();
-        let mut cand = Reader::new_open(&self.candidates, &mode)?;
-        let mut vocab = Reader::new_open(&self.vocab, &mode)?;
+        let mut cand = TextFile::new_cdx(&self.candidates)?;
+        let mut vocab = TextFile::new_cdx(&self.vocab)?;
 
         if cand.is_done() {
             return err!("Candidate file must not be empty.");
         }
         let mut candidates = Vec::new();
-        let len = cand.curr_line().get(0).len();
+        let len = cand[0].len();
         loop {
-            let word = cand.curr_line_old().get(0);
+            let word = &cand[0];
             if word.len() != len {
                 return err!(
                     "All candidate words must have same length. Saw {len} and {}",
@@ -449,7 +448,7 @@ impl FullGen for RankGen {
             return Ok(());
         }
         loop {
-            let word = vocab.curr_line_old().get(0);
+            let word = &vocab[0];
             if word.len() == len {
                 Self::validate(word)?;
                 let score = Self::get_score(&candidates, word);
@@ -776,12 +775,12 @@ impl GenMaker {
             |p| Ok(Box::new(RankGen::new(p)?)),
         )?;
         Self::do_push_full("anagram", "Print anagrams of a phrase with scores", |p| {
-            Ok(Box::new(crate::anagram::Anagram::new(p, true)?))
+            Ok(Box::new(anagram::Anagram::new(p, true)?))
         })?;
         Self::do_push_full(
             "sub-anagram",
             "Print individual words that can be made from a phrase.",
-            |p| Ok(Box::new(crate::anagram::Anagram::new(p, false)?)),
+            |p| Ok(Box::new(anagram::Anagram::new(p, false)?)),
         )?;
         Ok(())
     }

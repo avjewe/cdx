@@ -34,7 +34,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             unreachable!();
         }
     }
-
     if v.is_empty() {
         bail!("cut requires at lease one --columns or --groups");
     }

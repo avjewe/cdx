@@ -54,6 +54,12 @@ pub struct Config {
     pub header: Header,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self { delimiter: b'\t', escape: Escape::Replace(b' '), header: Header::Yes }
+    }
+}
+
 /// Optional output overrides resolved against an [`input_file::Config`](crate::input_file::Config).
 ///
 /// Each `Some(...)` value overrides the corresponding output setting.

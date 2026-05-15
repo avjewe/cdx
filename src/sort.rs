@@ -10,6 +10,7 @@ fancier sort
 use crate::comp::Item;
 use crate::prelude::*;
 use crate::util::{HeaderChecker, copy, get_reader, is_cdx, make_header};
+use crate::*;
 use binary_heap_plus::BinaryHeap;
 use std::cell::RefCell;
 //use std::mem;
@@ -17,15 +18,15 @@ use std::rc::Rc;
 use tempfile::TempDir;
 
 struct MergeContext<'a> {
-    open: Vec<Reader>,
+    open: Vec<TextFile>,
     cmp: &'a mut LineCompList,
 }
 impl MergeContext<'_> {
     fn compare(&mut self, a: usize, b: usize) -> Ordering {
-        self.cmp.comp_cols(&self.open[a].curr_line(), &self.open[b].curr_line()).reverse()
+        self.cmp.comp_cols(self.open[a].values(), self.open[b].values()).reverse()
     }
     fn equal(&mut self, a: &TextLine, b: usize) -> bool {
-        self.cmp.equal_cols(a, &self.open[b].curr_line())
+        self.cmp.equal_cols(a, self.open[b].values())
     }
 }
 
@@ -78,7 +79,7 @@ impl SortConfig {
         {
             let mut mcm = mc.borrow_mut();
             for x in in_files {
-                mcm.open.push(Reader::new_open2(x)?);
+                mcm.open.push(TextFile::new_cdx(x)?);
             }
             if !mcm.cmp.need_split() {
                 for x in &mut mcm.open {
@@ -87,7 +88,7 @@ impl SortConfig {
             }
             // FIXME -- Check Header
             if mcm.open[0].has_header() {
-                w.write_all(mcm.open[0].header().line.as_bytes())?;
+                mcm.open[0].write_header_line(&mut w)?;
             }
         }
         for i in 0..in_files.len() {
@@ -100,19 +101,19 @@ impl SortConfig {
                 return Ok(());
             }
             let first = heap.pop().unwrap();
-            let mut prev = mc.borrow().open[first].curr_line();
+            let mut prev = mc.borrow().open[first].values().clone();
             if !mc.borrow_mut().open[first].get_line()? {
                 heap.push(first);
             }
-            w.write_all(prev.line())?;
+            prev.write(&mut w)?;
 
             while !heap.is_empty() {
                 if let Some(x) = heap.pop() {
                     let eq = mc.borrow_mut().equal(&prev, x);
                     if !eq {
-                        let mcm = mc.borrow();
-                        w.write_all(mcm.open[x].curr_line().line())?;
-                        prev = mcm.open[x].curr_line();
+                        let mut mcm = mc.borrow_mut();
+                        mcm.open[x].write_value_line(&mut w)?;
+                        std::mem::swap(&mut prev, mcm.open[x].values_mut());
                     }
                     if !mc.borrow_mut().open[x].get_line()? {
                         heap.push(x);
@@ -122,7 +123,7 @@ impl SortConfig {
         } else {
             while !heap.is_empty() {
                 if let Some(x) = heap.pop() {
-                    w.write_all(mc.borrow_mut().open[x].curr_line().line())?;
+                    mc.borrow_mut().open[x].write_value_line(&mut w)?;
                     if !mc.borrow_mut().open[x].get_line()? {
                         heap.push(x);
                     }
@@ -148,9 +149,9 @@ impl SortConfig {
             let r = get_reader(&in_files[0])?;
             return copy(r.0, w);
         }
-        let mut open_files: Vec<Reader> = Vec::with_capacity(in_files.len());
+        let mut open_files: Vec<TextFile> = Vec::with_capacity(in_files.len());
         for x in in_files {
-            open_files.push(Reader::new_open2(x)?);
+            open_files.push(TextFile::new_cdx(x)?);
         }
         if !cmp.need_split() {
             for x in &mut open_files {
@@ -159,7 +160,7 @@ impl SortConfig {
         }
         // FIXME -- Check Header
         if open_files[0].has_header() {
-            w.write_all(open_files[0].header().line.as_bytes())?;
+            open_files[0].write_header_line(&mut w)?;
         }
 
         let nums: Vec<usize> = (0..open_files.len()).collect();
@@ -170,18 +171,18 @@ impl SortConfig {
                 return Ok(());
             }
             let x = x.unwrap();
-            w.write_all(open_files[x].curr_line().line())?;
-            let mut prev = open_files[x].curr_line();
+            open_files[x].write_value_line(&mut w)?;
+            let mut prev = open_files[x].values().clone();
             loop {
                 let x = mm.next(cmp, &mut open_files)?;
                 if x.is_none() {
                     break;
                 }
                 let x = x.unwrap();
-                if !cmp.equal_cols(&prev, &open_files[x].curr_line()) {
-                    w.write_all(open_files[x].curr_line().line())?;
+                if !cmp.equal_cols(&prev, open_files[x].values()) {
+                    open_files[x].write_value_line(&mut w)?;
                 }
-                prev = open_files[x].curr_line();
+                std::mem::swap(&mut prev, open_files[x].values_mut());
             }
         } else {
             loop {
@@ -190,7 +191,7 @@ impl SortConfig {
                     break;
                 }
                 let x = x.unwrap();
-                w.write_all(open_files[x].curr_line().line())?;
+                open_files[x].write_value_line(&mut w)?;
             }
         }
         Ok(())
@@ -520,11 +521,11 @@ impl NodeData {
     const fn new(left: NodeType, right: NodeType) -> Self {
         Self { left, right, left_data: None, right_data: None }
     }
-    fn left_cols(&self, files: &[Reader]) -> TextLine {
-        files[self.left_data.unwrap()].curr_line()
+    fn left_cols(&self, files: &[TextFile]) -> TextLine {
+        files[self.left_data.unwrap()].values().clone()
     }
-    fn right_cols(&self, files: &[Reader]) -> TextLine {
-        files[self.right_data.unwrap()].curr_line()
+    fn right_cols(&self, files: &[TextFile]) -> TextLine {
+        files[self.right_data.unwrap()].values().clone()
     }
 }
 struct LeafData {
@@ -557,7 +558,7 @@ impl MergeTreeItem {
     const fn new_leaf(r: usize) -> Self {
         Self::Leaf(LeafData { file_num: r, first: true })
     }
-    fn next(&mut self, cmp: &mut LineCompList, files: &mut [Reader]) -> Result<Option<usize>> {
+    fn next(&mut self, cmp: &mut LineCompList, files: &mut [TextFile]) -> Result<Option<usize>> {
         match self {
             Self::Leaf(r) => {
                 if files[r.file_num].is_done() {

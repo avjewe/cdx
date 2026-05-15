@@ -118,9 +118,9 @@ impl Settings {
                 self.text_in = TextFileMode::new(&x.value)?;
             } else if x.name == "text-out" {
                 self.text_out = Some(TextFileMode::new(&x.value)?);
-            } else if x.name == "input" {
+            } else if x.name == "Input" {
                 self.input = cdx::input_file::Config::from_spec(&x.value)?;
-            } else if x.name == "output" {
+            } else if x.name == "Output" {
                 self.output = cdx::output::Spec::from_spec(&x.value)?;
             } else {
                 Self::show_std_help(&x.name)?;

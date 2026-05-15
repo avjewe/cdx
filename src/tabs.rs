@@ -1,6 +1,7 @@
 //! Format plain text to a fixed width terminal
 
 use crate::prelude::*;
+use crate::*;
 use unicode_truncate::UnicodeTruncateStr;
 use unicode_width::UnicodeWidthStr;
 
@@ -44,29 +45,25 @@ fn dec_max(sizes: &mut [usize]) {
 }
 
 /// show the file on the screen
-pub fn basic(file: &str, text: &TextFileMode) -> Result<()> {
+pub fn basic(file: &str, config: &input_file::Config) -> Result<()> {
     let mut x = Rect::from_screen();
     x.width -= 1;
-    show(file, &x, text)
+    show(file, &x, config)
 }
 /// show the file in a specific rectangle
-pub fn show(file: &str, screen: &Rect, text: &TextFileMode) -> Result<()> {
-    let mut f = Reader::new(text);
-    f.open(file)?;
+pub fn show(file: &str, screen: &Rect, config: &input_file::Config) -> Result<()> {
+    let mut f = TextFile::new(file, config.clone())?;
     if f.is_empty() {
         return Ok(());
     }
-    let mut lines: Vec<StringLine> = Vec::new();
-    let mut sizes: Vec<usize> = vec![0; f.header().len()];
+    let mut lines: Vec<Vec<String>> = Vec::new();
+    let mut sizes: Vec<usize> = vec![0; f.names().len()];
     if f.has_header() {
-        lines.push(f.header().clone());
+        lines.push(f.names().into());
     }
     if !f.is_done() {
         while lines.len() < screen.height {
-            let mut s = StringLine::new();
-            s.line = String::from_utf8_lossy(f.curr().line()).to_string();
-            s.split(f.delim());
-            lines.push(s);
+            lines.push(f.as_strings());
             if f.get_line()? {
                 break;
             }
@@ -74,7 +71,7 @@ pub fn show(file: &str, screen: &Rect, text: &TextFileMode) -> Result<()> {
     }
     for x in &lines {
         for (i, c) in x.iter().enumerate() {
-            let width = UnicodeWidthStr::width(c);
+            let width = UnicodeWidthStr::width(c.as_str());
             if sizes[i] < width {
                 sizes[i] = width;
             }
@@ -121,23 +118,24 @@ pub fn show(file: &str, screen: &Rect, text: &TextFileMode) -> Result<()> {
 }
 
 /// show the file in a specific rectangle
-pub fn show2(file: &str, screen: &Rect, w: &mut Vec<String>, text: &TextFileMode) -> Result<usize> {
-    let mut f = Reader::new(text);
-    f.open(file)?;
+pub fn show2(
+    file: &str,
+    screen: &Rect,
+    w: &mut Vec<String>,
+    config: &input_file::Config,
+) -> Result<usize> {
+    let mut f = TextFile::new(file, config.clone())?;
     if f.is_empty() {
         return Ok(0);
     }
-    let mut lines: Vec<StringLine> = Vec::new();
-    let mut sizes: Vec<usize> = vec![0; f.header().len()];
+    let mut lines: Vec<Vec<String>> = Vec::new();
+    let mut sizes: Vec<usize> = vec![0; f.names().len()];
     if f.has_header() {
-        lines.push(f.header().clone());
+        lines.push(f.names().into());
     }
     if !f.is_done() {
         while lines.len() < screen.height {
-            let mut s = StringLine::new();
-            s.line = String::from_utf8_lossy(f.curr().line()).to_string();
-            s.split(f.delim());
-            lines.push(s);
+            lines.push(f.as_strings());
             if f.get_line()? {
                 break;
             }
@@ -145,7 +143,7 @@ pub fn show2(file: &str, screen: &Rect, w: &mut Vec<String>, text: &TextFileMode
     }
     for x in &lines {
         for (i, c) in x.iter().enumerate() {
-            let width = UnicodeWidthStr::width(c);
+            let width = UnicodeWidthStr::width(c.as_str());
             if sizes[i] < width {
                 sizes[i] = width;
             }

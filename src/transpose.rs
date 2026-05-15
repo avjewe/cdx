@@ -1,18 +1,23 @@
 //! Transpose a file
 
 use crate::prelude::*;
+use crate::*;
 
 /// transpose
-pub fn transpose(file: &str, head: bool, max_lines: usize, text: &TextFileMode) -> Result<()> {
-    let mut f = Reader::new(text);
-    f.open(file)?;
+pub fn transpose(
+    file: &str,
+    head: bool,
+    max_lines: usize,
+    config: &input_file::Config,
+) -> Result<()> {
+    let mut f = TextFile::new(file, config.clone())?;
     if f.is_empty() {
         return Ok(());
     }
     let mut data = Vec::new();
     let mut lines = 0;
     while lines < max_lines {
-        data.push(f.curr().clone());
+        data.push(f.values().clone());
         lines += 1;
         if f.get_line()? {
             break;
@@ -22,9 +27,9 @@ pub fn transpose(file: &str, head: bool, max_lines: usize, text: &TextFileMode) 
     if head {
         w.write_all(b" CDX\t")?;
     }
-    for i in 0..f.header().len() {
+    for i in 0..f.names().len() {
         let mut need_tab = if f.has_header() {
-            w.write_all(f.header()[i].as_bytes())?;
+            w.write_all(f.names()[i].as_bytes())?;
             true
         } else {
             false
