@@ -106,7 +106,7 @@ impl Settings {
     pub fn consume(&mut self, args: &[ArgValue]) -> Result<()> {
         for x in args {
             if x.name == "text-out" {
-                self.text_out = Some(TextFileMode::new(&x.value)?);
+                // self.text_out = Some(TextFileMode::new(&x.value)?);
             } else if x.name == "Input" {
                 self.input = cdx::input_file::Config::from_spec(&x.value)?;
             } else if x.name == "Output" {

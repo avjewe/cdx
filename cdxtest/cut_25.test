@@ -1,4 +1,4 @@
-#command cdx cut --Input h=y --text-out x -f two,one
+#command cdx cut --Input h=y -f two,one
 #stdin
 one	two	three
 aaa	bbb	ccc

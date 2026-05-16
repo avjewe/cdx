@@ -9,7 +9,7 @@ fancier sort
 
 use crate::comp::Item;
 use crate::prelude::*;
-use crate::util::{HeaderChecker, copy, get_reader, is_cdx, make_header};
+use crate::util::{HeaderChecker, copy, get_reader, is_cdx};
 use crate::*;
 use binary_heap_plus::BinaryHeap;
 use std::cell::RefCell;
@@ -497,8 +497,9 @@ impl Sorter {
             return Ok(());
         }
         if self.checker.check(&first_line, fname)? {
-            let s = make_header(&first_line);
-            self.cmp.lookup(&s.vec())?;
+            let s = input_file::HeaderLine::make_header(&first_line)?;
+            // FIXME - lookup should not happen for every file
+            self.cmp.lookup(&s.values)?;
             if is_cdx(&first_line) {
                 w.write_all(&first_line)?;
             } else {

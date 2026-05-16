@@ -1,6 +1,7 @@
 //! text file reading.
 
 use crate::prelude::*;
+use crate::util::is_cdx;
 use crate::*;
 use input::Delimiter;
 use input::normalize_token;
@@ -267,6 +268,15 @@ impl std::ops::Index<usize> for HeaderLine {
     }
 }
 
+/// Generate default column names (`c1`, `c2`, ...) matching current values.
+fn generate_column_names(count: usize) -> Vec<String> {
+    let mut names: Vec<String> = Vec::with_capacity(count);
+    for index in 0..count {
+        names.push(format!("c{}", index + 1));
+    }
+    names
+}
+
 impl HeaderLine {
     /// Get one column. Return an empty column if index is too big.
     #[must_use]
@@ -285,8 +295,46 @@ impl HeaderLine {
         self.values.clear();
         self.eol = read_line::ReadResult::Lf;
     }
-}
 
+    /// Generate default column names (`c1`, `c2`, ...). The underlying line is set to empty string.
+    pub fn generate(&mut self, num_cols: usize) {
+        self.values = generate_column_names(num_cols);
+        self.eol = read_line::ReadResult::Eof;
+        self.line.clear();
+    }
+
+    /// Generate default column names (`c1`, `c2`, ...). The underlying line is set to empty string.
+    /// This is a stopgap transitional method that should be avoided.
+    pub fn make_header(data: &[u8]) -> Result<Self> {
+        let mut me = Self::default();
+        if is_cdx(data) {
+            me.parse(data, &input::Config::default())?;
+        } else {
+            let num_cols = data.split(|ch| *ch == b'\t').count();
+            me.generate(num_cols);
+        }
+        Ok(me)
+    }
+
+    /// parse a line of text as a header line.
+    pub fn parse(&mut self, line: &[u8], options: &input::Config) -> Result<()> {
+        let start = if is_cdx(line) { 5 } else { 0usize };
+        let mut end = line.len();
+        if line.last() == Some(&b'\n') {
+            end -= 1;
+        }
+        self.line = line[0..end].to_vec();
+        self.eol = read_line::ReadResult::Lf;
+        let mut cols = input::Columns::new();
+        cols.read(&line[start..end], options);
+        self.values.clear();
+        for v in cols.columns.as_ref() {
+            self.values.push(String::from_utf8(v.clone())?);
+        }
+
+        Ok(())
+    }
+}
 impl TextLine {
     /// Write the original line to the given writer, including the EOL.
     pub fn write(&self, w: &mut impl Write) -> Result<()> {
@@ -548,15 +596,6 @@ impl TextFile {
         Ok(false)
     }
 
-    /// Generate default column names (`c1`, `c2`, ...) matching current values.
-    fn generate_column_names(count: usize) -> Vec<String> {
-        let mut names = Vec::with_capacity(count);
-        for index in 0..count {
-            names.push(format!("c{}", index + 1));
-        }
-        names
-    }
-
     /// Read column names and the first data record according to header and CDX settings.
     pub fn read_first_line(&mut self) -> anyhow::Result<()> {
         self.header.clear();
@@ -611,10 +650,7 @@ impl TextFile {
                     self.column_values
                         .values
                         .read(&self.column_values.line, &self.options.column_config);
-                    self.header.values =
-                        Self::generate_column_names(self.column_values.values.columns.len());
-                    self.header.eol = read_line::ReadResult::Eof;
-                    self.header.line.clear();
+                    self.header.generate(self.column_values.values.columns.len());
                     self.options.saw_header = Some(SawHeader::No);
                     if self.do_split {
                         self.split();

@@ -1,18 +1,19 @@
 //! binary search in text files
 
 use crate::prelude::*;
-use crate::util::is_cdx;
+use crate::*;
 use std::fs;
+use util::is_cdx;
 
 // lower - first that is not less
 // upper - fist that is greater
 
 /// memory map a file, extract CDX header
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct MemMap {
     map: memmap2::Mmap,
-    header_len: usize,
-    header: StringLine,
+    header: input_file::HeaderLine,
     delim: u8,
 }
 
@@ -24,19 +25,17 @@ impl MemMap {
         // SAFETY: Yes, it's a memmap.
         let map = unsafe { memmap2::Mmap::map(&file)? };
         let mut delim = b'\t';
-        let mut header_len = find_end(&map[..], 0);
-        let mut header = StringLine::new();
+        let mut header = input_file::HeaderLine::default();
+        let header_len = find_end(&map[..], 0);
         if is_cdx(&map[..]) {
             delim = map[4];
-            header.line = std::str::from_utf8(&map[0..header_len])?.to_string();
+            header.parse(&map[..header_len], &input::Config::simple(delim))?;
         } else {
+            // FIXME proper parsing
             let num_cols = map[0..header_len].split(|ch| *ch == delim).count();
-            header_len = 0;
-            header.fake(num_cols, delim);
+            header.generate(num_cols);
         }
-        header.split(delim);
-        header.parts.remove(0);
-        Ok(Self { map, header_len, header, delim })
+        Ok(Self { map, header, delim })
     }
     /// get underlying memmap data
     #[must_use]
@@ -51,17 +50,17 @@ impl MemMap {
     /// does the file have a CDX header?
     #[must_use]
     pub const fn has_header(&self) -> bool {
-        self.header_len > 0
+        !self.header.line.is_empty()
     }
     /// full text of header line, including newline
     #[must_use]
-    pub const fn header(&self) -> &[u8] {
+    pub fn header(&self) -> &[u8] {
         self.header.line.as_bytes()
     }
     /// column names, suitable for lookup
     #[must_use]
-    pub fn names(&self) -> Vec<String> {
-        self.header.vec()
+    pub const fn names(&self) -> &Vec<String> {
+        &self.header.values
     }
 }
 
@@ -196,9 +195,9 @@ mod tests {
 
     #[test]
     fn test_lower() -> Result<()> {
-        crate::util::init()?;
+        util::init()?;
         let mut comp = LineCompList::new();
-        comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
+        comp.push(comp::CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
         assert_eq!(lower_bound(b"aaa\nbbb\nccc\n", &mut comp), b"bbb\n");
         assert_eq!(lower_bound(b"bbb\nccc\n", &mut comp), b"bbb\n");
@@ -220,9 +219,9 @@ mod tests {
     }
     #[test]
     fn test_lower2() -> Result<()> {
-        crate::util::init()?;
+        util::init()?;
         let mut comp = LineCompList::new();
-        comp.push(crate::comp::CompMaker::make_line_comp("1").unwrap());
+        comp.push(comp::CompMaker::make_line_comp("1").unwrap());
         comp.set(b"bbb", b',').unwrap();
         assert_eq!(equal_range(b"aaa\nbbb\nbbb\nbbb\nccc\n", &mut comp), b"bbb\nbbb\nbbb\n");
         assert_eq!(equal_range(b"bbb\nbbb\nbbb\nccc\n", &mut comp), b"bbb\nbbb\nbbb\n");

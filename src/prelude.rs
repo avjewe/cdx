@@ -20,8 +20,7 @@ pub use crate::textgen::GenList;
 pub use crate::trans::TransList;
 #[doc(inline)]
 pub use crate::util::{
-    CdxError, Error, FileLocList, Reader, Result, StringLine, TextFileMode, Tri, cdx_err, err,
-    get_writer, prerr,
+    CdxError, Error, FileLocList, Result, TextFileMode, Tri, cdx_err, err, get_writer, prerr,
 };
 
 #[doc(inline)]

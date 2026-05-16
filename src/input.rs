@@ -61,6 +61,18 @@ impl Config {
         }
     }
 
+    /// Build options with sane defaults for TSV-like parsing:
+    /// no quotes and no backslash escapes.
+    #[must_use]
+    pub const fn simple(delimiter: u8) -> Self {
+        Self {
+            delimiter: Delimiter::Char(delimiter),
+            quotes: Quotes::None,
+            backslash: BackslashMode::Off,
+            unterminated_quote: UnterminatedQuoteMode::ContinueRecord,
+        }
+    }
+
     /// Construct standard CSV parsing options.
     ///
     /// This uses:

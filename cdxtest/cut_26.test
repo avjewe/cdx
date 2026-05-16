@@ -1,9 +1,10 @@
+# FIXME, this should have --text-out n to kill CDX in output header
 #command cdx cut --text-out n -f two,one
 #stdin
  CDX	one	two	three
 aaa	bbb	ccc
 ddd	eee	fff
 #stdout
-two	one
+ CDX	two	one
 bbb	aaa
 eee	ddd

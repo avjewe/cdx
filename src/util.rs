@@ -8,7 +8,6 @@ use fs_err as fs;
 use regex::Regex;
 use std::cmp;
 use std::error;
-use std::fmt::Write as _;
 use std::io;
 use std::ops::{Deref, DerefMut};
 use std::str;
@@ -379,29 +378,7 @@ impl TextFileMode {
             QuoteMode::Quote => write_quotes(w, buf, self.delim, self.line_break),
         }
     }
-    /// split data line into columns
-    pub fn split(&self, line: &mut OldTextLine) {
-        match self.col_mode {
-            QuoteMode::Plain => split_plain(&mut line.parts, &line.line, self.delim),
-            QuoteMode::Backslash => {
-                line.orig.clear();
-                line.orig.extend_from_slice(&line.line);
-                split_backslash(&mut line.parts, &line.orig, &mut line.line, self.delim);
-            }
-            QuoteMode::Quote => {
-                line.orig.clear();
-                line.orig.extend_from_slice(&line.line);
-                split_quotes(&mut line.parts, &line.orig, &mut line.line, self.delim);
-            }
-        }
-    }
-    /// split data line into columns
-    pub fn split_head(&self, line: &mut StringLine) {
-        line.split(self.delim);
-        if line.line.starts_with(" CDX") {
-            line.parts.remove(0);
-        }
-    }
+
     /// append a newline, if line does not already end with one. Return false.
     pub fn ensure_eof(&self, line: &mut Vec<u8>) -> Result<bool> {
         if line[line.len() - 1] != self.line_break {
@@ -581,28 +558,6 @@ fn write_quotes(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8) -> Result<()> {
     Ok(())
 }
 
-/// split a line by a delimiter. Remove trailing newline, if any.
-pub fn split_plain(parts: &mut Vec<FakeSlice>, line: &[u8], delim: u8) {
-    parts.clear();
-    let mut begin: u32 = 0;
-    let mut end: u32 = 0;
-    #[allow(clippy::explicit_counter_loop)] // I need the counter to be u32
-    for ch in line {
-        if *ch == delim {
-            parts.push(FakeSlice { begin, end });
-            begin = end + 1;
-        }
-        end += 1;
-    }
-    if begin != end {
-        let mut f = FakeSlice { begin, end };
-        if line[(end - 1) as usize] == b'\n' {
-            f.end -= 1;
-        }
-        parts.push(f);
-    }
-}
-
 /// undo slash encoding, e.g. 'n' becomes '\n'
 #[must_use]
 pub const fn unslash(ch: u8) -> u8 {
@@ -625,171 +580,6 @@ pub const fn enslash(ch: u8) -> u8 {
     }
 }
 
-/// split a line by a delimiter. Remove trailing newline, if any.
-pub fn split_backslash(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, delim: u8) {
-    parts.clear();
-    tmp.clear();
-    let mut line = line;
-    while !line.is_empty() && line[line.len() - 1] == b'\n' {
-        line = &line[..line.len() - 1];
-    }
-    let mut begin: u32 = 0;
-    let mut end: u32 = 0;
-    let mut last_was_slash = false;
-    for xch in line {
-        let ch = *xch;
-        if last_was_slash {
-            tmp.push(unslash(ch));
-            end += 1;
-            last_was_slash = false;
-            continue;
-        } else if ch == b'\\' {
-            last_was_slash = true;
-            continue;
-        }
-
-        tmp.push(ch);
-        if ch == delim && !last_was_slash {
-            parts.push(FakeSlice { begin, end });
-            begin = end + 1;
-        }
-        end += 1;
-        last_was_slash = false;
-    }
-    if begin != end {
-        parts.push(FakeSlice { begin, end });
-    }
-}
-
-/// split a line by a delimiter. Remove trailing newline, if any.
-pub fn split_quotes(parts: &mut Vec<FakeSlice>, line: &[u8], tmp: &mut Vec<u8>, delim: u8) {
-    parts.clear();
-    tmp.clear();
-    let mut line = line;
-    while !line.is_empty() && line[line.len() - 1] == b'\n' {
-        line = &line[..line.len() - 1];
-    }
-    let mut begin: u32 = 0;
-    let mut end: u32 = 0;
-    let mut last_was_quote = false;
-    let mut in_quote = false;
-    for ch in line {
-        if in_quote {
-            if last_was_quote {
-                if *ch == b'"' {
-                    tmp.push(*ch);
-                    end += 1;
-                    continue;
-                }
-                in_quote = false;
-                // not continue
-            } else if *ch == b'"' {
-                last_was_quote = true;
-                continue;
-            }
-        } else if *ch == b'"' {
-            in_quote = true;
-            last_was_quote = true;
-            continue;
-        }
-
-        tmp.push(*ch);
-        if *ch == delim {
-            parts.push(FakeSlice { begin, end });
-            begin = end + 1;
-        }
-        end += 1;
-    }
-    if begin != end {
-        parts.push(FakeSlice { begin, end });
-    }
-}
-
-/// A line of a text file, broken into columns.
-/// A line ends with a newline character, but column values do not.
-/// An empty line contains one empty column
-///```
-/// use std::io::BufRead;
-/// use cdx::util::TextFileMode;
-/// let mut data = b"one\ttwo\tthree\n";
-/// let mut dp = &data[..];
-/// let mut line = cdx::util::OldTextLine::new();
-/// let eof = line.read(&mut dp).unwrap();
-/// assert_eq!(eof, false);
-/// assert_eq!(line.strlen(), 14);
-/// let mode = TextFileMode::default();
-/// line.split(&mode);
-/// assert_eq!(line.len(), 3);
-/// assert_eq!(line.get(1), b"two");
-///```
-#[derive(Debug, Clone, Default)]
-// pub(crate) because the borrow checker can be a nuisance.
-pub struct OldTextLine {
-    // The whole input line, with newline, decoded as necessary
-    pub(crate) line: Vec<u8>,
-    // the individual columns, without newline
-    pub(crate) parts: Vec<FakeSlice>,
-    // the original input line, if any decoding was necessary
-    pub(crate) orig: Vec<u8>,
-}
-
-/// convert `OldTextLine` to `TextLine`
-#[must_use]
-pub fn old_to_new(old: &OldTextLine) -> TextLine {
-    let mut cols = RVec::new();
-    for i in 0..old.parts.len() {
-        cols.push(old.get(i).into());
-    }
-    TextLine {
-        line: old.line().into(),
-        values: input::Columns { columns: cols },
-        eol: read_line::ReadResult::Lf,
-    }
-}
-
-/// as `OldTextLine`, but [String] rather than `Vec<u8>`
-#[derive(Debug, Clone, Default)]
-pub struct StringLine {
-    /// The whole input line, with newline
-    pub line: String,
-    /// the individual columns
-    pub parts: Vec<FakeSlice>,
-    /// the original input line, if any decoding was necessary
-    pub orig: String,
-}
-
-impl fmt::Display for OldTextLine {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for i in self {
-            write!(f, "{} ", str::from_utf8(i).unwrap())?;
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for StringLine {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for i in self {
-            write!(f, "{i} ")?;
-        }
-        Ok(())
-    }
-}
-
-impl std::ops::Index<usize> for OldTextLine {
-    type Output = [u8];
-    fn index(&self, index: usize) -> &Self::Output {
-        self.get(index)
-    }
-}
-
-impl std::ops::Index<usize> for StringLine {
-    type Output = str;
-    fn index(&self, index: usize) -> &Self::Output {
-        self.get(index)
-    }
-}
-
 /// write a buffer. If non-empty, ensure trailing newline
 pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
     if !buf.is_empty() {
@@ -799,246 +589,6 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
         }
     }
     Ok(())
-}
-
-impl OldTextLine {
-    /// whole line, with newline
-    pub const fn parts(&mut self) -> &mut Vec<FakeSlice> {
-        &mut self.parts
-    }
-    /// whole line, with newline
-    #[must_use]
-    pub fn line(&self) -> &[u8] {
-        if self.orig.is_empty() { &self.line } else { &self.orig }
-    }
-    /// whole line, without newline
-    #[must_use]
-    pub fn line_nl(&self) -> &[u8] {
-        &self.line[..self.line.len() - 1]
-    }
-    /// whole line, with newline, as Vec
-    pub const fn raw(&mut self) -> &mut Vec<u8> {
-        &mut self.line
-    }
-    /// assign `OldTextLine` into existing `OldTextLine`, avoiding allocation if possible
-    pub fn assign(&mut self, x: &Self) {
-        self.line.clear();
-        self.line.extend_from_slice(&x.line[..]);
-        self.parts.clear();
-        self.parts.extend_from_slice(&x.parts[..]);
-    }
-    /// make a new `OldTextLine`
-    #[must_use]
-    pub const fn new() -> Self {
-        Self { line: Vec::new(), parts: Vec::new(), orig: Vec::new() }
-    }
-    /// Iterator over columns in the line
-    #[must_use]
-    pub const fn iter(&self) -> OldTextLineIter<'_> {
-        OldTextLineIter { line: self, index: 0 }
-    }
-    /// empty the line
-    pub fn clear(&mut self) {
-        self.parts.clear();
-        self.line.clear();
-    }
-    /// How many column in the line
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.parts.len()
-    }
-    /// How many bytes in the line
-    #[must_use]
-    pub const fn strlen(&self) -> usize {
-        self.line.len()
-    }
-    /// should always be false, but required by clippy
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.parts.is_empty()
-    }
-    /// Get one column. Return an empty column if index is too big.
-    #[must_use]
-    pub fn get(&self, index: usize) -> &[u8] {
-        if index >= self.parts.len() {
-            &self.line[0..0]
-        } else {
-            &self.line[self.parts[index].begin as usize..self.parts[index].end as usize]
-        }
-    }
-    /// Read a new line from a file, should generally be followed by `split`
-    pub fn read<T: BufRead>(&mut self, f: &mut T) -> Result<bool> {
-        self.clear();
-        let sz = f.read_until(b'\n', &mut self.line)?;
-        if sz == 0 {
-            Ok(true)
-        } else {
-            if self.line.last() != Some(&b'\n') {
-                self.line.push(b'\n');
-            }
-            Ok(false)
-        }
-    }
-    /// split the line into columns
-    /// hypothetically you could split on one delimiter, do some work, then split on a different delimiter.
-    pub fn split(&mut self, text: &TextFileMode) {
-        split_plain(&mut self.parts, &self.line, text.delim);
-    }
-    /// return all parts as a vector
-    #[must_use]
-    pub fn vec(&self) -> Vec<&[u8]> {
-        self.iter().collect()
-    }
-}
-
-impl StringLine {
-    /// convert `StringLine` to `Vec<String>`
-    #[must_use]
-    pub fn to(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        for i in self {
-            out.push(i.to_string());
-        }
-        out
-    }
-
-    /// make a new `StringLine`
-    #[must_use]
-    pub const fn new() -> Self {
-        Self { line: String::new(), parts: Vec::new(), orig: String::new() }
-    }
-    /// Iterator over columns in the line
-    #[must_use]
-    pub const fn iter(&self) -> StringLineIter<'_> {
-        StringLineIter { line: self, index: 0 }
-    }
-    /// create a fake CDX header with columns c1,c2...
-    pub fn fake(&mut self, num_cols: usize, delim: u8) {
-        self.line = " CDX".to_string();
-        for i in 1..=num_cols {
-            self.line += str::from_utf8(&[delim]).unwrap();
-            self.line += "c";
-            self.line += &i.to_string();
-        }
-        self.line += "\n";
-    }
-    fn clear(&mut self) {
-        self.parts.clear();
-        self.line.clear();
-    }
-    /// How many column in the line
-    #[must_use]
-    pub const fn len(&self) -> usize {
-        self.parts.len()
-    }
-    /// How many bytes in the line
-    #[must_use]
-    pub const fn strlen(&self) -> usize {
-        self.line.len()
-    }
-    /// should always be false, but required by clippy
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.parts.is_empty()
-    }
-    /// Get one column. Return an empty column if index is too big.
-    #[must_use]
-    pub fn get(&self, index: usize) -> &str {
-        if index >= self.parts.len() {
-            &self.line[0..0]
-        } else {
-            &self.line[self.parts[index].begin as usize..self.parts[index].end as usize]
-        }
-    }
-    /// Read a new line from a file, should generally be followed by `split`
-    pub fn read<T: BufRead>(&mut self, f: &mut T) -> Result<bool> {
-        self.clear();
-        let sz = f.read_line(&mut self.line)?;
-        if sz == 0 {
-            Ok(true)
-        } else {
-            if self.line.as_bytes().last() != Some(&b'\n') {
-                self.line.push('\n');
-            }
-            Ok(false)
-        }
-    }
-    /// split the line into columns
-    /// hypothetically you could split on one delimiter, do some work, then split on a different delimiter.
-    pub fn split(&mut self, delim: u8) {
-        split_plain(&mut self.parts, self.line.as_bytes(), delim);
-    }
-    /// return all parts as a vector
-    #[must_use]
-    #[expect(clippy::redundant_closure_for_method_calls)]
-    pub fn vec(&self) -> Vec<String> {
-        self.iter().map(|s| s.to_string()).collect()
-    }
-    /// whole line, with newline
-    #[must_use]
-    pub fn line(&self) -> &str {
-        if self.orig.is_empty() { &self.line } else { &self.orig }
-    }
-}
-
-impl<'a> IntoIterator for &'a OldTextLine {
-    type Item = &'a [u8];
-    type IntoIter = OldTextLineIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        OldTextLineIter { line: self, index: 0 }
-    }
-}
-
-impl<'a> IntoIterator for &'a StringLine {
-    type Item = &'a str;
-    type IntoIter = StringLineIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        StringLineIter { line: self, index: 0 }
-    }
-}
-
-/// Iterator over the columns in a `OldTextLine`
-#[derive(Debug, Clone)]
-pub struct OldTextLineIter<'a> {
-    line: &'a OldTextLine,
-    index: usize,
-}
-
-/// Iterator over the columns in a `StringLine`
-#[derive(Debug, Clone)]
-pub struct StringLineIter<'a> {
-    line: &'a StringLine,
-    index: usize,
-}
-
-impl<'a> Iterator for OldTextLineIter<'a> {
-    // we will be counting with usize
-    type Item = &'a [u8];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.line.len() {
-            None
-        } else {
-            self.index += 1;
-            Some(&self.line[self.index - 1])
-        }
-    }
-}
-
-impl<'a> Iterator for StringLineIter<'a> {
-    // we will be counting with usize
-    type Item = &'a str;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.line.parts.len() {
-            None
-        } else {
-            self.index += 1;
-            Some(&self.line[self.index - 1])
-        }
-    }
 }
 
 #[cfg(feature = "s3")]
@@ -1115,24 +665,28 @@ impl Read for S3Reader {
     }
 }
 
+/// Necessary functionality for writers
+pub trait MyRead: Read + Send + Sync + fmt::Debug {}
+impl<T> MyRead for T where T: Read + Send + Sync + fmt::Debug {}
+
 /// Input file. Wrapped in a type, so I can 'impl Debug'
 pub struct Infile(
     /// The file being read
-    pub io::BufReader<Box<dyn Read>>,
+    pub io::BufReader<Box<dyn MyRead>>,
     pub String,
 );
 
 impl Infile {
     /// create a new input file
     #[must_use]
-    pub fn new(f: io::BufReader<Box<dyn Read>>, n: &str) -> Self {
+    pub fn new(f: io::BufReader<Box<dyn MyRead>>, n: &str) -> Self {
         Self(f, n.to_string())
     }
     /// Build an `InFile` from any readable source using default buffering.
     #[must_use]
     pub fn from_reader<R>(reader: R, source_name: impl Into<String>) -> Self
     where
-        R: Read + 'static,
+        R: MyRead + 'static,
     {
         Self(io::BufReader::new(Box::new(reader)), source_name.into())
     }
@@ -1140,7 +694,7 @@ impl Infile {
     #[must_use]
     pub fn with_capacity<R>(capacity: usize, reader: R, source_name: impl Into<String>) -> Self
     where
-        R: Read + 'static,
+        R: MyRead + 'static,
     {
         Self(io::BufReader::with_capacity(capacity, Box::new(reader)), source_name.into())
     }
@@ -1159,7 +713,7 @@ impl fmt::Debug for Infile {
 }
 
 impl Deref for Infile {
-    type Target = io::BufReader<Box<dyn Read>>;
+    type Target = io::BufReader<Box<dyn MyRead>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -1172,14 +726,14 @@ impl DerefMut for Infile {
     }
 }
 
-impl AsRef<io::BufReader<Box<dyn Read>>> for Infile {
-    fn as_ref(&self) -> &io::BufReader<Box<dyn Read>> {
+impl AsRef<io::BufReader<Box<dyn MyRead>>> for Infile {
+    fn as_ref(&self) -> &io::BufReader<Box<dyn MyRead>> {
         &self.0
     }
 }
 
-impl AsMut<io::BufReader<Box<dyn Read>>> for Infile {
-    fn as_mut(&mut self) -> &mut io::BufReader<Box<dyn Read>> {
+impl AsMut<io::BufReader<Box<dyn MyRead>>> for Infile {
+    fn as_mut(&mut self) -> &mut io::BufReader<Box<dyn MyRead>> {
         &mut self.0
     }
 }
@@ -1276,17 +830,17 @@ fn unescape_vec(data: &[u8]) -> Vec<u8> {
 }
 
 #[cfg(feature = "s3")]
-fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
+fn new_s3_reader(name: &str) -> Result<Box<dyn MyRead>> {
     Ok(Box::new(S3Reader::new_path(name)?))
 }
 #[cfg(not(feature = "s3"))]
-fn new_s3_reader(name: &str) -> Result<Box<dyn Read>> {
+fn new_s3_reader(name: &str) -> Result<Box<dyn MyRead>> {
     err!("S3 feature not enabled, cannot read '{}'", name)
 }
 
 /// Make an Infile from a file name
 pub fn get_reader(name: &str) -> Result<Infile> {
-    let inner: Box<dyn Read> = {
+    let inner: Box<dyn MyRead> = {
         if name == "-" {
             Box::new(io::stdin())
         } else if name.starts_with("s3://") {
@@ -1307,82 +861,6 @@ pub fn get_reader(name: &str) -> Result<Infile> {
         outer.consume(3);
     }
     Ok(Infile::new(outer, name))
-}
-
-#[derive(Debug, Default)]
-/// shared context for any input file type
-pub struct InfileContext {
-    // CDX header, constructed if necessary
-    header: StringLine,
-    // have we read all the bytes of the file
-    is_done: bool,
-    // is the file length zero
-    is_empty: bool,
-    // was there a CDX header?
-    has_header: bool,
-    text: TextFileMode,
-}
-
-/// create appropriate header from first line of file
-#[must_use]
-pub fn make_header(line: &[u8]) -> StringLine {
-    let mut s = StringLine::new();
-    if is_cdx(line) {
-        s.line = String::from_utf8_lossy(&line[5..]).to_string();
-    } else {
-        s.line = String::new();
-        for x in 1..=line.split(|ch| *ch == b'\t').count() {
-            write!(s.line, "c{x}\t").unwrap();
-        }
-        s.line.pop();
-    }
-    s.split(b'\t');
-    s
-}
-
-// if CDX and specified and different, then strip header
-/// Read header line, if any, and first line of text
-impl InfileContext {
-    #[allow(clippy::trivially_copy_pass_by_ref)]
-    const fn new(text_in: &TextFileMode) -> Self {
-        Self {
-            header: StringLine::new(),
-            is_done: true,
-            is_empty: true,
-            has_header: false,
-            text: *text_in,
-        }
-    }
-    fn read_header(&mut self, file: &mut impl BufRead, line: &mut OldTextLine) -> Result<()> {
-        self.is_empty = self.text.read_header(file, &mut self.header.line)?;
-        if self.is_empty {
-            return Ok(());
-        }
-        self.has_header = !self.header.line.is_empty();
-        if self.has_header {
-            self.text.split_head(&mut self.header);
-        }
-        self.is_done = self.text.read_line(file, &mut line.line)?;
-        if self.is_done {
-            return Ok(());
-        }
-        self.text.split(line);
-
-        if !self.has_header {
-            let mut head_str = String::new();
-            for i in 1..=line.len() {
-                head_str += "c";
-                head_str += &i.to_string();
-                head_str += "\t";
-            }
-            head_str.pop();
-            head_str += "\n";
-            let mut fake_head = head_str.as_bytes();
-            self.header.read(&mut fake_head)?;
-            self.header.split(self.text.delim);
-        }
-        Ok(())
-    }
 }
 
 /// where are we, in which file?
@@ -1538,219 +1016,6 @@ impl FileLocList {
             header.push(&x.col_name)?;
         }
         Ok(())
-    }
-}
-
-/// Text file reader. Lines broken into columns, with lookback
-#[derive(Debug)]
-pub struct Reader {
-    file: Infile,
-    lines: Vec<OldTextLine>,
-    cont: InfileContext,
-    do_split: bool,
-    curr: usize,
-    loc: FileLocData,
-}
-
-impl Default for Reader {
-    fn default() -> Self {
-        Self::new(&TextFileMode::default())
-    }
-}
-
-impl Reader {
-    /// loc
-    #[must_use]
-    pub const fn loc(&self) -> &FileLocData {
-        &self.loc
-    }
-    /// make a new Reader
-    #[must_use]
-    pub fn new(text_in: &TextFileMode) -> Self {
-        Self::new_with(1, text_in)
-    }
-    /// set to false to skip breaking into columns
-    pub fn do_split(&mut self, val: bool) {
-        self.do_split = val;
-        if !val {
-            self.lines[0].parts.clear();
-        }
-    }
-    /// make a new Reader, with explicit lookback
-    #[must_use]
-    pub fn new_with(lookback: usize, text_in: &TextFileMode) -> Self {
-        let mut lines: Vec<OldTextLine> = Vec::new();
-        lines.resize(lookback + 1, OldTextLine::new());
-        Self {
-            file: Infile::default(),
-            lines,
-            cont: InfileContext::new(text_in),
-            do_split: true,
-            curr: 0,
-            loc: FileLocData::default(),
-        }
-    }
-    /// make a new Reader, with default text, FIXME - delete this
-    pub fn new_open2(name: &str) -> Result<Self> {
-        Self::new_open_with(name, 1, &TextFileMode::default())
-    }
-    /// make a new Reader
-    pub fn new_open(name: &str, text_in: &TextFileMode) -> Result<Self> {
-        Self::new_open_with(name, 1, text_in)
-    }
-    /// make a new Reader
-    pub fn new_open_with(name: &str, lookback: usize, text_in: &TextFileMode) -> Result<Self> {
-        let mut lines: Vec<OldTextLine> = Vec::new();
-        lines.resize(lookback + 1, OldTextLine::new());
-        let mut tmp = Self {
-            file: get_reader(name)?,
-            lines,
-            cont: InfileContext::new(text_in),
-            do_split: true,
-            curr: 0,
-            loc: FileLocData::default(),
-        };
-        tmp.cont.read_header(&mut *tmp.file, &mut tmp.lines[0])?;
-        tmp.loc.name = name.to_string();
-        tmp.loc.line = 1;
-        tmp.loc.bytes = if tmp.has_header() { tmp.header().line.len() } else { 0 };
-        Ok(tmp)
-    }
-    /// get current line contents, without the trailing newline
-    #[must_use]
-    pub fn curr_nl(&self) -> &[u8] {
-        let line = self.curr_line_old();
-        &line.line[0..line.line.len() - 1]
-    }
-    /// get previous line contents, without the trailing newline
-    #[must_use]
-    pub fn prev_nl(&self, n: usize) -> &[u8] {
-        let line = self.prev_line_old(n);
-        &line.line[0..line.line.len() - 1]
-    }
-    /// get delimiter
-    #[must_use]
-    pub const fn delim(&self) -> u8 {
-        self.cont.text.delim
-    }
-    /// get column names
-    #[must_use]
-    pub fn names(&self) -> Vec<String> {
-        self.cont.header.vec()
-    }
-    /// write the current text line with newline
-    pub fn write(&self, w: &mut impl Write) -> Result<()> {
-        w.write_all(&self.curr_line().line)?;
-        Ok(())
-    }
-    /// open file for reading
-    pub fn open(&mut self, name: &str) -> Result<()> {
-        self.file = get_reader(name)?;
-        self.cont.read_header(&mut *self.file, &mut self.lines[0])?;
-        Ok(())
-    }
-    /// The full text of the header, without the trailing newline
-    #[must_use]
-    pub const fn header_line(&self) -> &String {
-        &self.cont.header.line
-    }
-    /// was file zero bytes?
-    #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.cont.is_empty
-    }
-    /// have we hit EOF?
-    #[must_use]
-    pub const fn is_done(&self) -> bool {
-        self.cont.is_done
-    }
-    /// line number of `curr_line`
-    #[must_use]
-    pub const fn line_number(&self) -> usize {
-        self.loc.line
-    }
-    const fn incr(&mut self) {
-        self.loc.line += 1;
-        self.curr += 1;
-        if self.curr >= self.lines.len() {
-            self.curr = 0;
-        }
-    }
-    /// get next line of text
-    pub fn get_line(&mut self) -> Result<bool> {
-        self.loc.bytes += self.curr().line.len();
-        self.incr();
-        if self.cont.text.read_line(&mut *self.file, &mut self.lines[self.curr].line)? {
-            self.cont.is_done = true;
-        } else if self.do_split {
-            self.cont.text.split(&mut self.lines[self.curr]);
-        }
-        Ok(self.cont.is_done)
-    }
-    /// get current line of text
-    #[must_use]
-    pub fn curr_line_old(&self) -> &OldTextLine {
-        &self.lines[self.curr]
-    }
-    /// get current line of text
-    #[must_use]
-    pub fn curr_line(&self) -> TextLine {
-        old_to_new(&self.lines[self.curr])
-    }
-    /// get current line of text
-    #[must_use]
-    pub fn curr_mut(&mut self) -> &mut OldTextLine {
-        &mut self.lines[self.curr]
-    }
-    /// get current line of text
-    #[must_use]
-    pub fn curr(&self) -> &OldTextLine {
-        &self.lines[self.curr]
-    }
-    /// get a previous line of text
-    /// looking back from the start of the file shows empty lines.
-    #[must_use]
-    pub fn prev_line_old(&self, lookback: usize) -> &OldTextLine {
-        if lookback <= self.curr {
-            &self.lines[self.curr - lookback]
-        } else {
-            &self.lines[self.curr + self.lines.len() - lookback]
-        }
-    }
-    /// get a previous line of text
-    /// looking back from the start of the file shows empty lines.
-    #[must_use]
-    pub fn prev_line(&self, lookback: usize) -> TextLine {
-        if lookback <= self.curr {
-            old_to_new(&self.lines[self.curr - lookback])
-        } else {
-            old_to_new(&self.lines[self.curr + self.lines.len() - lookback])
-        }
-    }
-    /// write the current text line with newline
-    pub fn write_curr(&self, w: &mut impl Write) -> Result<()> {
-        w.write_all(&self.curr_line().line)?;
-        Ok(())
-    }
-    /// write previous text line with newline
-    pub fn write_prev(&self, w: &mut impl Write, lookback: usize) -> Result<()> {
-        w.write_all(&self.prev_line(lookback).line)?;
-        Ok(())
-    }
-    /// write header
-    pub fn write_header(&self, w: &mut impl Write) -> Result<()> {
-        w.write_all(self.cont.header.line.as_bytes())?;
-        Ok(())
-    }
-    /// write header
-    #[must_use]
-    pub const fn header(&self) -> &StringLine {
-        &self.cont.header
-    }
-    /// write header
-    #[must_use]
-    pub const fn has_header(&self) -> bool {
-        self.cont.has_header
     }
 }
 
@@ -2025,13 +1290,14 @@ impl HeaderChecker {
 
     /// call for the first line of every input file
     /// return true if the line should be part of the output
+    // FIXME - this needs to take input::Config and needs to return "is this a header".
     pub fn check(&mut self, first_line: &[u8], fname: &str) -> Result<bool> {
         // FIXME - if is_cdx, make sure is also a valid header
         let cdx = is_valid_cdx(first_line, self.mode, fname)?;
         if first_line.is_empty() {
             Ok(false)
-        } else if first_line.last().unwrap() != &b'\n' && cdx {
-            err!("Malformed Header line in file {}", &fname)
+        // } else if first_line.last().unwrap() != &b'\n' && cdx {
+        //     err!("Malformed Header line in file {}", &fname)
         } else if self.saw_one {
             match self.mode {
                 HeaderMode::Match => {

@@ -153,8 +153,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         }
         if settings.checker.check(&not_header, f)? {
             w.write_all(&not_header)?;
+            w.write_all(b"\n")?;
         }
-        comp.lookup(&m.names())?;
+        comp.lookup(m.names())?;
         let (mut start, mut stop) = equal_range_n(m.get(), &mut comp);
         let (before, after) = context.get(start == stop);
         for _x in 0..before {
