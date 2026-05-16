@@ -2,6 +2,7 @@ use crate::prelude::*;
 use cdx::comp::comp_check;
 use cdx::prelude::*;
 use cdx::sort::SortConfig;
+use cdx::*;
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
@@ -52,8 +53,8 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     if check {
         let mut reported = 0;
         for x in &files {
-            let mut f = Reader::new_open(x, &settings.text_in)?;
-            if f.is_done() {
+            let mut f = input_file::TextFilePrev::new(x, &settings.input)?;
+            if f.0.is_done() {
                 continue;
             }
             loop {

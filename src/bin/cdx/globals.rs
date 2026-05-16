@@ -63,7 +63,7 @@ impl Settings {
         }
     }
     pub fn output(&self, input: &cdx::input_file::Config) -> Result<cdx::output::Config> {
-        Ok(cdx::output::Config::from_input_and_spec(input, self.output))
+        Ok(cdx::output::Config::from_input_and_spec(input, &self.output))
     }
     pub fn add_std_help(a: clap::Command) -> clap::Command {
         add_arg(a, &arg! {"std-help", "", "", "Show help for standard args."}, false)

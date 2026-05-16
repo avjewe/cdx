@@ -23,7 +23,7 @@
 //! let mut list = LineMatcherList::new_with(Combiner::And);
 //! list.push("two,glob,b*")?;
 //! let input = "<< CDX\tone\ttwo\naaa\tbbb\nccc\tddd\n";
-//! let mut reader = TextFile::new(input, input_file::Config::default())?;
+//! let mut reader = TextFile::new(input, &input_file::Config::default())?;
 //! list.lookup(&reader.names())?;
 //! assert!(list.ok(reader.values()));
 //! reader.get_line()?;

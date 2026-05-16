@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use cdx::prelude::*;
+use cdx::*;
 
 /*
 
@@ -89,13 +90,12 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         let mut aggs: Vec<NamedAgg> = Vec::new();
         let mut col_map: Vec<usize> = Vec::new();
         for x in &files {
-            let mut f = Reader::new(&settings.text_in);
-            f.open(x)?;
+            let mut f = TextFile::new(x, &settings.input)?;
             if f.is_empty() {
                 continue;
             }
             col_map.clear();
-            for x in &f.names() {
+            for x in f.names() {
                 if let Some(pos) = aggs.iter().position(|agg| agg.name == *x) {
                     col_map.push(pos);
                 } else {
@@ -107,7 +107,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 break;
             }
             loop {
-                for (i, x) in f.curr_line().columns().iter().enumerate() {
+                for (i, x) in f.values().values.columns.iter().enumerate() {
                     aggs[col_map[i]].agg.add(x);
                 }
                 if f.get_line()? {
@@ -137,7 +137,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
             let mut c_write = Writer::new(settings.text_out());
             agg.fill(&mut c_write);
-            c_write.add_names(&mut ch, &StringLine::new())?;
+            c_write.add_names(&mut ch, &[])?;
             w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
         }
         if !total_only {
@@ -184,14 +184,13 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             Tri::Maybe => agg.len() > 1 || show_file,
         };
         for x in &files {
-            let mut f = Reader::new(&settings.text_in);
-            f.open(x)?;
+            let mut f = TextFile::new(x, &settings.input)?;
             if f.is_empty() {
                 continue;
             }
             let mut c_write = Writer::new(settings.text_out2(f.delim()));
             agg.fill(&mut c_write);
-            c_write.lookup(&f.names())?;
+            c_write.lookup(f.names())?;
 
             if do_header && first_file {
                 first_file = false;
@@ -199,7 +198,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 if show_file {
                     ch.push(&file_name_col)?;
                 }
-                c_write.add_names(&mut ch, f.header())?;
+                c_write.add_names(&mut ch, f.names())?;
                 w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
             }
 
@@ -209,7 +208,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
             f.do_split(false);
             loop {
-                agg.add(f.curr_line().line());
+                agg.add(f.line());
                 if f.get_line()? {
                     break;
                 }

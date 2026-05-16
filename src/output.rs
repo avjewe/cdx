@@ -64,7 +64,8 @@ impl Default for Config {
 ///
 /// Each `Some(...)` value overrides the corresponding output setting.
 /// Each `None` value is derived from the input configuration.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[allow(missing_copy_implementations)]
 pub struct Spec {
     /// Optional output delimiter override.
     pub delimiter: Option<u8>,
@@ -329,7 +330,7 @@ fn input_quote_pair(quotes: &Quotes) -> Option<(u8, u8)> {
 }
 
 /// Derive output delimiter when `Spec.delimiter` is not explicitly provided.
-const fn derive_delimiter(input: &input_file::Config, spec: Spec) -> u8 {
+const fn derive_delimiter(input: &input_file::Config, spec: &Spec) -> u8 {
     if let Some(delimiter) = spec.delimiter {
         return delimiter;
     }
@@ -341,7 +342,7 @@ const fn derive_delimiter(input: &input_file::Config, spec: Spec) -> u8 {
 }
 
 /// Derive output escape mode when `Spec.escape` is not explicitly provided.
-fn derive_escape(input: &input_file::Config, spec: Spec, output_delimiter: u8) -> Escape {
+fn derive_escape(input: &input_file::Config, spec: &Spec, output_delimiter: u8) -> Escape {
     if let Some(escape) = spec.escape {
         return escape;
     }
@@ -358,7 +359,7 @@ fn derive_escape(input: &input_file::Config, spec: Spec, output_delimiter: u8) -
 }
 
 /// Derive output header mode when `Spec.header` is not explicitly provided.
-const fn derive_header(input: &input_file::Config, spec: Spec) -> Header {
+const fn derive_header(input: &input_file::Config, spec: &Spec) -> Header {
     if let Some(header) = spec.header {
         return header;
     }
@@ -634,11 +635,17 @@ impl Config {
     ///   - if `input.saw_header` is present, `Yes/Cdx => Yes`, `No => No`
     ///   - otherwise mirrors `input.header`.
     #[must_use]
-    pub fn from_input_and_spec(input: &input_file::Config, spec: Spec) -> Self {
+    pub fn from_input_and_spec(input: &input_file::Config, spec: &Spec) -> Self {
         let delimiter = derive_delimiter(input, spec);
         let escape = derive_escape(input, spec, delimiter);
         let header = derive_header(input, spec);
         Self { delimiter, escape, header }
+    }
+
+    /// Build output config by applying `spec` overrides to values derived from `input.config()`.
+    #[must_use]
+    pub fn from_spec(input: &TextFile, spec: &Spec) -> Self {
+        Self::from_input_and_spec(input.config(), spec)
     }
 
     /// Encode one column into `out` according to this config.
@@ -1449,7 +1456,7 @@ mod tests {
     #[test]
     fn output_config_from_input_and_spec_csv_defaults() {
         let input = input_file::Config::csv();
-        let output = Config::from_input_and_spec(&input, Spec::new());
+        let output = Config::from_input_and_spec(&input, &Spec::new());
 
         assert_eq!(output.delimiter, b',');
         assert_eq!(output.escape, Escape::QuoteDoubled(b'"', b'"'));
@@ -1460,7 +1467,7 @@ mod tests {
     #[test]
     fn output_config_from_input_and_spec_non_char_delimiter_fallback() {
         let input = input_file::Config::whole();
-        let output = Config::from_input_and_spec(&input, Spec::new());
+        let output = Config::from_input_and_spec(&input, &Spec::new());
 
         assert_eq!(output.delimiter, b'\t');
         assert_eq!(output.escape, Escape::Replace(b' '));
@@ -1472,7 +1479,7 @@ mod tests {
     fn output_config_from_input_and_spec_replace_dot_for_space_delimiter() {
         let input = input_file::Config::from_delim(input::Delimiter::Char(b','));
         let spec = Spec { delimiter: Some(b' '), escape: None, header: None };
-        let output = Config::from_input_and_spec(&input, spec);
+        let output = Config::from_input_and_spec(&input, &spec);
         assert_eq!(output.escape, Escape::Replace(b'.'));
     }
 
@@ -1483,7 +1490,7 @@ mod tests {
         input.column_config.backslash = BackslashMode::On;
         input.column_config.quotes = Quotes::Multi(vec![(b'<', b'>'), (b'[', b']')]);
 
-        let output = Config::from_input_and_spec(&input, Spec::new());
+        let output = Config::from_input_and_spec(&input, &Spec::new());
         assert_eq!(output.escape, Escape::QuoteBackslash(b'<', b'>'));
     }
 
@@ -1494,11 +1501,11 @@ mod tests {
         input.header = input_file::Header::No;
         input.saw_header = Some(input_file::SawHeader::Cdx);
 
-        let output = Config::from_input_and_spec(&input, Spec::new());
+        let output = Config::from_input_and_spec(&input, &Spec::new());
         assert_eq!(output.header, Header::Yes);
 
         input.saw_header = Some(input_file::SawHeader::No);
-        let output = Config::from_input_and_spec(&input, Spec::new());
+        let output = Config::from_input_and_spec(&input, &Spec::new());
         assert_eq!(output.header, Header::No);
     }
 
@@ -1509,7 +1516,7 @@ mod tests {
         let spec =
             Spec { delimiter: Some(b'|'), escape: Some(Escape::Delete), header: Some(Header::No) };
 
-        let output = Config::from_input_and_spec(&input, spec);
+        let output = Config::from_input_and_spec(&input, &spec);
         assert_eq!(output, Config { delimiter: b'|', escape: Escape::Delete, header: Header::No });
     }
 

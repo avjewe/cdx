@@ -53,6 +53,14 @@ pub struct Config {
     pub unterminated_quote: UnterminatedQuoteMode,
 }
 
+impl Config {
+    /// Get the byte that represents this delimiter, if applicable.
+    #[must_use]
+    pub const fn delim(&self) -> u8 {
+        self.delimiter.delim()
+    }
+}
+
 /// The outcome of a call to [`read`].
 #[must_use]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]

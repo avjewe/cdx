@@ -586,7 +586,7 @@ impl Solver {
 /// Read counted dictionary rows and retain entries above the frequency cutoff.
 fn read_dict(path: &str, min_length: usize) -> Result<Dictionary> {
     let mode = input_file::Config::default();
-    let mut file = TextFile::new(path, mode)?;
+    let mut file = TextFile::new(path, &mode)?;
     let mut words = Vec::new();
     let mut max_frequency_seen = 0usize;
     if file.is_done() {

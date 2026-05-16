@@ -171,7 +171,7 @@ impl Joiner {
         }
 
         for x in &config.infiles {
-            self.r.push(TextFile::new(x, config.input_config.clone())?);
+            self.r.push(TextFile::new(x, &config.input_config)?);
         }
 
         for _x in 0..config.infiles.len() {

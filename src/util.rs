@@ -892,6 +892,16 @@ impl OldTextLine {
 }
 
 impl StringLine {
+    /// convert `StringLine` to `Vec<String>`
+    #[must_use]
+    pub fn to(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for i in self {
+            out.push(i.to_string());
+        }
+        out
+    }
+
     /// make a new `StringLine`
     #[must_use]
     pub const fn new() -> Self {
@@ -1382,6 +1392,8 @@ pub struct FileLocData {
     pub name: String,
     /// byte offset, uncompressed
     pub bytes: usize,
+    /// byte offset or beginning of line, uncompressed
+    pub prev_bytes: usize,
     /// line number
     pub line: usize,
 }
@@ -1390,13 +1402,18 @@ impl FileLocData {
     /// new
     #[must_use]
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), bytes: 0, line: 0 }
+        Self { name: name.to_string(), bytes: 0, line: 0, prev_bytes: 0 }
     }
     /// update location data for a new line
     pub fn new_line(&mut self, name: &str, bytes: usize) {
         self.name = name.to_string();
         self.bytes = bytes;
         self.line += 1;
+    }
+    /// reset counts to zero
+    pub const fn reset(&mut self) {
+        self.bytes = 0;
+        self.line = 0;
     }
 }
 
@@ -1422,10 +1439,10 @@ impl FileLocItem {
             if a.eq_ignore_ascii_case("name") {
                 Ok(Self::Name(b.to_usize_whole(spec.as_bytes(), "File location")?))
             } else {
-                err!("File Loc must be once of Bytes, Line, Name : '{}'", spec)
+                err!("File Loc must be one of Bytes, Line, Name : '{}'", spec)
             }
         } else {
-            err!("File Loc must be once of Bytes, Line, Name : '{}'", spec)
+            err!("File Loc must be one of Bytes, Line, Name : '{}'", spec)
         }
     }
     const fn dflt_name(&self) -> &'static str {
@@ -1437,7 +1454,7 @@ impl FileLocItem {
     }
     fn write_data(&mut self, data: &mut impl Write, loc: &FileLocData) -> Result<()> {
         match self {
-            Self::Bytes => write!(data, "{}", loc.bytes).unwrap(),
+            Self::Bytes => write!(data, "{}", loc.prev_bytes + 1).unwrap(),
             Self::Line => write!(data, "{}", loc.line).unwrap(),
             Self::Name(n) => {
                 if *n == 0 {
@@ -1996,10 +2013,10 @@ impl HeaderChecker {
     }
     /// call for the first line of every input file
     /// return true if the header should be written
-    pub fn check_file(&mut self, file: &Reader, fname: &str) -> Result<bool> {
+    pub fn check_file(&mut self, file: &TextFile, fname: &str) -> Result<bool> {
         let first = !self.saw_one;
         if file.has_header() {
-            self.check(file.header().line.as_bytes(), fname)?;
+            self.check(file.line(), fname)?;
         } else {
             self.check(b"fake", fname)?;
         }

@@ -1,9 +1,9 @@
-#command cdx cut --text-in yt -f two,one
+#command cdx cut -I h=y -f two,one
 #stdin
 one	two	three
 aaa	bbb	ccc
 ddd	eee	fff
 #stdout
-two	one
+ CDX	two	one
 bbb	aaa
 eee	ddd

@@ -64,7 +64,7 @@ pub(crate) fn canonical_input_key(normalized: &str) -> Result<&'static str> {
         "b" | "backslash" => Ok("backslash"),
         "u" | "unterminated" => Ok("unterminated"),
         "h" | "header" => Ok("header"),
-        "c" | "cdx" => Ok("cdx"),
+        "x" | "cdx" => Ok("cdx"),
         _ => anyhow::bail!(format!(
             "unknown input config key `{normalized}`; expected one of: d|delimiter, q|quotes, b|backslash, u|unterminated, h|header, x|cdx"
         )),
@@ -160,6 +160,12 @@ impl Config {
     #[must_use]
     pub const fn whole() -> Self {
         Self::from_inner_no_header(read_line::Config::whole())
+    }
+
+    /// Get the byte that represents this delimiter, if applicable.
+    #[must_use]
+    pub const fn delim(&self) -> u8 {
+        self.column_config.delim()
     }
 
     pub(crate) fn add_spec(&mut self, key: &str, value: &str) -> Result<()> {
@@ -371,12 +377,12 @@ pub struct TextFilePrev(
 
 impl TextFilePrev {
     /// Create a new `TextFilePrev` with the given reader and options.
-    pub fn new(file_name: &str, options: Config) -> Result<Self> {
+    pub fn new(file_name: &str, options: &Config) -> Result<Self> {
         Ok(Self(TextFile::new(file_name, options)?, TextLine::default()))
     }
     /// Create a new `TextFilePrev` with the given reader and default options.
     pub fn new_cdx(file_name: &str) -> Result<Self> {
-        Self::new(file_name, Config::default())
+        Self::new(file_name, &Config::default())
     }
     /// Read the first line of the file and initialize the previous line to be empty.
     pub fn read_first_line(&mut self) -> anyhow::Result<()> {
@@ -387,21 +393,49 @@ impl TextFilePrev {
         std::mem::swap(&mut self.1, &mut self.0.column_values);
         self.0.get_line()
     }
+    /// Get the current line number
+    #[must_use]
+    pub const fn line_number(&self) -> usize {
+        self.0.line_number()
+    }
 }
 impl TextFile {
     /// Create a new `TextFile` with the given reader and options.
-    pub fn new(file_name: &str, options: Config) -> Result<Self> {
+    pub fn new(file_name: &str, options: &Config) -> Result<Self> {
         let mut me = Self {
             reader: util::get_reader(file_name)?,
-            options,
+            options: options.clone(),
             header: HeaderLine::default(),
             column_values: TextLine::default(),
             done: false,
             do_split: true,
-            loc: util::FileLocData::default(),
+            loc: util::FileLocData::new(file_name),
         };
         me.read_first_line()?;
         Ok(me)
+    }
+    /// Get the byte that represents this delimiter, if applicable.
+    #[must_use]
+    pub const fn delim(&self) -> u8 {
+        self.options.delim()
+    }
+
+    /// Get the current line number
+    #[must_use]
+    pub const fn line_number(&self) -> usize {
+        self.loc.line
+    }
+
+    /// Get the current line number
+    #[must_use]
+    pub const fn loc(&self) -> &util::FileLocData {
+        &self.loc
+    }
+
+    /// config
+    #[must_use]
+    pub const fn config(&self) -> &Config {
+        &self.options
     }
     /// Is the file zero bytes?
     #[must_use]
@@ -416,7 +450,7 @@ impl TextFile {
     }
     /// Create a new `TextFile` with the given reader and default options.
     pub fn new_cdx(file_name: &str) -> Result<Self> {
-        Self::new(file_name, Config::default())
+        Self::new(file_name, &Config::default())
     }
     /// Set whether to split lines into columns.
     pub const fn do_split(&mut self, do_split: bool) {
@@ -488,6 +522,7 @@ impl TextFile {
     }
 
     fn read_line(&mut self) -> Result<()> {
+        self.loc.prev_bytes = self.loc.bytes;
         self.column_values.eol = read_line::read(
             &mut self.column_values.line,
             &mut self.reader.0,
@@ -558,6 +593,7 @@ impl TextFile {
                     .read(&self.column_values.line[5..], &self.options.column_config);
                 self.options.saw_header = Some(SawHeader::Cdx);
                 self.copy_column_names()?;
+                self.loc.reset(); // CDX header doesn't count as a line of data, so reset line and byte counts to zero
                 self.get_line()?;
             }
             (CdxMode::Optional | CdxMode::Forbidden | CdxMode::Ignore, false)
@@ -568,6 +604,7 @@ impl TextFile {
                         .read(&self.column_values.line, &self.options.column_config);
                     self.options.saw_header = Some(SawHeader::Yes);
                     self.copy_column_names()?;
+                    self.loc.reset(); // header line doesn't count as a line of data, so reset line and byte counts to zero
                     self.get_line()?;
                 }
                 Header::No => {

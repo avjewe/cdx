@@ -2,6 +2,7 @@ use crate::prelude::*;
 use cdx::expr::{calc, parse_fmt_expr};
 use cdx::prelude::*;
 use cdx::util::get_writer;
+use cdx::*;
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Evaluate Formatted Expressions.", args::FileCount::Many);
@@ -17,13 +18,12 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     }
     let mut w = get_writer("-")?;
     for x in &files {
-        let mut f = Reader::new(&settings.text_in);
-        f.open(x)?;
+        let mut f = TextFile::new(x, &settings.input)?;
         if f.is_empty() || f.is_done() {
             continue;
         }
         loop {
-            let exp = &String::from_utf8_lossy(f.curr_nl());
+            let exp = &String::from_utf8_lossy(f.line());
             let (f2, exp) = parse_fmt_expr(fmt, exp);
             fmt = f2;
             match calc(exp) {

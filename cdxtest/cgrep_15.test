@@ -12,6 +12,6 @@ qqq	www	eee
 yyy	foo	yyy
 #stdout
  CDX	filename	line	bytes	one	two	three
-one	2	31	111	2foo2	333
-two	1	19	zzz	zfooz	zzz
-two	4	57	yyy	foo	yyy
+one	2	13	111	2foo2	333
+two	1	1	zzz	zfooz	zzz
+two	4	39	yyy	foo	yyy

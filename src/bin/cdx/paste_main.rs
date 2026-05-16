@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use cdx::prelude::*;
+use cdx::*;
 
 /*
 What if different delims
@@ -69,30 +70,29 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             unreachable!();
         }
     }
-    let mut fds: Vec<Reader> = Vec::with_capacity(files.len());
+    let mut fds: Vec<TextFile> = Vec::with_capacity(files.len());
     let mut num_live = 0;
     let mut num_dead = 0;
     let mut do_header = true;
     let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
     let mut curr_cols = 0;
     for x in &files {
-        let mut f = Reader::new(&settings.text_in);
-        f.open(x)?;
+        let f = TextFile::new(x, &settings.input)?;
         if !f.has_header() {
             do_header = false;
         }
         if do_header {
-            header.push_all(f.header())?;
+            header.push_all(f.names())?;
         } else {
-            header.push_all_unchecked(f.header());
+            header.push_all_unchecked(f.names());
         }
         if f.is_done() {
             num_dead += 1;
         } else {
             num_live += 1;
         }
-        ranges.push(std::ops::Range { start: curr_cols, end: curr_cols + f.header().len() });
-        curr_cols += f.header().len();
+        ranges.push(std::ops::Range { start: curr_cols, end: curr_cols + f.names().len() });
+        curr_cols += f.names().len();
         fds.push(f);
     }
     let mut w = get_writer("-")?;
@@ -138,7 +138,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             need_delim = true;
             if f.is_done() {
                 if use_last {
-                    w.write_all(f.prev_nl(1))?;
+                    w.write_all(f.line())?;
                 } else {
                     let mut nd = false;
                     for j in ranges[i].start..ranges[i].end {
@@ -150,7 +150,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                     }
                 }
             } else {
-                w.write_all(f.curr_nl())?;
+                w.write_all(f.line())?;
                 if f.get_line()? {
                     num_dead += 1;
                     num_live -= 1;

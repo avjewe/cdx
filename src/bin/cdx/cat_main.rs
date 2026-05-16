@@ -2,6 +2,7 @@ use crate::prelude::*;
 use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole};
 use cdx::prelude::*;
 use cdx::util::get_reader;
+use cdx::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum PadMode {
@@ -153,14 +154,14 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         let mut not_header = String::new();
 
         for x in &files {
-            let mut f = Reader::new_open(x, &settings.text_in)?;
+            let mut f = TextFile::new(x, &settings.input)?;
             if f.is_empty() {
                 continue;
             }
-            v.lookup(&f.names())?;
+            v.lookup(f.names())?;
             header.clear();
             not_header.clear();
-            v.add_names(&mut header, f.header())?;
+            v.add_names(&mut header, f.names())?;
             if f.has_header() {
                 not_header = header.get_head(&settings.text_out());
             }
@@ -172,11 +173,11 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
             f.do_split(false);
             loop {
-                if !removes.umatch(f.curr_nl()) {
-                    if skips.umatch(f.curr_nl()) {
-                        not_v.write(&mut w.0, &f.curr_line())?;
+                if !removes.umatch(f.line()) {
+                    if skips.umatch(f.line()) {
+                        not_v.write(&mut w.0, f.values())?;
                     } else {
-                        v.write(&mut w.0, &f.curr_line())?;
+                        v.write(&mut w.0, f.values())?;
                     }
                 }
                 if f.get_line()? {

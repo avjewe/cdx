@@ -10,7 +10,7 @@ pub fn transpose(
     max_lines: usize,
     config: &input_file::Config,
 ) -> Result<()> {
-    let mut f = TextFile::new(file, config.clone())?;
+    let mut f = TextFile::new(file, config)?;
     if f.is_empty() {
         return Ok(());
     }

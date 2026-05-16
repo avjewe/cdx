@@ -52,7 +52,7 @@ pub fn basic(file: &str, config: &input_file::Config) -> Result<()> {
 }
 /// show the file in a specific rectangle
 pub fn show(file: &str, screen: &Rect, config: &input_file::Config) -> Result<()> {
-    let mut f = TextFile::new(file, config.clone())?;
+    let mut f = TextFile::new(file, config)?;
     if f.is_empty() {
         return Ok(());
     }
@@ -124,7 +124,7 @@ pub fn show2(
     w: &mut Vec<String>,
     config: &input_file::Config,
 ) -> Result<usize> {
-    let mut f = TextFile::new(file, config.clone())?;
+    let mut f = TextFile::new(file, config)?;
     if f.is_empty() {
         return Ok(0);
     }

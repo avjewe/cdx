@@ -1,7 +1,7 @@
 use crate::prelude::*;
-use cdx::expr;
 use cdx::matcher::*;
 use cdx::prelude::*;
+use cdx::*;
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
@@ -49,15 +49,15 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut need_no_match_header = true;
 
     for x in &files {
-        let mut f = Reader::new_open(x, &settings.text_in)?;
+        let mut f = TextFile::new(x, &settings.input)?;
         if f.is_empty() {
             continue;
         }
-        list.lookup(&f.names())?;
+        list.lookup(f.names())?;
         let mut not_header = String::new();
         let mut header = ColumnHeader::new();
         loc.add(&mut header)?;
-        header.push_all(f.header())?;
+        header.push_all(f.names())?;
         if f.has_header() {
             not_header = header.get_head(&settings.text_out());
             if need_no_match_header && let Some(o) = no_match.as_mut() {
@@ -72,12 +72,12 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             continue;
         }
         loop {
-            if list.ok(&f.curr_line()) ^ reverse {
+            if list.ok(f.values()) ^ reverse {
                 // write previous lines of context if necessary
                 loc.write_data(&mut w.0, b'\t', f.loc())?;
-                f.write_curr(&mut w.0)?;
+                f.write_value_line(&mut w.0)?;
             } else if let Some(o) = no_match.as_mut() {
-                o.write_all(f.curr_line().line())?;
+                f.write_value_line(&mut o.0)?;
             }
             // write more lines of context if necessary
             if f.get_line()? {

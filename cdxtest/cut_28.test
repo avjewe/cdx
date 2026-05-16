@@ -1,4 +1,4 @@
-#command cdx cut --text-in ntq --text-out n -f 2
+#command cdx cut -I q=d -f 2
 #stdin
 aaa	bbb	ccc
 aaa	b""bb	ccc
@@ -9,7 +9,7 @@ aaa	"bb
 b"	ccc
 #stdout
 bbb
-b"bb
+bbb
 bbb
 bbb
 bb"b

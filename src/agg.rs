@@ -57,7 +57,7 @@ pub trait LineAgg {
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()>;
     /// return self's column within head
-    fn replace<'a>(&self, head: &'a StringLine) -> &'a str;
+    fn replace<'a>(&self, head: &'a ColumnNamesRef) -> &'a str;
     /// is the replace function available
     fn can_replace(&self) -> bool;
     /// does this `LineAgg` specifically refer to this input column?
@@ -109,7 +109,7 @@ impl LineAgger {
         self.agg.borrow_mut().lookup(field_names)
     }
     /// return self's column within head
-    fn replace<'a>(&self, head: &'a StringLine) -> &'a str {
+    fn replace<'a>(&self, head: &'a ColumnNamesRef) -> &'a str {
         self.agg.borrow().replace(head)
     }
     /// is the replace function available
@@ -200,7 +200,7 @@ impl LineAgg for ExprAgg {
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.expr.lookup(field_names)
     }
-    fn replace<'a>(&self, _head: &'a StringLine) -> &'a str {
+    fn replace<'a>(&self, _head: &'a ColumnNamesRef) -> &'a str {
         ""
     }
     fn can_replace(&self) -> bool {
@@ -416,8 +416,8 @@ impl LineAgg for AggCol {
     fn value(&self) -> f64 {
         self.agg.value()
     }
-    fn replace<'a>(&self, head: &'a StringLine) -> &'a str {
-        head.get(self.src.num)
+    fn replace<'a>(&self, head: &'a ColumnNamesRef) -> &'a str {
+        get_str(head, self.src.num)
     }
     fn can_replace(&self) -> bool {
         true
@@ -441,7 +441,7 @@ impl AggCol {
 
 impl ColumnFun for LineAgger {
     /// write the column names (called once)
-    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
         match &self.out {
             AggType::Replace => w.push(self.agg.borrow().replace(head)),
             AggType::Prefix(s) | AggType::Append(s) => w.push(s),
@@ -473,7 +473,7 @@ pub struct Agger {
 */
 impl ColumnFun for Agger {
     /// write the column names (called once)
-    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
         w.push(&self.out)
     }
     /// write the column values (called many times)
@@ -687,7 +687,7 @@ impl LineAggList {
         Ok(())
     }
     /// fill Writer with aggregators
-    pub fn fill(&self, w: &mut Writer, head: &StringLine) {
+    pub fn fill(&self, w: &mut Writer, head: &ColumnNamesRef) {
         for x in &self.v {
             if let AggType::Prefix(_s) = &x.out {
                 w.push(Box::new(x.clone()));

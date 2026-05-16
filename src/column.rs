@@ -144,14 +144,14 @@ impl ColumnHeader {
         &self.cols
     }
     /// add all of the columns from 'cols'
-    pub fn push_all(&mut self, cols: &StringLine) -> Result<()> {
+    pub fn push_all(&mut self, cols: &ColumnNamesRef) -> Result<()> {
         for x in cols {
             self.push(x)?;
         }
         Ok(())
     }
     /// add all of the columns from 'cols', unchecked
-    pub fn push_all_unchecked(&mut self, cols: &StringLine) {
+    pub fn push_all_unchecked(&mut self, cols: &ColumnNamesRef) {
         for x in cols {
             self.push_unchecked(x);
         }
@@ -513,7 +513,7 @@ impl ScopedValues {
 /// Write some output
 pub trait ColumnFun {
     /// write the column names (called once)
-    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()>;
+    fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()>;
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()>;
     /// resolve any named columns
@@ -539,7 +539,7 @@ impl ColumnExpr {
 }
 
 impl ColumnFun for ColumnExpr {
-    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
         w.push(&self.name)
     }
     /// write the column values (called many times)
@@ -573,7 +573,7 @@ impl ColumnSingle {
 }
 
 impl ColumnFun for ColumnSingle {
-    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
         if self.new_name.is_empty() { w.push(&head[self.col.num]) } else { w.push(&self.new_name) }
     }
     /// write the column values (called many times)
@@ -593,12 +593,12 @@ pub struct ColumnWhole;
 
 impl ColumnFun for ColumnWhole {
     /// write the column names (called once)
-    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
         w.push_all(head)
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
-        w.write_all(&line.line()[0..line.line().len() - 1])?;
+        w.write_all(line.line())?;
         Ok(())
     }
     /// resolve any named columns
@@ -624,7 +624,7 @@ impl ColumnCount {
 
 impl ColumnFun for ColumnCount {
     /// write the column names (called once)
-    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
         w.push(&self.name)
     }
     /// write the column values (called many times)
@@ -656,7 +656,7 @@ impl ColumnLiteral {
 
 impl ColumnFun for ColumnLiteral {
     /// write the column names (called once)
-    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
         w.push(&self.name)
     }
     /// write the column values (called many times)
@@ -1072,7 +1072,7 @@ impl ColumnSet {
     }
 
     /// write the appropriate selection from the given columns, but no trailing newline
-    pub fn write3s(&self, w: &mut dyn Write, cols: &StringLine, delim: u8) -> Result<()> {
+    pub fn write3s(&self, w: &mut dyn Write, cols: &ColumnNamesRef, delim: u8) -> Result<()> {
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
         }
@@ -1080,10 +1080,10 @@ impl ColumnSet {
         match iter.next() {
             None => {}
             Some(first) => {
-                w.write_all(cols.get(first.num).as_bytes())?;
+                w.write_all(get_str(cols, first.num).as_bytes())?;
                 for x in iter {
                     w.write_all(&[delim])?;
-                    w.write_all(cols.get(x.num).as_bytes())?;
+                    w.write_all(get_str(cols, x.num).as_bytes())?;
                 }
             }
         }
@@ -1262,7 +1262,7 @@ impl ColumnFun for ColumnClump {
         Ok(())
     }
 
-    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
         w.push(&self.name)
     }
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
@@ -1285,9 +1285,9 @@ impl ReaderColumns {
 }
 
 /// Write column name : col.name if non empty, else head[col.num]
-pub fn write_colname(w: &mut dyn Write, col: &OutCol, head: &StringLine) -> Result<()> {
+pub fn write_colname(w: &mut dyn Write, col: &OutCol, head: &ColumnNamesRef) -> Result<()> {
     if col.name.is_empty() {
-        w.write_all(head.get(col.num).as_bytes())?;
+        w.write_all(get_str(head, col.num).as_bytes())?;
     } else {
         w.write_all(col.name.as_bytes())?;
     }
@@ -1300,10 +1300,10 @@ impl ColumnFun for ReaderColumns {
         Ok(())
     }
 
-    fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
         for x in self.columns.get_cols() {
             if x.name.is_empty() {
-                w.push(head.get(x.num))?;
+                w.push(get_str(head, x.num))?;
             } else {
                 w.push(&x.name)?;
             }
@@ -1350,7 +1350,7 @@ impl Writer {
         self.v.push(x);
     }
     /// Write the column names
-    pub fn add_names(&self, w: &mut ColumnHeader, head: &StringLine) -> Result<()> {
+    pub fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
         for x in &self.v {
             x.add_names(w, head)?;
         }
@@ -1582,7 +1582,7 @@ impl CompositeColumn {
 
 impl ColumnFun for CompositeColumn {
     /// write the column names (called once)
-    fn add_names(&self, w: &mut ColumnHeader, _head: &StringLine) -> Result<()> {
+    fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
         w.push(&self.name)
     }
     /// write the column values (called many times)

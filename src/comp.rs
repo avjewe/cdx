@@ -15,7 +15,7 @@
 //! comp.add("price,float")?;
 //! comp.add("quant,num")?;
 //! let input = "<< CDX\tname\tquant\tprice\naaa\t42\t1.23\nbbb\t12\t2.34\nccc\t12\t2.34\n";
-//! let mut reader = input_file::TextFilePrev::new(input, input_file::Config::default())?;
+//! let mut reader = input_file::TextFilePrev::new(input, &input_file::Config::default())?;
 //! comp.lookup(reader.0.names())?;
 //! reader.get_line()?;
 //! assert_eq!(comp.comp_cols(&reader.1, &reader.0.values()), std::cmp::Ordering::Less);
@@ -1928,8 +1928,8 @@ impl LineCompare for LineCompExpr {
 
 /// return true if ordering is bad.
 /// print appropriate message to stderr
-pub fn comp_check(f: &Reader, cmp: &mut LineCompList, unique: bool) -> bool {
-    let c = cmp.comp_cols(&f.prev_line(1), &f.curr_line());
+pub fn comp_check(f: &input_file::TextFilePrev, cmp: &mut LineCompList, unique: bool) -> bool {
+    let c = cmp.comp_cols(&f.1, f.0.values());
     let bad = match c {
         Ordering::Less => false,
         Ordering::Equal => unique,
@@ -1942,9 +1942,9 @@ pub fn comp_check(f: &Reader, cmp: &mut LineCompList, unique: bool) -> bool {
     }
     if bad {
         eprint!("{} : ", f.line_number() - 1);
-        prerr_n(&[f.prev_line(1).line()]);
+        prerr_n(&[f.1.line()]);
         eprint!("{} : ", f.line_number());
-        prerr_n(&[f.curr_line().line()]);
+        prerr_n(&[f.0.line()]);
     }
     bad
 }

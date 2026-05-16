@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use cdx::column::*;
 use cdx::prelude::*;
+use cdx::*;
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
@@ -41,15 +42,14 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut w = get_writer("-")?;
     let mut not_header = String::new();
     for x in &files {
-        let mut f = Reader::new(&settings.text_in);
-        f.open(x)?;
+        let mut f = TextFile::new(x, &settings.input)?;
         if f.is_empty() {
             continue;
         }
-        v.lookup(&f.names())?;
+        v.lookup(f.names())?;
         header.clear();
         not_header.clear();
-        v.add_names(&mut header, f.header())?;
+        v.add_names(&mut header, f.names())?;
         if f.has_header() {
             not_header = header.get_head(&settings.text_out());
         }
@@ -60,7 +60,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             continue;
         }
         loop {
-            v.write(&mut w.0, &f.curr_line())?;
+            v.write(&mut w.0, f.values())?;
             if f.get_line()? {
                 break;
             }

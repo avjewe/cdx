@@ -37,6 +37,17 @@ impl Default for Delimiter {
     }
 }
 
+impl Delimiter {
+    /// Get the byte that represents this delimiter, if applicable.
+    #[must_use]
+    pub const fn delim(&self) -> u8 {
+        match self {
+            Self::Char(byte) => *byte,
+            _ => b'\t',
+        }
+    }
+}
+
 impl Config {
     /// Build options with sane defaults for TSV-like parsing:
     /// no quotes and no backslash escapes.
@@ -329,11 +340,11 @@ fn parse_input_quotes(value: &str) -> Result<Quotes> {
 
     match normalize_token(value).as_str() {
         "none" => Ok(Quotes::None),
-        "dq" | "double" | "doublequote" | "doublequotes" => Ok(Quotes::Single(b'"', b'"')),
-        "sq" | "single" | "singlequote" | "singlequotes" => Ok(Quotes::Single(b'\'', b'\'')),
+        "d" | "dq" | "double" | "doublequote" | "doublequotes" => Ok(Quotes::Single(b'"', b'"')),
+        "s" | "sq" | "single" | "singlequote" | "singlequotes" => Ok(Quotes::Single(b'\'', b'\'')),
         "clf" | "log" => Ok(Quotes::Multi(vec![(b'"', b'"'), (b'[', b']')])),
         _ => Err(anyhow!(format!(
-            "unknown quotes value `{value}`; expected one of: none, dq|double|doublequote, sq|single|singlequote, clf|log, or pair:<xy>"
+            "unknown quotes value `{value}`; expected one of: none, d|dq|double|doublequote, s|sq|single|singlequote, clf|log, or pair:<xy>"
         ))),
     }
 }
@@ -341,8 +352,8 @@ fn parse_input_quotes(value: &str) -> Result<Quotes> {
 /// Parse backslash-mode override value for input config specs.
 fn parse_backslash_mode(value: &str) -> Result<BackslashMode> {
     match normalize_token(value).as_str() {
-        "on" | "1" | "true" => Ok(BackslashMode::On),
-        "off" | "0" | "false" => Ok(BackslashMode::Off),
+        "on" | "1" | "true" | "y" | "yes" => Ok(BackslashMode::On),
+        "off" | "0" | "false" | "n" | "no" => Ok(BackslashMode::Off),
         _ => Err(anyhow!(format!(
             "unknown backslash value `{value}`; expected one of: on, off, 1, 0, true, false"
         ))),

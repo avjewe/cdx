@@ -126,6 +126,12 @@ pub type ColumnNames = Vec<String>;
 /// A list of column names, as a parameter reference.
 pub type ColumnNamesRef = [String];
 
+/// Get a string from a `ColumnNamesRef`, returning "" if the index is out of bounds.
+#[must_use]
+pub fn get_str(data: &ColumnNamesRef, index: usize) -> &str {
+    data.get(index).map_or("", |s| s.as_str())
+}
+
 /// Make a Vec<String> from a list of string literals.
 #[macro_export]
 macro_rules! svec {

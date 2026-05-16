@@ -3,6 +3,7 @@ use cdx::prelude::*;
 use cdx::sampler::Smooth;
 use cdx::tabs::Rect;
 use cdx::util::HeaderChecker;
+use cdx::*;
 use std::ops::RangeInclusive;
 
 #[derive(Default)]
@@ -125,13 +126,12 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     let mut w = get_writer("-")?;
     for x in &files {
-        let mut f = Reader::new(&settings.text_in);
-        f.open(x)?;
+        let mut f = TextFile::new(x, &settings.input)?;
         if f.is_empty() {
             continue;
         }
         if checker.check_file(&f, x)? {
-            w.write_all(f.header().line.as_bytes())?;
+            w.write_all(f.header_line())?;
         }
         if f.is_done() {
             return Ok(());
@@ -140,7 +140,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if saw_sample {
             let mut s = Smooth::new(sample);
             loop {
-                s.add(f.curr().line());
+                s.add(f.line());
                 if f.get_line()? {
                     break;
                 }
@@ -150,7 +150,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             let mut next = for_loop.from;
             while f.line_number() <= for_loop.to {
                 if f.line_number() == next {
-                    w.write_all(f.curr_line().line())?;
+                    w.write_all(f.line())?;
                     next += for_loop.by;
                 }
                 if f.get_line()? {
@@ -161,7 +161,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             let max = ranges.max();
             while f.line_number() <= max {
                 if ranges.contains(f.line_number()) {
-                    w.write_all(f.curr_line().line())?;
+                    w.write_all(f.line())?;
                 }
                 if f.get_line()? {
                     break;

@@ -1,9 +1,9 @@
 use crate::prelude::*;
 use cdx::comp::comp_check;
-use cdx::expr;
 use cdx::matcher::Combiner;
 use cdx::prelude::*;
 use cdx::util::CheckLine;
+use cdx::*;
 
 // output of verify should somehow input to other tools
 // MORE MATCHERS
@@ -75,44 +75,39 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     let mut fails = 0;
     for x in &files {
-        let mut f = Reader::new(&settings.text_in);
-        f.open(x)?;
-        if f.is_empty() {
+        let mut f = input_file::TextFilePrev::new(x, &settings.input)?;
+        if f.0.is_empty() {
             continue;
         }
-        list.lookup(&f.names())?;
-        comp.lookup(&f.names())?;
-        if f.is_done() {
+        list.lookup(f.0.names())?;
+        comp.lookup(f.0.names())?;
+        if f.0.is_done() {
             continue;
         }
         if first.is_some()
-            && !first.as_ref().unwrap().line_ok_verbose(
-                &f.curr_line(),
-                &mut comp,
-                f.line_number(),
-            )?
+            && !first.as_ref().unwrap().line_ok_verbose(f.0.values(), &mut comp, f.line_number())?
         {
             fails += 1;
         }
-        let num_cols = f.names().len();
+        let num_cols = f.0.names().len();
         loop {
             let mut did_fail = false;
-            if f.curr().len() != num_cols {
+            if f.0.values().columns().len() != num_cols {
                 eprintln!(
                     "Expected {num_cols} columns, but line {} of {} had {}",
                     f.line_number() + 1,
                     x,
-                    f.curr().len()
+                    f.0.values().columns().len()
                 );
                 did_fail = true;
             }
-            if !list.ok_verbose(&f.curr_line(), f.line_number(), x) {
+            if !list.ok_verbose(f.0.values(), f.line_number(), x) {
                 did_fail = true;
             }
             if f.get_line()? {
                 if last.is_some()
                     && !last.as_ref().unwrap().line_ok_verbose(
-                        &f.prev_line(1),
+                        &f.1,
                         &mut comp,
                         f.line_number() - 1,
                     )?
