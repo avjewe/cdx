@@ -12,8 +12,7 @@ use cdx::textgen::GenMaker;
 use cdx::trans::TransMaker;
 use cdx::util::HeaderChecker;
 
-const A: [ArgSpec; 12] = [
-    arg! {"text-in", "", "Format", "Input text file format"},
+const A: [ArgSpec; 11] = [
     arg! {"text-out", "", "Format", "Output text file format"},
     arg! {"Input", "I", "Format", "Input text file format"},
     arg! {"Output", "O", "Format", "Output text file format"},
@@ -35,7 +34,6 @@ pub fn global_args() -> &'static [ArgSpec] {
 pub struct Settings {
     /// --header controls how to mix and match input files with different CDX headers
     pub checker: HeaderChecker,
-    pub text_in: TextFileMode,
     pub text_out: Option<TextFileMode>,
 
     pub input: cdx::input_file::Config,
@@ -47,19 +45,12 @@ impl Settings {
         Self::default()
     }
     pub fn text_out(&self) -> TextFileMode {
-        match self.text_out {
-            Some(x) => x,
-            None => self.text_in,
-        }
+        self.text_out.unwrap_or_default()
     }
     pub fn text_out2(&self, delim: u8) -> TextFileMode {
         match self.text_out {
             Some(x) => x,
-            None => {
-                let mut ret = self.text_in;
-                ret.delim = delim;
-                ret
-            }
+            None => cdx::prelude::TextFileMode { delim, ..Default::default() },
         }
     }
     pub fn output(&self, input: &cdx::input_file::Config) -> Result<cdx::output::Config> {
@@ -114,9 +105,7 @@ impl Settings {
     }
     pub fn consume(&mut self, args: &[ArgValue]) -> Result<()> {
         for x in args {
-            if x.name == "text-in" {
-                self.text_in = TextFileMode::new(&x.value)?;
-            } else if x.name == "text-out" {
+            if x.name == "text-out" {
                 self.text_out = Some(TextFileMode::new(&x.value)?);
             } else if x.name == "Input" {
                 self.input = cdx::input_file::Config::from_spec(&x.value)?;
