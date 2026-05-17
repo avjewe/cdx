@@ -24,13 +24,15 @@ pub trait Agg {
 }
 
 /// The Agg trait, but useful.
+pub trait UsefulAgg: Agg + fmt::Debug {}
+impl<T> UsefulAgg for T where T: Agg + fmt::Debug {}
+/// The Agg trait, but safe.
 pub trait SafeAgg: Agg + Send + Sync + fmt::Debug {}
 impl<T> SafeAgg for T where T: Agg + Send + Sync + fmt::Debug {}
-
-type AggRef = Rc<RefCell<dyn Agg>>;
+type AggRef = Rc<RefCell<dyn UsefulAgg>>;
 
 /// Agg with context
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Agger {
     /// orig spec
     pub spec: String,
@@ -40,11 +42,6 @@ pub struct Agger {
     pub out: String,
     /// format
     pub fmt: NumFormat,
-}
-impl fmt::Debug for Agger {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} to {}", &self.spec, &self.out)
-    }
 }
 
 /// Aggregate Lines
@@ -68,10 +65,16 @@ pub trait LineAgg {
     /// does this `LineAgg` specifically refer to this input column?
     fn is_col(&self, col: usize) -> bool;
 }
-type LineAggRef = Rc<RefCell<dyn LineAgg>>;
+/// The `LineAgg` trait, but useful.
+pub trait UsefulLineAgg: LineAgg + fmt::Debug {}
+impl<T> UsefulLineAgg for T where T: LineAgg + fmt::Debug {}
+/// The `LineAgg` trait, but safe.
+pub trait SafeLineAgg: LineAgg + Send + Sync + fmt::Debug {}
+impl<T> SafeLineAgg for T where T: LineAgg + Send + Sync + fmt::Debug {}
+type LineAggRef = Rc<RefCell<dyn UsefulLineAgg>>;
 
 /// `LineAgg` with Context
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LineAgger {
     /// orig spec
     pub spec: String,
@@ -81,11 +84,6 @@ pub struct LineAgger {
     pub out: AggType,
     /// format
     pub fmt: NumFormat,
-}
-impl fmt::Debug for LineAgger {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} to {:?}", &self.spec, &self.out)
-    }
 }
 
 impl LineAgger {
@@ -180,6 +178,7 @@ impl LineAgger {
     }
 }
 
+#[derive(Clone, Debug)]
 struct ExprAgg {
     var: String,
     expr: Expr,
@@ -237,7 +236,15 @@ pub trait Counter {
     /// get number of things in data
     fn counter(&mut self, data: &[u8]) -> usize;
 }
+/// The Counter trait, but useful.
+pub trait UsefulCounter: Counter + fmt::Debug {}
+impl<T> UsefulCounter for T where T: Counter + fmt::Debug {}
+type CounterRef = Rc<RefCell<dyn UsefulCounter>>;
+/// The Counter trait, but safe.
+pub trait SafeCounter: Counter + Send + Sync + fmt::Debug {}
+impl<T> SafeCounter for T where T: Counter + Send + Sync + fmt::Debug {}
 
+#[derive(Debug, Clone, Default)]
 struct CountChar {
     uchar: Option<u8>,
     ch: char,
@@ -285,6 +292,7 @@ impl Counter for CountChar {
     }
 }
 
+#[derive(Debug, Clone, Default)]
 struct Chars {
     utf8: bool,
 }
@@ -299,6 +307,7 @@ impl Counter for Chars {
     }
 }
 
+#[derive(Debug, Clone, Default)]
 struct Swords {
     utf8: bool,
 }
@@ -337,6 +346,7 @@ impl Counter for Swords {
     }
 }
 
+#[derive(Debug, Clone, Default)]
 struct Awords {
     utf8: bool,
 }
@@ -462,20 +472,6 @@ impl ColumnFun for LineAgger {
     }
 }
 
-/*
-/// An Agg with a source column and an output designation
-#[derive(Clone)]
-pub struct Agger {
-    /// orig spec
-    pub spec: String,
-    /// Aggregator
-    pub agg: AggRef,
-    /// output column name
-    pub name: String,
-    /// format
-    pub fmt : NumFormat
-}
-*/
 impl ColumnFun for Agger {
     /// write the column names (called once)
     fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
@@ -863,6 +859,7 @@ impl Agg for Merge {
     }
 }
 
+#[derive(Debug)]
 struct Min {
     comp: Comp,
     val: Vec<u8>,
@@ -900,6 +897,7 @@ impl Agg for Min {
     }
 }
 
+#[derive(Debug)]
 struct Mean {
     val: f64,
     count: f64,
@@ -933,6 +931,7 @@ impl Agg for Mean {
     }
 }
 
+#[derive(Debug)]
 struct Sum {
     val: f64,
 }
@@ -962,9 +961,10 @@ impl Agg for Sum {
     }
 }
 
+#[derive(Debug)]
 struct ASum {
     val: usize,
-    count: Box<dyn Counter>,
+    count: Box<dyn UsefulCounter>,
 }
 
 impl ASum {
@@ -990,9 +990,10 @@ impl Agg for ASum {
     }
 }
 
+#[derive(Debug)]
 struct AMin {
     val: usize,
-    count: Box<dyn Counter>,
+    count: Box<dyn UsefulCounter>,
 }
 
 impl AMin {
@@ -1018,9 +1019,10 @@ impl Agg for AMin {
     }
 }
 
+#[derive(Debug)]
 struct AMax {
     val: usize,
-    count: Box<dyn Counter>,
+    count: Box<dyn UsefulCounter>,
 }
 
 impl AMax {
@@ -1046,10 +1048,11 @@ impl Agg for AMax {
     }
 }
 
+#[derive(Debug)]
 struct AMean {
     val: usize,
     num: usize,
-    count: Box<dyn Counter>,
+    count: Box<dyn UsefulCounter>,
 }
 
 impl AMean {
@@ -1077,6 +1080,7 @@ impl Agg for AMean {
     }
 }
 
+#[derive(Debug)]
 struct Max {
     comp: Comp,
     val: Vec<u8>,
@@ -1107,6 +1111,7 @@ impl Agg for Max {
     }
 }
 
+#[derive(Debug)]
 struct Prefix {
     val: Vec<u8>,
     empty: bool,
@@ -1153,6 +1158,7 @@ impl Agg for Prefix {
     }
 }
 
+#[derive(Debug)]
 struct Suffix {
     val: Vec<u8>,
     empty: bool,
@@ -1201,6 +1207,7 @@ impl Agg for Suffix {
     }
 }
 
+#[derive(Debug)]
 struct Count {
     val: isize,
     init: isize,
@@ -1233,7 +1240,7 @@ impl Agg for Count {
     }
 }
 
-type MakerBox = Box<dyn Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send>;
+type MakerBox = Box<dyn Fn(&str) -> Result<Rc<RefCell<dyn UsefulAgg>>> + Send>;
 /// A named constructor for a [Agg], used by [`AggMaker`]
 struct AggMakerItem {
     /// name of Agg
@@ -1244,7 +1251,7 @@ struct AggMakerItem {
     maker: MakerBox,
 }
 
-type CounterBox = Box<dyn Fn(bool, &str) -> Result<Box<dyn Counter>> + Send>;
+type CounterBox = Box<dyn Fn(bool, &str) -> Result<Box<dyn UsefulCounter>> + Send>;
 /// A named constructor for a [Counter], used by [`AggMaker`]
 struct CounterMakerItem {
     /// name of Counter
@@ -1336,14 +1343,14 @@ impl AggMaker {
     //    pub fn push<F: 'static>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send + 'static,
+        F: Fn(&str) -> Result<Rc<RefCell<dyn UsefulAgg>>> + Send + 'static,
     {
         Self::do_push(tag, help, maker)
     }
     /// Add a new Counter. If a Counter already exists by that name, replace it.
     pub fn push_counter<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static,
+        F: Fn(bool, &str) -> Result<Box<dyn UsefulCounter>> + Send + 'static,
     {
         Self::do_push_counter(tag, help, maker)
     }
@@ -1380,7 +1387,7 @@ impl AggMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Rc<RefCell<dyn Agg>>> + Send + 'static,
+        F: Fn(&str) -> Result<Rc<RefCell<dyn UsefulAgg>>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");
@@ -1399,7 +1406,7 @@ impl AggMaker {
     }
     fn do_push_counter<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(bool, &str) -> Result<Box<dyn Counter>> + Send + 'static,
+        F: Fn(bool, &str) -> Result<Box<dyn UsefulCounter>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -1484,7 +1491,7 @@ impl AggMaker {
         err!("No Agg found with name '{}'", name)
     }
     /// Create a Agg from a name and a pattern
-    pub fn make_counter2(spec: &str, pattern: &str) -> Result<Box<dyn Counter>> {
+    pub fn make_counter2(spec: &str, pattern: &str) -> Result<Box<dyn UsefulCounter>> {
         let mut name = "";
         let mut utf8 = false;
         if !spec.is_empty() {
@@ -1513,7 +1520,7 @@ impl AggMaker {
         }
     }
     /// Create a counter from a full spec, i.e. "chars"
-    pub fn make_counter(spec: &str) -> Result<Box<dyn Counter>> {
+    pub fn make_counter(spec: &str) -> Result<Box<dyn UsefulCounter>> {
         if let Some((a, b)) = spec.split_once(',') {
             Self::make_counter2(a, b)
         } else {

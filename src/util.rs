@@ -1,5 +1,5 @@
 //! Misc utility stuff
-use crate::comp::{CompMaker, Compare};
+use crate::comp::CompMaker;
 use crate::prelude::*;
 use crate::*;
 use anyhow;
@@ -605,6 +605,7 @@ pub trait MyRead: Read + Send + Sync + fmt::Debug {}
 impl<T> MyRead for T where T: Read + Send + Sync + fmt::Debug {}
 
 /// Input file. Wrapped in a type, so I can 'impl Debug'
+#[derive(Debug)]
 pub struct Infile(
     /// The file being read
     pub io::BufReader<Box<dyn MyRead>>,
@@ -641,12 +642,6 @@ impl Default for Infile {
     }
 }
 
-impl fmt::Debug for Infile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Infile : {}", self.1)
-    }
-}
-
 impl Deref for Infile {
     type Target = io::BufReader<Box<dyn MyRead>>;
 
@@ -666,6 +661,7 @@ pub trait MyWrite: Write + Send + Sync + fmt::Debug {}
 impl<T> MyWrite for T where T: Write + Send + Sync + fmt::Debug {}
 
 /// output file type
+#[derive(Debug)]
 pub struct Outfile(pub io::BufWriter<Box<dyn MyWrite>>, pub String);
 
 impl Outfile {
@@ -679,12 +675,6 @@ impl Outfile {
 impl Default for Outfile {
     fn default() -> Self {
         Self::new(io::BufWriter::new(Box::new(io::sink())), "")
-    }
-}
-
-impl fmt::Debug for Outfile {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Outfile : {}", self.1)
     }
 }
 
@@ -1564,16 +1554,12 @@ impl CheckLine {
 // range,Comparator,RangeThing
 
 /// A compare op with some text to compare against
+#[derive(Debug)]
 pub struct CheckBuff {
     op: CompareOp,
-    val: Box<dyn Compare>,
+    val: Box<dyn comp::UsefulCompare>,
     op2: Option<CompareOp>,
-    val2: Option<Box<dyn Compare>>,
-}
-impl fmt::Debug for CheckBuff {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CheckBuff")
-    }
+    val2: Option<Box<dyn comp::UsefulCompare>>,
 }
 
 impl CheckBuff {

@@ -4,6 +4,8 @@ use crate::prelude::*;
 use crate::*;
 use itertools::Itertools;
 use rand_distr::{Distribution, Normal};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Mutex;
 
 /// location context for Gen
@@ -26,7 +28,16 @@ pub trait Gen {
         None
     }
 }
+/// The `Gen` trait, but useful.
+pub trait UsefulGen: Gen + fmt::Debug {}
+impl<T> UsefulGen for T where T: Gen + fmt::Debug {}
+/// The `Gen` trait, but safe.
+pub trait SafeGen: Gen + Send + Sync + fmt::Debug {}
+impl<T> SafeGen for T where T: Gen + Send + Sync + fmt::Debug {}
+/// Reference to useful `Gen` trait.
+pub type GenRef = Rc<RefCell<dyn UsefulGen>>;
 
+#[derive(Debug, Clone)]
 struct CombineGen {
     items: Vec<String>,
     count: usize,
@@ -88,6 +99,7 @@ impl Gen for CombineGen {
     }
 }
 
+#[derive(Debug, Clone)]
 struct CombineRGen {
     items: Vec<String>,
     count: usize,
@@ -149,6 +161,7 @@ impl Gen for CombineRGen {
     }
 }
 
+#[derive(Debug, Clone)]
 struct PermuteGen {
     items: Vec<String>,
     count: usize,
@@ -216,6 +229,7 @@ fn bump(x: &mut [usize], max: usize) {
         x[i] = 0;
     }
 }
+#[derive(Debug, Clone)]
 struct PermuteRGen {
     items: Vec<String>,
     indexes: Vec<usize>,
@@ -335,6 +349,16 @@ pub trait FullGen {
     /// write one column value
     fn write(&mut self, w: &mut dyn Write) -> Result<()>;
 }
+/// The `FullGen` trait, but useful.
+pub trait UsefulFullGen: FullGen + fmt::Debug {}
+impl<T> UsefulFullGen for T where T: FullGen + fmt::Debug {}
+/// The `FullGen` trait, but safe.
+pub trait SafeFullGen: FullGen + Send + Sync + fmt::Debug {}
+impl<T> SafeFullGen for T where T: FullGen + Send + Sync + fmt::Debug {}
+/// Reference to useful `FullGen` trait.
+pub type FullGerRef = Rc<RefCell<dyn UsefulFullGen>>;
+
+#[derive(Debug, Clone)]
 struct BytesGen {
     size: usize,
 }
@@ -352,6 +376,7 @@ impl FullGen for BytesGen {
         Ok(())
     }
 }
+#[derive(Debug, Clone)]
 pub(crate) struct RankGen {
     candidates: String,
     vocab: String,
@@ -464,7 +489,7 @@ impl FullGen for RankGen {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DecimalGen {
     sign: bool,
     pre: usize,
@@ -516,6 +541,7 @@ impl Gen for DecimalGen {
     }
 }
 
+#[derive(Debug, Clone)]
 struct ExprGen {
     expr: Expr,
     fmt: NumFormat,
@@ -541,6 +567,7 @@ impl Gen for ExprGen {
     }
 }
 
+#[derive(Debug, Clone)]
 struct NormalDistGen {
     fmt: NumFormat,
     norm: Normal<f64>,
@@ -574,6 +601,7 @@ impl Gen for NormalDistGen {
     }
 }
 
+#[derive(Debug, Clone)]
 struct NullGen {}
 impl Gen for NullGen {
     fn write(&mut self, _w: &mut dyn Write, _loc: &Where) -> Result<()> {
@@ -581,6 +609,7 @@ impl Gen for NullGen {
     }
 }
 
+#[derive(Debug, Clone)]
 struct GridGen {}
 impl Gen for GridGen {
     fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
@@ -589,6 +618,7 @@ impl Gen for GridGen {
     }
 }
 
+#[derive(Debug, Clone)]
 struct CountGen {
     start: isize,
 }
@@ -611,18 +641,20 @@ impl Gen for CountGen {
 }
 
 /// A dyn Gen with some context
+#[derive(Debug)]
 pub struct TextGen {
     /// the spec
     pub spec: String,
     /// the Gen
-    pub text_gen: Box<dyn Gen>,
+    pub text_gen: Box<dyn UsefulGen>,
 }
 /// A dyn Gen with some context
+#[derive(Debug)]
 pub struct FullTextGen {
     /// the spec
     pub spec: String,
     /// the Gen
-    pub text_gen: Box<dyn FullGen>,
+    pub text_gen: Box<dyn UsefulFullGen>,
 }
 impl Default for TextGen {
     fn default() -> Self {
@@ -632,16 +664,6 @@ impl Default for TextGen {
 impl Default for FullTextGen {
     fn default() -> Self {
         Self { spec: String::new(), text_gen: Box::new(BytesGen::new("1").unwrap()) }
-    }
-}
-impl fmt::Debug for TextGen {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.spec)
-    }
-}
-impl fmt::Debug for FullTextGen {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.spec)
     }
 }
 impl Clone for TextGen {
@@ -722,15 +744,15 @@ impl GenList {
     }
 }
 
-type MakerBox = Box<dyn Fn(&str) -> Result<Box<dyn Gen>> + Send>;
-type FullMakerBox = Box<dyn Fn(&str) -> Result<Box<dyn FullGen>> + Send>;
+type MakerBox = Box<dyn Fn(&str) -> Result<Box<dyn UsefulGen>> + Send>;
+type FullMakerBox = Box<dyn Fn(&str) -> Result<Box<dyn UsefulFullGen>> + Send>;
 /// A named constructor for a [Gen], used by [`GenMaker`]
 struct GenMakerItem {
     /// name of Gen
     tag: &'static str,
     /// what this Gen does
     help: &'static str,
-    /// Create a dyn Gen from a pattern
+    /// Create a `UsefulGen` from a pattern
     maker: MakerBox,
 }
 
@@ -739,10 +761,11 @@ struct FullGenMakerItem {
     tag: &'static str,
     /// what this Gen does
     help: &'static str,
-    /// Create a dyn Gen from a pattern
+    /// Create a dyn `Useful` from a pattern
     maker: FullMakerBox,
 }
 
+#[derive(Debug, Clone)]
 struct GenMakerAlias {
     old_name: &'static str,
     new_name: &'static str,
@@ -824,7 +847,7 @@ impl GenMaker {
     /// Add a new Gen. If an Gen already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static,
+        F: Fn(&str) -> Result<Box<dyn UsefulGen>> + Send + 'static,
     {
         Self::do_push(tag, help, maker)
     }
@@ -861,7 +884,7 @@ impl GenMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Box<dyn Gen>> + Send + 'static,
+        F: Fn(&str) -> Result<Box<dyn UsefulGen>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");
@@ -880,7 +903,7 @@ impl GenMaker {
     }
     fn do_push_full<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&str) -> Result<Box<dyn FullGen>> + Send + 'static,
+        F: Fn(&str) -> Result<Box<dyn UsefulFullGen>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!("You can't add a agg named {tag} because that is reserved for a modifier");

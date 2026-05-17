@@ -37,8 +37,10 @@ use crate::util::{CheckBuff, CompareOp};
 use crate::*;
 use memchr::memmem::find;
 use regex::Regex;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::Write;
+use std::rc::Rc;
 use std::sync::Mutex;
 
 /// Match against [`TextLine`]
@@ -58,6 +60,14 @@ pub trait LineMatch {
         ret
     }
 }
+/// The `LineMatch` trait, but useful.
+pub trait UsefulLineMatch: LineMatch + fmt::Debug {}
+impl<T> UsefulLineMatch for T where T: LineMatch + fmt::Debug {}
+/// The `LineMatch` trait, but safe.
+pub trait SafeLineMatch: LineMatch + Send + Sync + fmt::Debug {}
+impl<T> SafeLineMatch for T where T: LineMatch + Send + Sync + fmt::Debug {}
+/// Reference to useful `LineMatch` trait.
+pub type LineMatchRef = Rc<RefCell<dyn UsefulLineMatch>>;
 
 const fn not_str(negate: bool) -> &'static str {
     if negate { "not-" } else { "" }
@@ -95,27 +105,14 @@ pub trait Match {
         res
     }
 }
-
-impl fmt::Debug for dyn Match + '_ {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.show())
-    }
-}
-impl fmt::Display for dyn Match + '_ {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.show())
-    }
-}
-impl fmt::Debug for dyn LineMatch + '_ {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.show())
-    }
-}
-impl fmt::Display for dyn LineMatch + '_ {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.show())
-    }
-}
+/// The `Match` trait, but useful.
+pub trait UsefulMatch: Match + fmt::Debug {}
+impl<T> UsefulMatch for T where T: Match + fmt::Debug {}
+/// The `Match` trait, but safe.
+pub trait SafeMatch: Match + Send + Sync + fmt::Debug {}
+impl<T> SafeMatch for T where T: Match + Send + Sync + fmt::Debug {}
+/// Reference to useful `Match` trait.
+pub type MatchRef = Rc<RefCell<dyn UsefulMatch>>;
 
 /// a threshold
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -1024,14 +1021,6 @@ pub enum Combiner {
     #[default]
     And,
 }
-impl fmt::Display for Combiner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Or => Ok(write!(f, "OR")?),
-            Self::And => Ok(write!(f, "AND")?),
-        }
-    }
-}
 
 // single column (title,foo), whole line (,foo) or column set with determiner
 // [this-that],foo or [all,this-that],foo
@@ -1176,7 +1165,7 @@ impl LineMatch for WholeMatcher {
         Ok(())
     }
     fn show(&self) -> String {
-        format!("match whole line against {}", self.matcher)
+        format!("match whole line against {:?}", self.matcher)
     }
 }
 
@@ -1269,7 +1258,7 @@ impl LineMatch for ColSetMatcher {
         self.col.lookup(field_names)
     }
     fn show(&self) -> String {
-        format!("match {:?} against {}", self.col, self.matcher)
+        format!("match {:?} against {:?}", self.col, self.matcher)
     }
 }
 
@@ -1305,22 +1294,17 @@ impl LineMatch for ColMatcher {
         self.col.lookup(field_names)
     }
     fn show(&self) -> String {
-        format!("match {} against {}", self.col, self.matcher)
+        format!("match {:?} against {:?}", self.col, self.matcher)
     }
 }
 
 /// List of [`LineMatch`], combined with AND or OR
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LineMatcherList {
     /// the mode
     pub multi: Combiner,
     /// the matchers
-    pub matchers: Vec<Box<dyn LineMatch>>,
-}
-impl fmt::Debug for LineMatcherList {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LineMatcherList {}", self.multi)
-    }
+    pub matchers: Vec<Box<dyn UsefulLineMatch>>,
 }
 
 impl LineMatcherList {
@@ -1422,13 +1406,13 @@ impl LineMatcherList {
     /// Human readable description
     fn show(&self) -> String {
         if self.is_empty() {
-            format!("Empty {} LineMatcherList", self.multi)
+            format!("Empty {:?} LineMatcherList", self.multi)
         } else if self.matchers.len() == 1 {
-            format!("{}", self.matchers[0])
+            format!("{:?}", self.matchers[0])
         } else {
-            let mut ret = format!("{}", self.matchers[0]);
+            let mut ret = format!("{:?}", self.matchers[0]);
             for x in self.matchers.iter().skip(1) {
-                write!(ret, "{} {}", self.multi, x).unwrap();
+                write!(ret, "{:?} {:?}", self.multi, x).unwrap();
             }
             ret
         }
@@ -1451,17 +1435,12 @@ impl LineMatch for LineMatcherList {
 }
 
 /// List of [Matcher], combined with AND or OR
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct MatcherList {
     /// the mode
     pub multi: Combiner,
     /// the matchers
     pub matchers: Vec<Matcher>,
-}
-impl fmt::Debug for MatcherList {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MatcherList {}", self.multi)
-    }
 }
 
 impl MatcherList {
@@ -1537,13 +1516,13 @@ impl MatcherList {
     #[must_use]
     pub fn show(&self) -> String {
         if self.is_empty() {
-            format!("Empty {} MatcherList", self.multi)
+            format!("Empty {:?} MatcherList", self.multi)
         } else if self.matchers.len() == 1 {
-            format!("{}", self.matchers[0])
+            format!("{:?}", self.matchers[0])
         } else {
-            let mut ret = format!("{}", self.matchers[0]);
+            let mut ret = format!("{:?}", self.matchers[0]);
             for x in self.matchers.iter().skip(1) {
-                write!(ret, "{} {}", self.multi, x).unwrap();
+                write!(ret, "{:?} {:?}", self.multi, x).unwrap();
             }
             ret
         }
@@ -1606,22 +1585,7 @@ pub struct Matcher {
     /// for multi-matches, combine with AND or OR
     multi_mode: Option<Combiner>,
     /// the matching object
-    matcher: Box<dyn Match>,
-}
-
-impl fmt::Display for Matcher {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.trim {
-            write!(f, "trimmed ")?;
-        }
-        if self.negate {
-            write!(f, "negated ")?;
-        }
-        if self.empty {
-            write!(f, "empty-accepting  ")?;
-        }
-        write!(f, "{}", self.matcher)
-    }
+    matcher: Box<dyn UsefulMatch>,
 }
 
 impl Default for Matcher {
@@ -1692,7 +1656,7 @@ impl Matcher {
     }
 }
 
-type MakerBox = Box<dyn Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send>;
+type MakerBox = Box<dyn Fn(&mut Matcher, &str) -> Result<Box<dyn UsefulMatch>> + Send>;
 /// A named constructor for a [Match], used by [`MatchMaker`]
 struct MatchMakerItem {
     /// matched against `Matcher::ctype`
@@ -1838,7 +1802,7 @@ impl MatchMaker {
     /// Add a new matcher. If a Matcher already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static,
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn UsefulMatch>> + Send + 'static,
     {
         Self::do_push(tag, help, maker)
     }
@@ -1875,7 +1839,7 @@ impl MatchMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&mut Matcher, &str) -> Result<Box<dyn Match>> + Send + 'static,
+        F: Fn(&mut Matcher, &str) -> Result<Box<dyn UsefulMatch>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -1966,7 +1930,7 @@ impl MatchMaker {
         }
     }
     /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
-    pub fn make_line3(cols: &str, method: &str, pattern: &str) -> Result<Box<dyn LineMatch>> {
+    pub fn make_line3(cols: &str, method: &str, pattern: &str) -> Result<Box<dyn UsefulLineMatch>> {
         if method == "expr" {
             if cols.is_empty() {
                 Ok(Box::new(ExprMatcher::new(pattern)?))
@@ -1990,7 +1954,7 @@ impl MatchMaker {
         }
     }
     /// Create a matcher from a full spec, i.e. "Matcher,Pattern"
-    pub fn make_line(spec: &str) -> Result<Box<dyn LineMatch>> {
+    pub fn make_line(spec: &str) -> Result<Box<dyn UsefulLineMatch>> {
         if !spec.is_empty() && spec.first() == '[' {
             let len = util::find_close(spec)?;
             let cols = &spec[1..len];

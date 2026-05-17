@@ -149,14 +149,14 @@ impl<T> Recycle for Vec<T> {
 ///
 /// This is most useful for values like `String` and `Vec<U>` that can be
 /// cleared and refilled many times.
-#[derive(Clone)]
-pub struct RVec<T> {
+#[derive(Clone, Debug)]
+pub struct RVec<T: fmt::Debug> {
     // Invariant: active_len <= storage.len().
     storage: Vec<T>,
     active_len: usize,
 }
 
-impl<T> RVec<T> {
+impl<T: fmt::Debug> RVec<T> {
     fn debug_assert_invariant(&self) {
         debug_assert!(
             self.active_len <= self.storage.len(),
@@ -919,13 +919,13 @@ impl<T> RVec<T> {
     }
 }
 
-impl<T> Default for RVec<T> {
+impl<T: fmt::Debug> Default for RVec<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> Deref for RVec<T> {
+impl<T: fmt::Debug> Deref for RVec<T> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
@@ -933,13 +933,13 @@ impl<T> Deref for RVec<T> {
     }
 }
 
-impl<T> DerefMut for RVec<T> {
+impl<T: fmt::Debug> DerefMut for RVec<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.as_mut_slice()
     }
 }
 
-impl<T, I> Index<I> for RVec<T>
+impl<T: fmt::Debug, I> Index<I> for RVec<T>
 where
     I: slice::SliceIndex<[T]>,
 {
@@ -950,7 +950,7 @@ where
     }
 }
 
-impl<T, I> IndexMut<I> for RVec<T>
+impl<T: fmt::Debug, I> IndexMut<I> for RVec<T>
 where
     I: slice::SliceIndex<[T]>,
 {
@@ -959,7 +959,7 @@ where
     }
 }
 
-impl<T> Extend<T> for RVec<T> {
+impl<T: fmt::Debug> Extend<T> for RVec<T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for value in iter {
             self.push(value);
@@ -967,7 +967,7 @@ impl<T> Extend<T> for RVec<T> {
     }
 }
 
-impl<'a, T: 'a + Clone> Extend<&'a T> for RVec<T> {
+impl<'a, T: 'a + Clone + fmt::Debug> Extend<&'a T> for RVec<T> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, iter: I) {
         for value in iter {
             self.push_cloned(value);
@@ -975,26 +975,26 @@ impl<'a, T: 'a + Clone> Extend<&'a T> for RVec<T> {
     }
 }
 
-impl<T> From<Vec<T>> for RVec<T> {
+impl<T: fmt::Debug> From<Vec<T>> for RVec<T> {
     fn from(value: Vec<T>) -> Self {
         Self::from_vec(value)
     }
 }
 
-impl<T> From<RVec<T>> for Vec<T> {
+impl<T: fmt::Debug> From<RVec<T>> for Vec<T> {
     fn from(value: RVec<T>) -> Self {
         value.into_vec()
     }
 }
 
-impl<T> FromIterator<T> for RVec<T> {
+impl<T: fmt::Debug> FromIterator<T> for RVec<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let storage: Vec<T> = iter.into_iter().collect();
         Self::from_vec(storage)
     }
 }
 
-impl<T> IntoIterator for RVec<T> {
+impl<T: fmt::Debug> IntoIterator for RVec<T> {
     type Item = T;
     type IntoIter = std::vec::IntoIter<T>;
 
@@ -1003,7 +1003,7 @@ impl<T> IntoIterator for RVec<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a RVec<T> {
+impl<'a, T: fmt::Debug> IntoIterator for &'a RVec<T> {
     type Item = &'a T;
     type IntoIter = slice::Iter<'a, T>;
 
@@ -1012,7 +1012,7 @@ impl<'a, T> IntoIterator for &'a RVec<T> {
     }
 }
 
-impl<'a, T> IntoIterator for &'a mut RVec<T> {
+impl<'a, T: fmt::Debug> IntoIterator for &'a mut RVec<T> {
     type Item = &'a mut T;
     type IntoIter = slice::IterMut<'a, T>;
 
@@ -1021,57 +1021,51 @@ impl<'a, T> IntoIterator for &'a mut RVec<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for RVec<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.as_slice()).finish()
-    }
-}
-
-impl<T: PartialEq> PartialEq for RVec<T> {
+impl<T: PartialEq + fmt::Debug> PartialEq for RVec<T> {
     fn eq(&self, other: &Self) -> bool {
         self.as_slice() == other.as_slice()
     }
 }
 
-impl<T: Eq> Eq for RVec<T> {}
+impl<T: Eq + fmt::Debug> Eq for RVec<T> {}
 
-impl<T: PartialOrd> PartialOrd for RVec<T> {
+impl<T: PartialOrd + fmt::Debug> PartialOrd for RVec<T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_slice().partial_cmp(other.as_slice())
     }
 }
 
-impl<T: Ord> Ord for RVec<T> {
+impl<T: Ord + fmt::Debug> Ord for RVec<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_slice().cmp(other.as_slice())
     }
 }
 
-impl<T: Hash> Hash for RVec<T> {
+impl<T: Hash + fmt::Debug> Hash for RVec<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_slice().hash(state);
     }
 }
 
-impl<T> AsRef<[T]> for RVec<T> {
+impl<T: fmt::Debug> AsRef<[T]> for RVec<T> {
     fn as_ref(&self) -> &[T] {
         self.as_slice()
     }
 }
 
-impl<T> AsMut<[T]> for RVec<T> {
+impl<T: fmt::Debug> AsMut<[T]> for RVec<T> {
     fn as_mut(&mut self) -> &mut [T] {
         self.as_mut_slice()
     }
 }
 
-impl<T> Borrow<[T]> for RVec<T> {
+impl<T: fmt::Debug> Borrow<[T]> for RVec<T> {
     fn borrow(&self) -> &[T] {
         self.as_slice()
     }
 }
 
-impl<T> BorrowMut<[T]> for RVec<T> {
+impl<T: fmt::Debug> BorrowMut<[T]> for RVec<T> {
     fn borrow_mut(&mut self) -> &mut [T] {
         self.as_mut_slice()
     }
@@ -1081,7 +1075,7 @@ impl<T> BorrowMut<[T]> for RVec<T> {
 mod tests {
     use super::*;
 
-    fn assert_invariant<T>(vec: &RVec<T>) {
+    fn assert_invariant<T: fmt::Debug>(vec: &RVec<T>) {
         assert!(
             vec.active_len <= vec.storage.len(),
             "active_len ({}) must be <= storage.len() ({})",

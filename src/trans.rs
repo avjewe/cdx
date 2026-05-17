@@ -5,6 +5,8 @@ use crate::util::FakeSlice;
 use crate::*;
 use base64::Engine;
 use base64::engine::general_purpose;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Mutex;
 
 /// Transform a value to another value, in the context of a (typically unused) `TextLine`
@@ -16,6 +18,14 @@ pub trait Trans {
         Ok(())
     }
 }
+/// The `Trans` trait, but useful.
+pub trait UsefulTrans: Trans + fmt::Debug {}
+impl<T> UsefulTrans for T where T: Trans + fmt::Debug {}
+/// The `Trans` trait, but safe.
+pub trait SafeTrans: Trans + Send + Sync + fmt::Debug {}
+impl<T> SafeTrans for T where T: Trans + Send + Sync + fmt::Debug {}
+/// Reference to useful `Trans` trait.
+pub type CompareRef = Rc<RefCell<dyn UsefulTrans>>;
 
 #[derive(Default, Clone, Debug)]
 struct SelectTrans {
@@ -64,6 +74,7 @@ impl Trans for SelectTrans {
     }
 }
 // get ranges of bytes
+#[derive(Default, Clone, Debug)]
 struct BytesTrans {
     v: Vec<FakeSlice>,
 }
@@ -86,6 +97,7 @@ impl Trans for BytesTrans {
 }
 
 // transform to and from base64
+#[derive(Default, Clone, Debug)]
 struct Base64Trans {
     encode: bool,
 }
@@ -108,6 +120,7 @@ impl Trans for Base64Trans {
 }
 
 // make lowercase, ascii
+#[derive(Default, Clone, Debug)]
 struct LowerTrans {}
 impl Trans for LowerTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
@@ -118,8 +131,8 @@ impl Trans for LowerTrans {
     }
 }
 
-#[derive(Default)]
 // make lowercase, utf8
+#[derive(Default, Clone, Debug)]
 struct LowerUtfTrans {
     tmp: String,
 }
@@ -131,8 +144,8 @@ impl Trans for LowerUtfTrans {
     }
 }
 
-#[derive(Default)]
 // make uppercase, utf8
+#[derive(Default, Clone, Debug)]
 struct UpperUtfTrans {
     tmp: String,
 }
@@ -145,6 +158,7 @@ impl Trans for UpperUtfTrans {
 }
 
 // make uppercase, ascii
+#[derive(Default, Clone, Debug)]
 struct UpperTrans {}
 impl Trans for UpperTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
@@ -156,6 +170,7 @@ impl Trans for UpperTrans {
 }
 
 // normalize space, ascii
+#[derive(Default, Clone, Debug)]
 struct NormSpace {}
 impl Trans for NormSpace {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
@@ -176,7 +191,7 @@ impl Trans for NormSpace {
 }
 
 // normalize space, ascii
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 struct NormSpaceUtf8 {
     tmp: String,
 }
@@ -207,18 +222,14 @@ pub struct TransSettings {
 }
 
 /// A Trans with some context
+#[derive(Debug)]
 pub struct Transform {
     /// original spec
     pub spec: String,
     /// utf8 (vs ascii) version if available
     pub conf: TransSettings,
     /// The Trans
-    pub trans: Box<dyn Trans>,
-}
-impl fmt::Debug for Transform {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Transform {}", self.spec)
-    }
+    pub trans: Box<dyn UsefulTrans>,
 }
 impl Clone for Transform {
     fn clone(&self) -> Self {
@@ -289,7 +300,7 @@ impl TransList {
     }
 }
 
-type MakerBox = Box<dyn Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send>;
+type MakerBox = Box<dyn Fn(&TransSettings, &str) -> Result<Box<dyn UsefulTrans>> + Send>;
 /// A named constructor for a [Trans], used by [`TransMaker`]
 struct TransMakerItem {
     /// name of Trans
@@ -347,7 +358,7 @@ impl TransMaker {
     /// Add a new trans. If a Trans already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send + 'static,
+        F: Fn(&TransSettings, &str) -> Result<Box<dyn UsefulTrans>> + Send + 'static,
     {
         Self::do_push(tag, help, maker)
     }
@@ -384,7 +395,7 @@ impl TransMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&TransSettings, &str) -> Result<Box<dyn Trans>> + Send + 'static,
+        F: Fn(&TransSettings, &str) -> Result<Box<dyn UsefulTrans>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -440,7 +451,11 @@ impl TransMaker {
         Ok(Transform { spec, conf, trans: Self::make_box(kind, &conf, pattern)? })
     }
     /// make a dyn Trans from a named trans and a pattern
-    pub fn make_box(kind: &str, conf: &TransSettings, pattern: &str) -> Result<Box<dyn Trans>> {
+    pub fn make_box(
+        kind: &str,
+        conf: &TransSettings,
+        pattern: &str,
+    ) -> Result<Box<dyn UsefulTrans>> {
         for x in &*TRANS_MAKER.lock().unwrap() {
             if x.tag == kind {
                 return (x.maker)(conf, pattern);

@@ -5,7 +5,9 @@ use crate::matcher::MatchMaker;
 use crate::prelude::*;
 use crate::util::find_close;
 use crate::*;
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 use std::str;
 
 /// What to do if there would be duplicate column names
@@ -35,7 +37,7 @@ impl DupColHandling {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 struct NameMap {
     from: String,
     to: String,
@@ -47,11 +49,6 @@ impl NameMap {
         } else {
             err!("Format for rename is 'old.new' not '{spec}'")
         }
-    }
-}
-impl fmt::Display for NameMap {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.from, self.to)
     }
 }
 
@@ -175,12 +172,7 @@ impl ColumnHeader {
     /// return err if unused renames
     pub fn check_rename(&self) -> Result<()> {
         if !self.sloppy & !self.rename.is_empty() {
-            let mut s = self.rename[0].to_string();
-            for x in self.rename.iter().skip(1) {
-                s.push(',');
-                s.push_str(&x.to_string());
-            }
-            err!("Unused rename : '{}'", s)
+            err!("Unused rename : '{:?}'", self.rename)
         } else {
             Ok(())
         }
@@ -519,6 +511,14 @@ pub trait ColumnFun {
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()>;
 }
+/// The `ColumnFun` trait, but useful.
+pub trait UsefulColumnFun: ColumnFun + fmt::Debug {}
+impl<T> UsefulColumnFun for T where T: ColumnFun + fmt::Debug {}
+/// The `ColumnFun` trait, but safe.
+pub trait SafeColumnFun: ColumnFun + Send + Sync + fmt::Debug {}
+impl<T> SafeColumnFun for T where T: ColumnFun + Send + Sync + fmt::Debug {}
+/// Reference to useful `ColumnFun` trait.
+pub type ColumnFunRef = Rc<RefCell<dyn UsefulColumnFun>>;
 
 /// write a single column
 #[derive(Debug, Default)]
@@ -667,12 +667,6 @@ impl ColumnFun for ColumnLiteral {
     /// resolve any named columns
     fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())
-    }
-}
-
-impl fmt::Debug for dyn ColumnFun {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "ColumnFun")
     }
 }
 
@@ -1213,21 +1207,17 @@ impl ColumnSet {
 }
 
 /// Write the columns with a custom delimiter
+#[derive(Debug)]
 pub struct ColumnClump {
-    cols: Box<dyn ColumnFun>,
+    cols: Box<dyn UsefulColumnFun>,
     name: String,
     text: TextFileMode,
-}
-impl fmt::Debug for ColumnClump {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ColumnClump")
-    }
 }
 
 impl ColumnClump {
     /// new `ColumnClump` from parts
     #[must_use]
-    pub fn new(cols: Box<dyn ColumnFun>, name: &str, delim: u8) -> Self {
+    pub fn new(cols: Box<dyn UsefulColumnFun>, name: &str, delim: u8) -> Self {
         let text = TextFileMode { delim, ..Default::default() };
         Self { cols, name: name.to_string(), text }
     }
@@ -1315,15 +1305,10 @@ impl ColumnFun for ReaderColumns {
 }
 
 /// A collection of `ColumnFun` writers
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Writer {
-    v: Vec<Box<dyn ColumnFun>>,
+    v: Vec<Box<dyn UsefulColumnFun>>,
     text: TextFileMode,
-}
-impl fmt::Debug for Writer {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Writer")
-    }
 }
 
 impl Writer {
@@ -1345,7 +1330,7 @@ impl Writer {
         Ok(())
     }
     /// Add a new writer
-    pub fn push(&mut self, x: Box<dyn ColumnFun>) {
+    pub fn push(&mut self, x: Box<dyn UsefulColumnFun>) {
         self.v.push(x);
     }
     /// Write the column names
@@ -1382,19 +1367,6 @@ pub struct NamedCol {
     pub num: usize,
     /// if non-zero, input was "+2" so num should be calculated as (`num_cols` - `from_end`)
     pub from_end: usize,
-}
-
-impl fmt::Display for NamedCol {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Column {}", self.num + 1)?;
-        if !self.name.is_empty() {
-            write!(f, " ({})", self.name)
-        } else if self.from_end != 0 {
-            write!(f, " (+{})", self.from_end)
-        } else {
-            Ok(())
-        }
-    }
 }
 
 impl NamedCol {

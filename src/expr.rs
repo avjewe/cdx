@@ -286,7 +286,7 @@ enum Node {
     Dice(usize, usize),
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct VarMap {
     name: String,
     val: f64,
@@ -298,7 +298,7 @@ impl VarMap {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 /// A floating point expression
 #[expect(clippy::struct_field_names)]
 pub struct Expr {

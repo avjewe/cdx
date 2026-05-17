@@ -1,13 +1,12 @@
 //! Column-oriented output formatting for delimited text.
 
+use crate::prelude::*;
 use crate::*;
 use memchr::{memchr2, memchr3};
 use read_line::BackslashMode;
 use read_line::Quotes;
 use std::collections::HashSet;
-use std::fmt;
 use std::io;
-use std::str::FromStr;
 
 /// What to do if a column value contains the column delimiter or a newline
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -75,11 +74,6 @@ pub struct Spec {
     pub header: Option<Header>,
 }
 
-/// Trait alias used by [`LineWriter`] for thread-safe, debuggable sinks.
-pub trait MyWrite: io::Write + Send + Sync + fmt::Debug {}
-
-impl<T> MyWrite for T where T: io::Write + Send + Sync + fmt::Debug {}
-
 /// Write delimiter-separated records to an output.
 ///
 /// # Examples
@@ -134,7 +128,7 @@ pub struct LineWriter {
     /// The byte(s) to write at the end of each line (e.g. `\n` or `\r\n`).
     eol: Vec<u8>,
     /// The underlying writer to which the output will be written.
-    writer: Box<dyn MyWrite>,
+    writer: Box<dyn util::MyWrite>,
     /// Reused buffer for one full encoded record before writing to the underlying writer.
     record_buf: Vec<u8>,
     /// Reused buffer for chunked-column mode.
@@ -713,7 +707,7 @@ impl Config {
 impl FromStr for Spec {
     type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         Self::from_spec(s)
     }
 }
@@ -879,7 +873,7 @@ pub type OutputConfig = Config;
 impl LineWriter {
     /// Construct a new `LineWriter`.
     #[must_use]
-    pub fn new(config: Config, eol: Vec<u8>, writer: Box<dyn MyWrite>) -> Self {
+    pub fn new(config: Config, eol: Vec<u8>, writer: Box<dyn util::MyWrite>) -> Self {
         Self::with_capacities(config, eol, writer, 0, 0)
     }
 
@@ -891,7 +885,7 @@ impl LineWriter {
     pub fn with_capacities(
         config: Config,
         eol: Vec<u8>,
-        writer: Box<dyn MyWrite>,
+        writer: Box<dyn util::MyWrite>,
         record_capacity: usize,
         column_capacity: usize,
     ) -> Self {
@@ -941,7 +935,7 @@ impl LineWriter {
     }
 
     /// Mutably access the underlying writer.
-    pub fn writer_mut(&mut self) -> &mut dyn io::Write {
+    pub fn writer_mut(&mut self) -> &mut dyn Write {
         &mut self.writer
     }
 
@@ -1146,13 +1140,13 @@ mod tests {
         }
     }
 
-    impl io::Write for SharedVecWriter {
-        fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    impl Write for SharedVecWriter {
+        fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, io::Error> {
             self.data.lock().unwrap().extend_from_slice(buf);
             Ok(buf.len())
         }
 
-        fn flush(&mut self) -> Result<(), io::Error> {
+        fn flush(&mut self) -> std::result::Result<(), io::Error> {
             Ok(())
         }
     }
@@ -1174,14 +1168,14 @@ mod tests {
         }
     }
 
-    impl io::Write for CountingCallsWriter {
-        fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    impl Write for CountingCallsWriter {
+        fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, io::Error> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             self.data.lock().unwrap().extend_from_slice(buf);
             Ok(buf.len())
         }
 
-        fn flush(&mut self) -> Result<(), io::Error> {
+        fn flush(&mut self) -> std::result::Result<(), io::Error> {
             Ok(())
         }
     }
@@ -1199,8 +1193,8 @@ mod tests {
         }
     }
 
-    impl io::Write for FailFirstWriteThenSucceedWriter {
-        fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+    impl Write for FailFirstWriteThenSucceedWriter {
+        fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, io::Error> {
             if !self.failed_once.swap(true, Ordering::Relaxed) {
                 return Err(io::Error::other("forced write failure"));
             }
@@ -1208,7 +1202,7 @@ mod tests {
             Ok(buf.len())
         }
 
-        fn flush(&mut self) -> Result<(), io::Error> {
+        fn flush(&mut self) -> std::result::Result<(), io::Error> {
             Ok(())
         }
     }

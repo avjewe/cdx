@@ -29,6 +29,8 @@ use crate::num::{Junk, JunkType, JunkVal, fcmp, ulp_to_ulong};
 use crate::prelude::*;
 use crate::util::prerr_n;
 use crate::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::Mutex;
 
 /// method of comparing two slices
@@ -46,6 +48,14 @@ pub trait Compare {
     /// Compare self to slice for equality
     fn equal_self(&self, right: &[u8]) -> bool;
 }
+/// The `Compare` trait, but useful.
+pub trait UsefulCompare: Compare + fmt::Debug {}
+impl<T> UsefulCompare for T where T: Compare + fmt::Debug {}
+/// The `Compare` trait, but safe.
+pub trait SafeCompare: Compare + Send + Sync + fmt::Debug {}
+impl<T> SafeCompare for T where T: Compare + Send + Sync + fmt::Debug {}
+/// Reference to useful `Compare` trait.
+pub type CompareRef = Rc<RefCell<dyn UsefulCompare>>;
 
 /// method of comparing two lines
 pub trait LineCompare {
@@ -111,8 +121,17 @@ pub trait LineCompare {
     /// Compare self to line for equality
     fn equal_self_line(&mut self, right: &[u8], delim: u8) -> bool;
 }
+/// The `LineCompare` trait, but safe.
+pub trait UsefulLineCompare: LineCompare + fmt::Debug {}
+impl<T> UsefulLineCompare for T where T: LineCompare + fmt::Debug {}
+/// The `LineCompare` trait, but safe.
+pub trait SafeLineCompare: LineCompare + Send + Sync + fmt::Debug {}
+impl<T> SafeLineCompare for T where T: LineCompare + Send + Sync + fmt::Debug {}
+/// Reference to useful `LineCompare` trait.
+pub type LineCompareRef = Rc<RefCell<dyn UsefulLineCompare>>;
 
 /// Settings for one Compare object
+#[derive(Debug)]
 pub struct Comp {
     /// junk allowed, responsibility of inner Compare
     pub junk: Junk,
@@ -124,13 +143,7 @@ pub struct Comp {
     /// reverse comparison?
     pub reverse: bool,
     /// the thing that compares
-    pub comp: Box<dyn Compare>,
-}
-
-impl fmt::Debug for Comp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Comp")
-    }
+    pub comp: Box<dyn UsefulCompare>,
 }
 
 impl Default for Comp {
@@ -193,6 +206,7 @@ impl Comp {
 }
 
 /// Settings for one Compare object
+#[derive(Debug)]
 pub struct LineComp {
     /// junk allowed, responsibility of inner `LineCompare`
     pub junk: Junk,
@@ -208,13 +222,7 @@ pub struct LineComp {
     /// column delimiter
     pub delim: u8,
     /// the thing that compares
-    pub comp: Box<dyn LineCompare>,
-}
-
-impl fmt::Debug for LineComp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "LineComp")
-    }
+    pub comp: Box<dyn UsefulLineCompare>,
 }
 
 impl Default for LineComp {
@@ -379,6 +387,7 @@ impl LineComp {
 }
 
 /// compare the whole line with the [Compare]
+#[derive(Debug)]
 struct LineCompWhole {
     comp: Comp,
 }
@@ -476,6 +485,7 @@ impl LineCompare for LineCompWhole {
 }
 
 /// compare the whole line with the [Compare]
+#[derive(Debug)]
 struct LineCompCol {
     cols: Vec<NamedCol>,
     comp: Comp,
@@ -834,7 +844,7 @@ const _: () = assert!(size_of::<Item>() == 16);
     Enum (JAN,FEB,MAR,...)
 */
 
-type MakerBox = Box<dyn Fn(&Comp) -> Result<Box<dyn Compare>> + Send>;
+type MakerBox = Box<dyn Fn(&Comp) -> Result<Box<dyn UsefulCompare>> + Send>;
 /// A named constructor for a [Compare], used by [`CompMaker`]
 struct CompMakerItem {
     /// matched against `Comparator::ctype`
@@ -845,7 +855,7 @@ struct CompMakerItem {
     maker: MakerBox,
 }
 
-type LineMakerBox = Box<dyn Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send>;
+type LineMakerBox = Box<dyn Fn(&LineComp) -> Result<Box<dyn UsefulLineCompare>> + Send>;
 /// A named constructor for a [`LineCompare`], used by [`CompMaker`]
 struct LineCompMakerItem {
     /// matched against `Comparator::ctype`
@@ -905,14 +915,14 @@ impl CompMaker {
     /// Add a new Compare. If a Compare already exists by that name, replace it.
     pub fn push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static,
+        F: Fn(&Comp) -> Result<Box<dyn UsefulCompare>> + Send + 'static,
     {
         Self::do_push(tag, help, maker)
     }
     /// Add a new `LineCompare`. If a Compare already exists by that name, replace it.
     pub fn push_line<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static,
+        F: Fn(&LineComp) -> Result<Box<dyn UsefulLineCompare>> + Send + 'static,
     {
         Self::do_push_line(tag, help, maker)
     }
@@ -950,7 +960,7 @@ impl CompMaker {
     }
     fn do_push<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&Comp) -> Result<Box<dyn Compare>> + Send + 'static,
+        F: Fn(&Comp) -> Result<Box<dyn UsefulCompare>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -971,7 +981,7 @@ impl CompMaker {
     }
     fn do_push_line<F>(tag: &'static str, help: &'static str, maker: F) -> Result<()>
     where
-        F: Fn(&LineComp) -> Result<Box<dyn LineCompare>> + Send + 'static,
+        F: Fn(&LineComp) -> Result<Box<dyn UsefulLineCompare>> + Send + 'static,
     {
         if MODIFIERS.contains(&tag) {
             return err!(
@@ -1017,11 +1027,11 @@ impl CompMaker {
         println!("See also https://avjewe.github.io/cdxdoc/Comparator.html.");
     }
     /// create Box<dyn Compare> from spec
-    pub fn make_comp_box(spec: &str) -> Result<Box<dyn Compare>> {
+    pub fn make_comp_box(spec: &str) -> Result<Box<dyn UsefulCompare>> {
         Ok(Self::make_comp(spec)?.comp)
     }
     /// create Box<dyn LineCompare> from spec
-    pub fn make_line_comp_box(spec: &str) -> Result<Box<dyn LineCompare>> {
+    pub fn make_line_comp_box(spec: &str) -> Result<Box<dyn UsefulLineCompare>> {
         Ok(Self::make_line_comp(spec)?.comp)
     }
     /// create Comp from spec
@@ -1799,7 +1809,7 @@ impl Item {
         self.get(base).cmp(other.get(base))
     }
     /// Compare an Item to myself, with custom ordering
-    pub fn compare2(&self, other: &Self, base: &[u8], cmp: &dyn Compare) -> Ordering {
+    pub fn compare2(&self, other: &Self, base: &[u8], cmp: &dyn UsefulCompare) -> Ordering {
         if self.cache < other.cache {
             return Ordering::Less;
         }

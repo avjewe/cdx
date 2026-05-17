@@ -4,6 +4,7 @@ use crate::prelude::*;
 use crate::textgen::FullGen;
 use crate::*;
 
+#[derive(Debug, Clone)]
 pub(crate) struct Anagram {
     file_name: String,
     phrase: String,
@@ -60,7 +61,7 @@ enum ScoreAlgorithm {
     FrequencyWeighted,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 /// Per-letter metadata for the current phrase mask encoding.
 struct Letter {
     /// Number of times this letter appears in the normalized phrase.
@@ -71,7 +72,7 @@ struct Letter {
     bits: Quad,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 /// Candidate dictionary word represented for hot-path search.
 struct Word {
     /// Packed letter-frequency mask for this candidate.
@@ -84,7 +85,7 @@ struct Word {
     frequency: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// Materialized anagram result kept for sorting and display.
 struct OneWordRec {
     /// Space-separated candidate words that form this anagram.
@@ -112,6 +113,7 @@ struct Dictionary {
 }
 
 /// Search state and precomputed tables for one anagram run.
+#[derive(Debug, Clone)]
 struct Solver {
     /// Original input phrase (before normalization).
     original_phrase: String,
