@@ -386,71 +386,6 @@ impl TextFileMode {
         }
         Ok(false)
     }
-    /// read a line, dealing with quotes if necessary, return as String    
-    pub fn read_string<T: BufRead>(&self, f: &mut T, line: &mut String) -> Result<bool> {
-        let mut x = Vec::new();
-        if self.read_line(f, &mut x)? {
-            return Ok(true);
-        }
-        *line = String::from_utf8(x)?;
-        Ok(false)
-    }
-    /// read a line, dealing with quotes if necessary. Return true if file empty
-    pub fn read_header<T: BufRead>(&self, f: &mut T, line: &mut String) -> Result<bool> {
-        line.clear();
-        let start = f.fill_buf()?;
-        if start.is_empty() {
-            return Ok(true);
-        }
-        match self.head_mode {
-            HeadMode::Yes => self.read_string(f, line),
-            HeadMode::Cdx => self.read_string(f, line),
-            HeadMode::No => Ok(false),
-            HeadMode::Maybe => {
-                if start.starts_with(b" CDX") {
-                    self.read_string(f, line)
-                } else {
-                    Ok(false)
-                }
-            }
-            HeadMode::Skip => {
-                if start.starts_with(b" CDX") {
-                    self.read_string(f, line)?;
-                    line.clear();
-                }
-                let start = f.fill_buf()?;
-                Ok(start.is_empty())
-            }
-        }
-    }
-    /// read a line, dealing with quotes if necessary. return true if no bytes read.
-    pub fn read_line<T: BufRead>(&self, f: &mut T, line: &mut Vec<u8>) -> Result<bool> {
-        line.clear();
-        let sz = f.read_until(self.line_break, line)?;
-        if sz == 0 {
-            return Ok(true);
-        }
-        if self.col_mode != QuoteMode::Quote {
-            return self.ensure_eof(line);
-        }
-        let mut within = false;
-        let mut skip = 0;
-        loop {
-            for ch in line.iter().skip(skip) {
-                if *ch == b'"' {
-                    within = !within;
-                }
-            }
-            skip = line.len();
-            if !within {
-                return self.ensure_eof(line);
-            }
-            let sz = f.read_until(self.line_break, line)?;
-            if sz == 0 {
-                return self.ensure_eof(line);
-            }
-        }
-    }
 }
 
 /*
@@ -726,17 +661,6 @@ impl DerefMut for Infile {
     }
 }
 
-impl AsRef<io::BufReader<Box<dyn MyRead>>> for Infile {
-    fn as_ref(&self) -> &io::BufReader<Box<dyn MyRead>> {
-        &self.0
-    }
-}
-
-impl AsMut<io::BufReader<Box<dyn MyRead>>> for Infile {
-    fn as_mut(&mut self) -> &mut io::BufReader<Box<dyn MyRead>> {
-        &mut self.0
-    }
-}
 /// Necessary functionality for writers
 pub trait MyWrite: Write + Send + Sync + fmt::Debug {}
 impl<T> MyWrite for T where T: Write + Send + Sync + fmt::Debug {}
@@ -1744,28 +1668,6 @@ pub fn chomp(mut x: &[u8]) -> &[u8] {
 mod tests {
     use super::*;
 
-    #[test]
-    fn read_line() -> Result<()> {
-        let mut mode = TextFileMode::default();
-        let data1 = b"aaa\tbbb\n";
-        let data2 = b"aaa\tbbb";
-        let data3 = b"aaa\tbb\"\n\"b\n";
-        let data4 = b"aaa\tbb\"\n";
-        let mut line = Vec::new();
-        mode.read_line(&mut &data1[..], &mut line)?;
-        assert_eq!(data1, &line[..]);
-        mode.read_line(&mut &data2[..], &mut line)?;
-        assert_eq!(data1, &line[..]);
-        mode.read_line(&mut &data3[..], &mut line)?;
-        assert_eq!(data4, &line[..]);
-        mode.col_mode = QuoteMode::Quote;
-        mode.read_line(&mut &data3[..], &mut line)?;
-        assert_eq!(data3, &line[..]);
-        mode.col_mode = QuoteMode::Backslash;
-        mode.read_line(&mut &data3[..], &mut line)?;
-        assert_eq!(data4, &line[..]);
-        Ok(())
-    }
     #[test]
     fn markers() {
         let c = closer(b'(');
