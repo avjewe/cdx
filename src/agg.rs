@@ -22,6 +22,11 @@ pub trait Agg {
         0.0
     }
 }
+
+/// The Agg trait, but useful.
+pub trait SafeAgg: Agg + Send + Sync + fmt::Debug {}
+impl<T> SafeAgg for T where T: Agg + Send + Sync + fmt::Debug {}
+
 type AggRef = Rc<RefCell<dyn Agg>>;
 
 /// Agg with context
@@ -834,7 +839,7 @@ impl Agg for Merge {
             self.data.values.columns.dedup_by(|a, b| self.comp.equal(a, b));
         }
         if self.do_count {
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(clippy::cast_precision_loss)]
             fmt.print(self.data.values.columns().len() as f64, w)?;
         } else {
             let mut num_written = 0;
@@ -969,14 +974,14 @@ impl ASum {
 }
 
 impl Agg for ASum {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val += self.count.counter(data);
     }
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -997,14 +1002,14 @@ impl AMin {
 }
 
 impl Agg for AMin {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::min(self.val, self.count.counter(data));
     }
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -1025,14 +1030,14 @@ impl AMax {
 }
 
 impl Agg for AMax {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }
     fn add(&mut self, data: &[u8]) {
         self.val = cmp::max(self.val, self.count.counter(data));
     }
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -1054,7 +1059,7 @@ impl AMean {
 }
 
 impl Agg for AMean {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         if self.num > 0 { self.val as f64 / self.num as f64 } else { 0.0 }
     }
@@ -1062,7 +1067,7 @@ impl Agg for AMean {
         self.val += self.count.counter(data);
         self.num += 1;
     }
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
         fmt.print(self.val as f64, w)
     }
@@ -1121,7 +1126,6 @@ fn common_prefix(val: &mut Vec<u8>, data: &[u8]) {
     if val.len() > data.len() {
         val.truncate(data.len());
     }
-    #[allow(clippy::needless_range_loop)] // cleaner this way
     for x in 0..val.len() {
         if val[x] != data[x] {
             val.truncate(x);
@@ -1214,7 +1218,7 @@ impl Count {
 }
 
 impl Agg for Count {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn value(&self) -> f64 {
         self.val as f64
     }

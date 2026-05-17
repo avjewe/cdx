@@ -77,7 +77,7 @@ static TOTAL: AtomicU64 = AtomicU64::new(0);
 static NET_COUNTER: AtomicU64 = AtomicU64::new(0);
 static NET_TOTAL: AtomicU64 = AtomicU64::new(0);
 
-#[allow(dead_code, reason = "only used with track feature")]
+#[expect(dead_code, reason = "only used with track feature")]
 pub(crate) fn add_to_counter(inc: u64) {
     COUNTER.fetch_add(1, Ordering::SeqCst);
     TOTAL.fetch_add(inc, Ordering::SeqCst);
@@ -85,7 +85,7 @@ pub(crate) fn add_to_counter(inc: u64) {
     NET_TOTAL.fetch_add(inc, Ordering::SeqCst);
 }
 
-#[allow(dead_code, reason = "only used with track feature")]
+#[expect(dead_code, reason = "only used with track feature")]
 pub(crate) fn subtract_from_counter(inc: u64) {
     NET_COUNTER.fetch_sub(1, Ordering::SeqCst);
     NET_TOTAL.fetch_sub(inc, Ordering::SeqCst);

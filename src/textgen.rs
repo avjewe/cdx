@@ -265,7 +265,7 @@ impl Gen for PermuteRGen {
 const fn fact(n: usize) -> usize {
     FACTORIAL[n]
 }
-#[allow(clippy::unreadable_literal)]
+#[expect(clippy::unreadable_literal)]
 const FACTORIAL: [usize; 21] = [
     1,
     1,
@@ -290,8 +290,8 @@ const FACTORIAL: [usize; 21] = [
     2432902008176640000,
 ];
 
-#[allow(dead_code)]
-#[allow(clippy::unreadable_literal)]
+#[expect(dead_code)]
+#[expect(clippy::unreadable_literal)]
 const FACTORIAL_128: [u128; 35] = [
     1,
     1,
@@ -533,7 +533,7 @@ impl ExprGen {
     }
 }
 impl Gen for ExprGen {
-    #[allow(clippy::cast_precision_loss)]
+    #[expect(clippy::cast_precision_loss)]
     fn write(&mut self, w: &mut dyn Write, loc: &Where) -> Result<()> {
         self.expr.set_var(self.col_pos, loc.col as f64);
         self.expr.set_var(self.line_pos, loc.line as f64);

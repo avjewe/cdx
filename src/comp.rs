@@ -113,7 +113,6 @@ pub trait LineCompare {
 }
 
 /// Settings for one Compare object
-#[allow(missing_debug_implementations)]
 pub struct Comp {
     /// junk allowed, responsibility of inner Compare
     pub junk: Junk,
@@ -194,7 +193,6 @@ impl Comp {
 }
 
 /// Settings for one Compare object
-#[allow(missing_debug_implementations)]
 pub struct LineComp {
     /// junk allowed, responsibility of inner `LineCompare`
     pub junk: Junk,
@@ -1974,7 +1972,7 @@ mod tests {
         test_less(b"1.2.3X", b"1.2.3.Y");
     }
     #[test]
-    #[allow(clippy::cognitive_complexity)]
+    #[expect(clippy::cognitive_complexity)]
     fn num_cmp() {
         assert_eq!(num_cmp_signed(b"1", b"1"), Ordering::Equal);
         assert_eq!(num_cmp_signed(b"  1", b"1"), Ordering::Equal);

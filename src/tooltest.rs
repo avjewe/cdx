@@ -36,7 +36,7 @@ struct InFile {
     content: Vec<u8>,
 }
 
-#[allow(missing_debug_implementations)]
+#[derive(Debug)]
 struct OutFile {
     name: String,
     content: Vec<u8>,
@@ -53,7 +53,7 @@ impl Default for OutFile {
 }
 
 /// One test to be run
-#[allow(missing_debug_implementations)]
+#[expect(missing_debug_implementations)]
 #[derive(Default)]
 pub struct Test {
     name: String,
@@ -95,7 +95,7 @@ pub fn read_dir(dir: &Path) -> Result<Vec<String>> {
 /// set `need_read` to false if line ends up with unexamined data
 fn grab(
     tag: &[u8],
-    #[allow(clippy::ptr_arg)] buff: &mut Vec<u8>,
+    buff: &mut Vec<u8>,
     line: &mut Vec<u8>,
     reader: &mut Infile,
     need_read: &mut bool,

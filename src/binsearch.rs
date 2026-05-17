@@ -10,7 +10,6 @@ use util::is_cdx;
 
 /// memory map a file, extract CDX header
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct MemMap {
     map: memmap2::Mmap,
     header: input_file::HeaderLine,

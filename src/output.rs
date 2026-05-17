@@ -65,7 +65,7 @@ impl Default for Config {
 /// Each `Some(...)` value overrides the corresponding output setting.
 /// Each `None` value is derived from the input configuration.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-#[allow(missing_copy_implementations)]
+#[expect(missing_copy_implementations)]
 pub struct Spec {
     /// Optional output delimiter override.
     pub delimiter: Option<u8>,

@@ -215,7 +215,7 @@ pub trait Text {
         let mut buff: &Self = self;
         let mut wild: &Self = in_wild;
 
-        #[allow(clippy::suspicious_operation_groupings)] // clippy false positive
+        #[expect(clippy::suspicious_operation_groupings)] // clippy false positive
         while !buff.is_empty() && !wild.is_empty() && (wild.first() != self.ascii(b'*')) {
             if !self.chars_equal(wild.first(), buff.first(), ic) {
                 return false;
@@ -464,7 +464,7 @@ impl Text for str {
     }
 }
 
-#[allow(clippy::missing_asserts_for_indexing)] // false positive
+#[expect(clippy::missing_asserts_for_indexing)] // false positive
 const fn is_exp(buf: &[u8]) -> bool {
     if buf.len() < 2 {
         return false;
@@ -837,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cognitive_complexity)]
+    #[expect(clippy::cognitive_complexity)]
     fn uwild() {
         assert!(b"".glob(b"", Case::Sens));
         assert!(!b"".glob(b"foo", Case::Sens));

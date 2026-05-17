@@ -300,7 +300,7 @@ impl VarMap {
 
 #[derive(Default, Debug)]
 /// A floating point expression
-#[allow(clippy::struct_field_names)]
+#[expect(clippy::struct_field_names)]
 pub struct Expr {
     expr_str: String,
     expr: Vec<Node>,
@@ -320,8 +320,8 @@ fn apply_unary(op: UnaryOp, x: f64) -> f64 {
     }
 }
 
-#[allow(clippy::missing_asserts_for_indexing)]
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::missing_asserts_for_indexing)]
+#[expect(clippy::cast_precision_loss)]
 fn apply_func(op: FuncOp, args: &[f64]) -> f64 {
     match op {
         FuncOp::Acos => args[0].acos(),
@@ -425,7 +425,7 @@ fn apply_binary(op: BinaryOp, left: f64, right: f64) -> f64 {
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 fn roll_dice(x: usize, y: usize) -> f64 {
     let mut ret = 0usize;
     for _ in 0..x {

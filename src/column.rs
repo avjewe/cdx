@@ -260,7 +260,7 @@ impl ColumnHeader {
         self.cols.iter().map(String::len).sum::<usize>() + self.cols.len() - 1
     }
     /// append column names, joined
-    #[allow(clippy::trivially_copy_pass_by_ref)]
+    #[expect(clippy::trivially_copy_pass_by_ref)]
     fn add_head(&self, res: &mut String, text: &TextFileMode) {
         if self.cols.is_empty() {
             return;
@@ -1148,7 +1148,6 @@ impl ColumnSet {
     }
 
     /// steal owned columns by value
-    #[allow(clippy::missing_const_for_fn)] // clippy bug
     #[must_use]
     pub fn get_cols_full(self) -> Vec<OutCol> {
         self.columns

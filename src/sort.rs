@@ -304,7 +304,7 @@ impl SortConfig {
 }
 
 /// Large block of text and pointers to lines therein
-#[allow(missing_debug_implementations)]
+#[expect(missing_debug_implementations)]
 pub struct Sorter {
     config: SortConfig,
     ptrs: Vec<Item>,
@@ -483,7 +483,7 @@ impl Sorter {
         Ok(())
     }
 
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     fn no_del(self) {
         eprintln!("Not deleting {}", self.tmp.keep().into_os_string().to_string_lossy());
     }
@@ -606,7 +606,6 @@ impl MergeTreeItem {
     }
 }
 
-#[allow(dead_code)]
 fn merge_lines(
     data: &[u8],
     dst: &mut [Item],
@@ -643,7 +642,6 @@ fn merge_lines(
     }
 }
 
-#[allow(dead_code)]
 fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
         assert!(items.len() == 2);
@@ -664,7 +662,6 @@ fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut Line
 }
 
 // Like sort_lines but output into temp, rather than sorting in place
-#[allow(dead_code)]
 fn sort_lines_temp(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
         assert!(items.len() == 2);
@@ -688,7 +685,6 @@ fn sort_lines_temp(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut
     }
 }
 
-#[allow(dead_code)]
 fn do_sort_lines(data: &[u8], items: &mut [Item], cmp: &mut LineCompList) {
     if items.len() > 1 {
         let nsize = items.len() / 2 + 1;

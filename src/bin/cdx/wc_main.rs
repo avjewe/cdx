@@ -157,7 +157,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         }
         if do_totals {
             for x in &aggs {
-                #[allow(clippy::needless_range_loop)]
+                #[expect(clippy::needless_range_loop)]
                 for i in 0..agg.len() {
                     totals[i] += x.agg.get(i).agg.borrow().value();
                 }
@@ -220,7 +220,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 }
                 c_write.write(&mut w.0, &empty_line)?;
             }
-            #[allow(clippy::needless_range_loop)]
+            #[expect(clippy::needless_range_loop)]
             for i in 0..agg.len() {
                 totals[i] += agg.get(i).agg.borrow().value();
             }

@@ -4,7 +4,7 @@ use crate::prelude::*;
 
 /// is target closer to num/denom than to (num-1)/denom or (num+1)/denom
 #[must_use]
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 pub fn f64_equal(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
@@ -15,7 +15,7 @@ pub fn f64_equal(target: f64, num: usize, denom: usize) -> bool {
 
 /// is target closer to num/denom than to (num-1)/denom
 #[must_use]
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 pub fn f64_greater(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;
@@ -25,7 +25,7 @@ pub fn f64_greater(target: f64, num: usize, denom: usize) -> bool {
 
 /// is target closer to num/denom than to (num+1)/denom
 #[must_use]
-#[allow(clippy::cast_precision_loss)]
+#[expect(clippy::cast_precision_loss)]
 pub fn f64_less(target: f64, num: usize, denom: usize) -> bool {
     let fnum = num as f64;
     let fdenom = denom as f64;

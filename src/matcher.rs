@@ -1039,7 +1039,7 @@ impl fmt::Display for Combiner {
 struct ColGroup {
     col: ColumnSet,
     det: Determiner,
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     has_col: bool,
 }
 impl ColGroup {
@@ -1586,8 +1586,8 @@ impl Match for MatcherList {
 
 /// Match a pattern against a target, i.e. a Match with some context.
 #[derive(Debug)]
-#[allow(clippy::struct_field_names)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_field_names)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct Matcher {
     /// general type, e.g. "regex"
     ctype: String,

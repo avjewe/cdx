@@ -103,14 +103,14 @@ pub fn format_power10f(num: f64) -> String {
 #[must_use]
 /// as `format_power2f`
 pub fn format_power2(num: u64) -> String {
-    #[allow(clippy::cast_precision_loss, reason = "precision loss ok")]
+    #[expect(clippy::cast_precision_loss, reason = "precision loss ok")]
     format_power2f(num as f64)
 }
 
 #[must_use]
 /// as `format_power10f`
 pub fn format_power10(num: u64) -> String {
-    #[allow(clippy::cast_precision_loss, reason = "precision loss ok")]
+    #[expect(clippy::cast_precision_loss, reason = "precision loss ok")]
     format_power10f(num as f64)
 }
 

@@ -82,7 +82,7 @@
 #![allow(clippy::match_same_arms)] // disagree
 #![allow(clippy::float_cmp)] // I promise to be careful
 #![allow(clippy::same_name_method)] // I'm not sure if this is really an issue.
-// #[allow(lint_name, reason = "Your explanation here")]
+// #[expect(lint_name, reason = "Your explanation here")]
 // #[warn(clippy::allow_attributes_without_reason)] // REPLACE
 
 pub mod agg;
