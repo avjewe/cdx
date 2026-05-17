@@ -125,6 +125,14 @@ pub use crate::recyclable_vec::RVec;
 pub type ColumnNames = Vec<String>;
 /// A list of column names, as a parameter reference.
 pub type ColumnNamesRef = [String];
+/// A list of bytes.
+pub type Bytes = Vec<u8>;
+/// A list of bytes, as a parameter reference.
+pub type BytesRef = [u8];
+/// A list of column values.
+pub type ColumnValues = RVec<Bytes>;
+/// A list of column values, as a parameter reference.
+pub type ColumnValuesRef = [Bytes];
 
 /// Get a string from a `ColumnNamesRef`, returning "" if the index is out of bounds.
 #[must_use]

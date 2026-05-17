@@ -76,32 +76,32 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut fails = 0;
     for x in &files {
         let mut f = input_file::TextFilePrev::new(x, &settings.input)?;
-        if f.0.is_empty() {
+        if f.is_empty() {
             continue;
         }
-        list.lookup(f.0.names())?;
-        comp.lookup(f.0.names())?;
-        if f.0.is_done() {
+        list.lookup(f.names())?;
+        comp.lookup(f.names())?;
+        if f.is_done() {
             continue;
         }
         if first.is_some()
-            && !first.as_ref().unwrap().line_ok_verbose(f.0.values(), &mut comp, f.line_number())?
+            && !first.as_ref().unwrap().line_ok_verbose(f.values(), &mut comp, f.line_number())?
         {
             fails += 1;
         }
-        let num_cols = f.0.names().len();
+        let num_cols = f.names().len();
         loop {
             let mut did_fail = false;
-            if f.0.values().columns().len() != num_cols {
+            if f.values().columns().len() != num_cols {
                 eprintln!(
                     "Expected {num_cols} columns, but line {} of {} had {}",
                     f.line_number() + 1,
                     x,
-                    f.0.values().columns().len()
+                    f.values().columns().len()
                 );
                 did_fail = true;
             }
-            if !list.ok_verbose(f.0.values(), f.line_number(), x) {
+            if !list.ok_verbose(f.values(), f.line_number(), x) {
                 did_fail = true;
             }
             if f.get_line()? {

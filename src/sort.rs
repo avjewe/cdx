@@ -73,24 +73,23 @@ impl SortConfig {
             let r = get_reader(&in_files[0])?;
             return copy(r.0, w);
         }
-        let mc =
-            Rc::new(RefCell::new(MergeContext { open: Vec::with_capacity(in_files.len()), cmp }));
-        let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| mc.borrow_mut().compare(*a, *b));
+        let mut mc = MergeContext { open: Vec::with_capacity(in_files.len()), cmp };
         {
-            let mut mcm = mc.borrow_mut();
             for x in in_files {
-                mcm.open.push(TextFile::new_cdx(x)?);
+                mc.open.push(TextFile::new_cdx(x)?);
             }
-            if !mcm.cmp.need_split() {
-                for x in &mut mcm.open {
+            if !mc.cmp.need_split() {
+                for x in &mut mc.open {
                     x.do_split(false);
                 }
             }
             // FIXME -- Check Header
-            if mcm.open[0].has_header() {
-                mcm.open[0].write_header_line(&mut w)?;
+            if mc.open[0].has_header() {
+                mc.open[0].write_header_line(&mut w)?;
             }
         }
+        let mc: Rc<RefCell<MergeContext<'_>>> = Rc::new(RefCell::new(mc));
+        let mut heap = BinaryHeap::new_by(|a: &usize, b: &usize| mc.borrow_mut().compare(*a, *b));
         for i in 0..in_files.len() {
             if !mc.borrow().open[i].is_done() {
                 heap.push(i);

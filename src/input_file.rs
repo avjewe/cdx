@@ -6,6 +6,7 @@ use crate::*;
 use input::Delimiter;
 use input::normalize_token;
 use std::collections::HashSet;
+use std::ops::{Deref, DerefMut};
 
 /// Whether input is expected to include a header record.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
@@ -328,7 +329,7 @@ impl HeaderLine {
         let mut cols = input::Columns::new();
         cols.read(&line[start..end], options);
         self.values.clear();
-        for v in cols.columns.as_ref() {
+        for v in cols.as_ref() {
             self.values.push(String::from_utf8(v.clone())?);
         }
 
@@ -345,18 +346,18 @@ impl TextLine {
     /// Get one column. Return an empty column if index is too big.
     #[must_use]
     pub fn get(&self, index: usize) -> &[u8] {
-        if index >= self.values.columns.len() { &[] } else { &self.values.columns[index] }
+        if index >= self.values.len() { &[] } else { &self.values[index] }
     }
     /// Clear the line and columns.
     pub fn clear(&mut self) {
         self.line.clear();
-        self.values.columns.clear();
+        self.values.clear();
         self.eol = read_line::ReadResult::Lf;
     }
     /// Get a reference to the columns.
     #[must_use]
-    pub const fn columns(&self) -> &RVec<Vec<u8>> {
-        &self.values.columns
+    pub fn columns(&self) -> &RVec<Vec<u8>> {
+        &self.values
     }
     /// Get a reference to the original line.
     #[must_use]
@@ -423,6 +424,20 @@ pub struct TextFilePrev(
     pub TextLine,
 );
 
+impl Deref for TextFilePrev {
+    type Target = TextFile;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TextFilePrev {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl TextFilePrev {
     /// Create a new `TextFilePrev` with the given reader and options.
     pub fn new(file_name: &str, options: &Config) -> Result<Self> {
@@ -432,19 +447,10 @@ impl TextFilePrev {
     pub fn new_cdx(file_name: &str) -> Result<Self> {
         Self::new(file_name, &Config::default())
     }
-    /// Read the first line of the file and initialize the previous line to be empty.
-    pub fn read_first_line(&mut self) -> anyhow::Result<()> {
-        self.0.read_first_line()
-    }
     /// Get the next line of the file, updating the previous line and current line values.
     pub fn get_line(&mut self) -> Result<bool> {
         std::mem::swap(&mut self.1, &mut self.0.column_values);
         self.0.get_line()
-    }
-    /// Get the current line number
-    #[must_use]
-    pub const fn line_number(&self) -> usize {
-        self.0.line_number()
     }
 }
 impl TextFile {
@@ -596,6 +602,19 @@ impl TextFile {
         Ok(false)
     }
 
+    /// If the first character of the first column name is a quote, turn on the quotes
+    fn set_quote_from_header(&mut self, offset: usize) {
+        // FIXME, if quotes is already Multi and includes those quotes, do nothing
+        // Probably other settings for which we should do nothing.
+        if self.column_values.line.len() > offset {
+            if self.column_values.line[offset] == b'"' {
+                self.options.column_config.quotes = input::Quotes::Single(b'"', b'"');
+            } else if self.column_values.line[offset] == b'\'' {
+                self.options.column_config.quotes = input::Quotes::Single(b'\'', b'\'');
+            }
+        }
+    }
+
     /// Read column names and the first data record according to header and CDX settings.
     pub fn read_first_line(&mut self) -> anyhow::Result<()> {
         self.header.clear();
@@ -626,6 +645,7 @@ impl TextFile {
                     .line
                     .get(4)
                     .ok_or_else(|| anyhow::anyhow!("CDX header is missing delimiter byte"))?;
+                self.set_quote_from_header(5);
                 self.options.column_config.delimiter = Delimiter::Char(delimiter);
                 self.column_values
                     .values
@@ -642,6 +662,7 @@ impl TextFile {
                         .values
                         .read(&self.column_values.line, &self.options.column_config);
                     self.options.saw_header = Some(SawHeader::Yes);
+                    self.set_quote_from_header(0);
                     self.copy_column_names()?;
                     self.loc.reset(); // header line doesn't count as a line of data, so reset line and byte counts to zero
                     self.get_line()?;
@@ -650,7 +671,7 @@ impl TextFile {
                     self.column_values
                         .values
                         .read(&self.column_values.line, &self.options.column_config);
-                    self.header.generate(self.column_values.values.columns.len());
+                    self.header.generate(self.column_values.values.len());
                     self.options.saw_header = Some(SawHeader::No);
                     if self.do_split {
                         self.split();

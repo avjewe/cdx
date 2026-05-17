@@ -175,11 +175,11 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     assert_eq!(files.len(), 1);
 
     let mut f = input_file::TextFilePrev::new(&files[0], &settings.input)?;
-    if f.0.is_empty() {
+    if f.is_empty() {
         return Ok(());
     }
-    comp.lookup(f.0.names())?;
-    count.lookup(f.0.names())?;
+    comp.lookup(f.names())?;
+    count.lookup(f.names())?;
     let mut c_write = Writer::new(settings.text_out());
     if !agg.is_empty() {
         if count.pos == CountPos::Begin {
@@ -188,87 +188,87 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if count.pos == CountPos::End {
             agg.push_append(&format!("{},1,count", count.name))?;
         }
-        agg.lookup(f.0.names())?;
-        agg.fill(&mut c_write, f.0.names());
-        c_write.lookup(f.0.names())?;
+        agg.lookup(f.names())?;
+        agg.fill(&mut c_write, f.names());
+        c_write.lookup(f.names())?;
     }
 
     let mut w = get_writer("-")?;
-    if f.0.has_header() {
+    if f.has_header() {
         let mut ch = ColumnHeader::new();
         if agg.is_empty() {
             if count.pos == CountPos::Begin {
                 ch.push(&count.name)?;
             }
-            ch.push_all(f.0.names())?;
+            ch.push_all(f.names())?;
             if count.pos == CountPos::End {
                 ch.push(&count.name)?;
             }
         } else {
-            c_write.add_names(&mut ch, f.0.names())?;
+            c_write.add_names(&mut ch, f.names())?;
         }
         w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
     }
-    if f.0.is_done() {
+    if f.is_done() {
         return Ok(());
     }
 
-    f.0.do_split(comp.need_split());
+    f.do_split(comp.need_split());
     let mut matches = 1;
     if !agg.is_empty() {
-        agg.add(f.0.values());
-        let mut tmp = f.0.values().clone();
+        agg.add(f.values());
+        let mut tmp = f.values().clone();
         loop {
             if f.get_line()? {
                 c_write.write(&mut w.0, &tmp)?;
                 break;
             }
-            if comp.equal_cols(&f.1, f.0.values()) {
-                count.assign(&mut tmp, f.0.values());
-                agg.add(f.0.values());
+            if comp.equal_cols(&f.1, f.values()) {
+                count.assign(&mut tmp, f.values());
+                agg.add(f.values());
             } else {
                 c_write.write(&mut w.0, &tmp)?;
-                tmp = f.0.values().clone();
+                tmp = f.values().clone();
                 agg.reset();
-                agg.add(f.0.values());
+                agg.add(f.values());
             }
         }
     } else if count.which == Which::Last {
         loop {
             if f.get_line()? {
-                count.write(&mut w.0, matches, f.1.line(), f.0.delim())?;
+                count.write(&mut w.0, matches, f.1.line(), f.delim())?;
                 break;
             }
-            if comp.equal_cols(&f.1, f.0.values()) {
+            if comp.equal_cols(&f.1, f.values()) {
                 matches += 1;
             } else {
-                count.write(&mut w.0, matches, f.1.line(), f.0.delim())?;
+                count.write(&mut w.0, matches, f.1.line(), f.delim())?;
                 matches = 1;
             }
         }
     } else if count.which == Which::First && count.is_plain() {
-        f.0.write_value_line(&mut w.0)?;
+        f.write_value_line(&mut w.0)?;
         loop {
             if f.get_line()? {
                 break;
             }
-            if !comp.equal_cols(&f.1, f.0.values()) {
-                f.0.write_value_line(&mut w.0)?;
+            if !comp.equal_cols(&f.1, f.values()) {
+                f.write_value_line(&mut w.0)?;
             }
         }
     } else {
-        let mut tmp = f.0.values().clone();
+        let mut tmp = f.values().clone();
         loop {
             if f.get_line()? {
-                count.write(&mut w.0, matches, tmp.line(), f.0.delim())?;
+                count.write(&mut w.0, matches, tmp.line(), f.delim())?;
                 break;
             }
-            if comp.equal_cols(&f.1, f.0.values()) {
-                count.assign(&mut tmp, f.0.values());
+            if comp.equal_cols(&f.1, f.values()) {
+                count.assign(&mut tmp, f.values());
                 matches += 1;
             } else {
-                count.write(&mut w.0, matches, tmp.line(), f.0.delim())?;
-                tmp = f.0.values().clone();
+                count.write(&mut w.0, matches, tmp.line(), f.delim())?;
+                tmp = f.values().clone();
                 matches = 1;
             }
         }

@@ -11,6 +11,7 @@ pub use crate::read_line::UnterminatedQuoteMode;
 use crate::*;
 use memchr::memchr_iter;
 use std::collections::HashSet;
+use std::ops::{Deref, DerefMut};
 
 /// How input records are split into columns.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -393,7 +394,21 @@ pub type ParseOptions = Config;
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct Columns {
     /// Output columns for the last parsed record.
-    pub columns: RVec<Vec<u8>>,
+    pub columns: ColumnValues,
+}
+
+impl Deref for Columns {
+    type Target = ColumnValues;
+
+    fn deref(&self) -> &Self::Target {
+        &self.columns
+    }
+}
+
+impl DerefMut for Columns {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.columns
+    }
 }
 
 impl From<RVec<Vec<u8>>> for Columns {
@@ -405,12 +420,6 @@ impl From<RVec<Vec<u8>>> for Columns {
 impl From<Columns> for RVec<Vec<u8>> {
     fn from(columns: Columns) -> Self {
         columns.columns
-    }
-}
-
-impl AsRef<[Vec<u8>]> for Columns {
-    fn as_ref(&self) -> &[Vec<u8>] {
-        self.columns()
     }
 }
 

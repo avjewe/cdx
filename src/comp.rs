@@ -16,11 +16,11 @@
 //! comp.add("quant,num")?;
 //! let input = "<< CDX\tname\tquant\tprice\naaa\t42\t1.23\nbbb\t12\t2.34\nccc\t12\t2.34\n";
 //! let mut reader = input_file::TextFilePrev::new(input, &input_file::Config::default())?;
-//! comp.lookup(reader.0.names())?;
+//! comp.lookup(reader.names())?;
 //! reader.get_line()?;
-//! assert_eq!(comp.comp_cols(&reader.1, &reader.0.values()), std::cmp::Ordering::Less);
+//! assert_eq!(comp.comp_cols(&reader.1, &reader.values()), std::cmp::Ordering::Less);
 //! reader.get_line()?;
-//! assert_eq!(comp.comp_cols(&reader.1, &reader.0.values()), std::cmp::Ordering::Equal);
+//! assert_eq!(comp.comp_cols(&reader.1, &reader.values()), std::cmp::Ordering::Equal);
 //! # Ok::<(), cdx::util::Error>(())
 //! ```
 
@@ -1944,7 +1944,7 @@ pub fn comp_check(f: &input_file::TextFilePrev, cmp: &mut LineCompList, unique: 
         eprint!("{} : ", f.line_number() - 1);
         prerr_n(&[f.1.line()]);
         eprint!("{} : ", f.line_number());
-        prerr_n(&[f.0.line()]);
+        prerr_n(&[f.line()]);
     }
     bad
 }

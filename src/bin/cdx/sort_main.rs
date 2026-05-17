@@ -54,7 +54,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         let mut reported = 0;
         for x in &files {
             let mut f = input_file::TextFilePrev::new(x, &settings.input)?;
-            if f.0.is_done() {
+            if f.is_done() {
                 continue;
             }
             loop {
