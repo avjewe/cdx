@@ -122,7 +122,7 @@ impl SortConfig {
         } else {
             while !heap.is_empty() {
                 if let Some(x) = heap.pop() {
-                    mc.borrow_mut().open[x].write_value_line(&mut w)?;
+                    mc.borrow().open[x].write_value_line(&mut w)?;
                     if !mc.borrow_mut().open[x].get_line()? {
                         heap.push(x);
                     }

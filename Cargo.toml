@@ -39,6 +39,10 @@ base64 = "0"
 binary-heap-plus = "0"
 anyhow = "1"
 itertools = "0.14.0"
+hotpath = "0.16"
+
+[profile.release]
+debug = true
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
@@ -46,3 +50,6 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples=all"]
 [features]
 s3 = ["aws-config", "aws-sdk-s3", "tokio", "bytes"]
 track = []
+hotpath = ["hotpath/hotpath"]
+hotpath-cpu = ["hotpath/hotpath-cpu"]
+hotpath-alloc = ["hotpath/hotpath-alloc"]

@@ -237,11 +237,11 @@ impl Config {
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct TextLine {
     /// The whole input line, without newline, bytes untouched
-    pub line: Vec<u8>,
+    line: Vec<u8>,
     /// column values, decoded and unquoted
     pub values: input::Columns,
     /// The EOL observed at the end of the line.
-    pub eol: read_line::ReadResult,
+    eol: read_line::ReadResult,
 }
 
 impl std::ops::Index<usize> for TextLine {
@@ -364,6 +364,12 @@ impl TextLine {
     pub fn line(&self) -> &[u8] {
         &self.line
     }
+
+    /// Get a reference to the original line.
+    #[must_use]
+    pub const fn line_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.line
+    }
     /// Split the line into columns according to the given config.
     pub fn split(&mut self, options: &input::Config) {
         self.values.read(&self.line, options);
@@ -453,6 +459,7 @@ impl TextFilePrev {
         self.0.get_line()
     }
 }
+
 impl TextFile {
     /// Create a new `TextFile` with the given reader and options.
     pub fn new(file_name: &str, options: &Config) -> Result<Self> {
@@ -575,6 +582,7 @@ impl TextFile {
         Ok(())
     }
 
+    #[hotpath::measure]
     fn read_line(&mut self) -> Result<()> {
         self.loc.prev_bytes = self.loc.bytes;
         self.column_values.eol = read_line::read(
@@ -585,11 +593,14 @@ impl TextFile {
         )?;
         Ok(())
     }
+
+    #[hotpath::measure]
     fn split(&mut self) {
         // self.column_values.values.read(&self.column_values.line, &self.options.column_config);
         self.column_values.split(&self.options.column_config);
     }
     /// Read the next line of the file, returning true if EOF is reached.
+    #[hotpath::measure]
     pub fn get_line(&mut self) -> Result<bool> {
         self.read_line()?;
         if self.column_values.eol == read_line::ReadResult::Eof {

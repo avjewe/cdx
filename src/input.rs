@@ -559,6 +559,7 @@ impl Columns {
     }
 
     /// Ensure `columns[index]` exists, reset it for writing, and return it.
+    #[allow(dead_code)]
     fn clear_column_mut(&mut self, index: usize) -> &mut Vec<u8> {
         if index == self.columns.len() {
             self.columns.push(Vec::new());
@@ -568,23 +569,40 @@ impl Columns {
         column.clear();
         column
     }
+    /// Ensure `columns[index]` exists, reset it for writing, and return it.
+    #[allow(dead_code)]
+    fn get_column_mut(&mut self, index: usize) -> &mut Vec<u8> {
+        if index == self.columns.len() {
+            self.columns.push(Vec::new());
+        }
+        // let column = &mut self.columns[index];
+        unsafe { self.columns.get_unchecked_mut(index) }
+    }
+
+    #[allow(dead_code)]
+    fn set_column(&mut self, index: usize, data: &[u8]) {
+        if index == self.columns.len() {
+            self.columns.push(Vec::new());
+        }
+        // let column = &mut self.columns[index];
+        let vec = unsafe { self.columns.get_unchecked_mut(index) };
+        vec.clear();
+        vec.extend_from_slice(data);
+    }
 
     /// Parse a record with a single-byte delimiter and no escape or quote handling.
+    #[hotpath::measure]
     pub fn read_plain(&mut self, record: &[u8], delimiter: u8) {
         let mut column_index = 0usize;
         let mut start = 0usize;
-        let mut column = self.clear_column_mut(column_index);
 
         for delimiter_index in memchr_iter(delimiter, record) {
-            // column.extend_from_slice(&record[start..delimiter_index]);
-            column.extend_from_slice(unsafe { record.get_unchecked(start..delimiter_index) });
+            self.set_column(column_index, unsafe { record.get_unchecked(start..delimiter_index) });
             column_index += 1;
-            column = self.clear_column_mut(column_index);
             start = delimiter_index + 1;
         }
 
-        // column.extend_from_slice(&record[start..]);
-        column.extend_from_slice(unsafe { record.get_unchecked(start..) });
+        self.set_column(column_index, unsafe { record.get_unchecked(start..) });
         self.finish_columns(column_index + 1);
     }
 

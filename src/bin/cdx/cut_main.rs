@@ -3,6 +3,7 @@ use cdx::column::*;
 use cdx::prelude::*;
 use cdx::*;
 
+#[hotpath::measure]
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
     const A: [ArgSpec; 5] = [

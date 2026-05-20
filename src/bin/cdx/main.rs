@@ -25,6 +25,8 @@ mod verify_main;
 mod wc_main;
 use crate::globals::Settings;
 
+#[hotpath::main]
+#[hotpath::main(output_path = "report.txt")]
 fn main() {
     let mut settings = Settings::new();
     match inner_main(env::args().collect(), &mut settings) {
@@ -44,11 +46,12 @@ fn main() {
             std::process::exit(1);
         }
         Ok(()) => {
-            std::process::exit(0);
+            // exit(0) is not the same as just exiting main normally.
         }
     }
 }
 
+#[hotpath::measure]
 pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> {
     cdx::util::init()?;
     if args.len() > 1 {
@@ -101,36 +104,4 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
     }
 
     Ok(())
-    /*
-    if args.len() < 2 {
-        eprintln!("USAGE : cdx <command> [options...]");
-        eprintln!("Type 'cdx help' for more details");
-        return cdx_err(CdxError::Silent);
-    }
-    if args[1] == "help" || args[1] == "--help" {
-        println!("USAGE : cdx <command> [options...]");
-        println!("Commands are :");
-        for x in cdxmain::MAIN_LIST {
-            println!("{:8} : {}", x.name, x.help);
-        }
-        return Ok(());
-    }
-    if args[1] == "version" || args[1] == "--version" {
-        println!("cdx version {}", args::version());
-        return Ok(());
-    }
-    for x in cdxmain::MAIN_LIST {
-        if args[1] == x.name {
-            let arg1 = args.remove(1);
-            args[0] += " ";
-            args[0] += &arg1;
-            return (x.proc)(&args, settings);
-        }
-    }
-    eprintln!("Valid subcommands are :");
-    for x in cdxmain::MAIN_LIST {
-        eprintln!("{:8} : {}", x.name, x.help);
-    }
-    cdx_err(CdxError::Silent)
-    */
 }

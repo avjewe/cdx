@@ -1360,7 +1360,7 @@ impl CompareOp {
             true
         } else {
             eprint!("Line {line_num} : ");
-            prerr_n(&[&line.line]);
+            prerr_n(&[line.line()]);
             eprint!("should have been {self:?} ");
             prerr_n(&[comp.get_value()]);
             eprintln!(" but wasn't");

@@ -63,8 +63,8 @@ impl SelectTrans {
 
 impl Trans for SelectTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
-        self.text.line.clear();
-        self.text.line.extend_from_slice(src);
+        self.text.line_mut().clear();
+        self.text.line_mut().extend_from_slice(src);
         self.text.split_plain(self.in_mode.delim);
         self.cols.write3(dst, &self.text, &self.out_mode)
     }
