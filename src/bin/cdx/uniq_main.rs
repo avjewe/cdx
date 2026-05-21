@@ -139,7 +139,7 @@ impl Count {
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);
-    const A: [ArgSpec; 7] = [
+    const A: [ArgSpec; 8] = [
         arg! {"agg", "a", "Col,Spec", "Merge value from this column, in place."},
         arg! {"agg-pre", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, before other columns."},
         arg! {"agg-post", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, after other columns."},
@@ -147,12 +147,14 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         arg! {"count", "c", "ColName,Position", "Write the count of matching line."},
         arg! {"which", "w", "(First,Last,Min,Max)[,LineCompare]", "Which of the matching lines should be printed."},
         arg! {"agg-help", "", "", "Print help for aggregators"},
+        arg! {"hash", "", "", "Input need not be ordered. Items are compared by 128 bit hashes, so false positives are theoretically possible."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut agg = LineAggList::new();
     let mut comp = LineCompList::new();
     let mut count = Count::default();
+    let mut hash = false;
 
     for x in args {
         if x.name == "key" {
@@ -167,12 +169,34 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             agg.push_append(&x.value)?;
         } else if x.name == "agg-pre" {
             agg.push_prefix(&x.value)?;
+        } else if x.name == "hash" {
+            hash = true;
         } else {
             unreachable!();
         }
     }
 
     assert_eq!(files.len(), 1);
+    let mut w = get_writer("-")?;
+
+    // FIXME - if hash then fail if other things are set
+    if hash {
+        let mut f = util::get_reader(&files[0])?;
+        let mut line = Vec::new();
+        let mut loc = util::FileLocData::new(&files[0]);
+        let mut set = hash128::new_hash_set();
+        loop {
+            let eol =
+                read_line::read(&mut line, &mut f.0, &settings.input.column_config, &mut loc)?;
+            if eol == read_line::ReadResult::Eof {
+                return Ok(());
+            }
+            if hash128::insert(&mut set, &line) {
+                w.write_all(&line)?;
+                w.write_all(eol.as_bytes())?;
+            }
+        }
+    }
 
     let mut f = input_file::TextFilePrev::new(&files[0], &settings.input)?;
     if f.is_empty() {
@@ -193,7 +217,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         c_write.lookup(f.names())?;
     }
 
-    let mut w = get_writer("-")?;
     if f.has_header() {
         let mut ch = ColumnHeader::new();
         if agg.is_empty() {

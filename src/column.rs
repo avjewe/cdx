@@ -578,7 +578,7 @@ impl ColumnFun for ColumnSingle {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
-        text.write(w, &line.values.columns[self.col.num])?;
+        text.write(w, &line.columns()[self.col.num])?;
         Ok(())
     }
     /// resolve any named columns

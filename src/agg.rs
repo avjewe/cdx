@@ -731,8 +731,6 @@ struct Merge {
     max_len: usize,
     // write the number of parts, rather than the parts themselves
     do_count: bool,
-    // internal temp space for whole line
-    data: Vec<u8>,
     // internal temp space for columns
     cols: input::Columns,
 }
@@ -749,7 +747,6 @@ impl Default for Merge {
             min_len: 0,
             max_len: usize::MAX,
             do_count: false,
-            data: Vec::default(),
             cols: input::Columns::default(),
         }
     }
@@ -823,26 +820,26 @@ impl Merge {
 impl Agg for Merge {
     fn add(&mut self, data: &[u8]) {
         if !data.is_empty() {
-            if !self.data.is_empty() {
-                self.data.push(self.delim);
+            if !self.cols.input_mut().is_empty() {
+                self.cols.input_mut().push(self.delim);
             }
-            self.data.extend_from_slice(data);
+            self.cols.input_mut().extend_from_slice(data);
         }
     }
     fn result(&mut self, w: &mut dyn Write, fmt: NumFormat) -> Result<()> {
-        self.cols.read_plain(&self.data, self.delim);
+        self.cols.read_plain(self.delim);
         if self.do_sort {
-            self.cols.columns.sort_by(|a, b| self.comp.comp(a, b));
+            self.cols.sort_by(|a, b| self.comp.comp(a, b));
         }
         if self.do_uniq {
-            self.cols.columns.dedup_by(|a, b| self.comp.equal(a, b));
+            self.cols.dedup_by(|a, b| self.comp.equal(a, b));
         }
         if self.do_count {
             #[expect(clippy::cast_precision_loss)]
-            fmt.print(self.cols.columns().len() as f64, w)?;
+            fmt.print(self.cols.len() as f64, w)?;
         } else {
             let mut num_written = 0;
-            for x in &self.cols.columns {
+            for x in &self.cols {
                 if x.len() >= self.min_len && x.len() <= self.max_len {
                     if num_written > 0 {
                         w.write_all(&[self.out_delim])?;
@@ -858,7 +855,7 @@ impl Agg for Merge {
         Ok(())
     }
     fn reset(&mut self) {
-        self.data.clear();
+        self.cols.clear();
     }
 }
 

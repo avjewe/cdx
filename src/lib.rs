@@ -91,6 +91,7 @@ pub mod binsearch;
 pub mod column;
 pub mod comp;
 pub mod expr;
+pub mod hash128;
 pub mod input;
 pub mod input_file;
 pub mod join;

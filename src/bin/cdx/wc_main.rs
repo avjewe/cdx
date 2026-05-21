@@ -107,7 +107,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                 break;
             }
             loop {
-                for (i, x) in f.values().values.columns.iter().enumerate() {
+                for (i, x) in f.values().columns().iter().enumerate() {
                     aggs[col_map[i]].agg.add(x);
                 }
                 if f.get_line()? {

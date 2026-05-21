@@ -25,8 +25,6 @@ mod verify_main;
 mod wc_main;
 use crate::globals::Settings;
 
-#[hotpath::main]
-#[hotpath::main(output_path = "report.txt")]
 fn main() {
     let mut settings = Settings::new();
     match inner_main(env::args().collect(), &mut settings) {
@@ -51,7 +49,6 @@ fn main() {
     }
 }
 
-#[hotpath::measure]
 pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> {
     cdx::util::init()?;
     if args.len() > 1 {

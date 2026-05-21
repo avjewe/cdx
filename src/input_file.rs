@@ -236,10 +236,8 @@ impl Config {
 /// A line of text input, including the original line and the parsed column values.
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 pub struct TextLine {
-    /// The whole input line, without newline, bytes untouched
-    line: Vec<u8>,
     /// column values, decoded and unquoted
-    pub values: input::Columns,
+    values: input::Columns,
     /// The EOL observed at the end of the line.
     eol: read_line::ReadResult,
 }
@@ -326,11 +324,11 @@ impl HeaderLine {
         }
         self.line = line[0..end].to_vec();
         self.eol = read_line::ReadResult::Lf;
-        let mut cols = input::Columns::new();
-        cols.read(&line[start..end], options);
+        let mut cols = input::Columns::with_data(&line[start..end]);
+        cols.read(options);
         self.values.clear();
-        for v in cols.as_ref() {
-            self.values.push(String::from_utf8(v.clone())?);
+        for v in &cols {
+            self.values.push(String::from_utf8(v.into())?);
         }
 
         Ok(())
@@ -339,7 +337,7 @@ impl HeaderLine {
 impl TextLine {
     /// Write the original line to the given writer, including the EOL.
     pub fn write(&self, w: &mut impl Write) -> Result<()> {
-        w.write_all(&self.line)?;
+        w.write_all(self.line())?;
         w.write_all(self.eol.as_bytes())?;
         Ok(())
     }
@@ -350,33 +348,32 @@ impl TextLine {
     }
     /// Clear the line and columns.
     pub fn clear(&mut self) {
-        self.line.clear();
         self.values.clear();
         self.eol = read_line::ReadResult::Lf;
     }
     /// Get a reference to the columns.
     #[must_use]
-    pub fn columns(&self) -> &RVec<Vec<u8>> {
+    pub const fn columns(&self) -> &input::Columns {
         &self.values
     }
     /// Get a reference to the original line.
     #[must_use]
     pub fn line(&self) -> &[u8] {
-        &self.line
+        self.values.input()
     }
 
     /// Get a reference to the original line.
     #[must_use]
     pub const fn line_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.line
+        self.values.input_mut()
     }
     /// Split the line into columns according to the given config.
     pub fn split(&mut self, options: &input::Config) {
-        self.values.read(&self.line, options);
+        self.values.read(options);
     }
     /// Split the line into columns according to the given delimiter.
     pub fn split_plain(&mut self, delim: u8) {
-        self.values.read_plain(&self.line, delim);
+        self.values.read_plain(delim);
     }
     /// Get the columns parsed from the last record, as Strings, with lossy utf-8 decoding.
     #[must_use]
@@ -524,7 +521,7 @@ impl TextFile {
     /// Get the original bytes of the current line
     #[must_use]
     pub fn line(&self) -> &[u8] {
-        &self.column_values.line
+        self.column_values.line()
     }
     /// Get the original bytes of the header line
     #[must_use]
@@ -571,22 +568,26 @@ impl TextFile {
         self.read_first_line()
     }
 
-    fn copy_column_names(&mut self) -> Result<()> {
+    fn copy_column_names(&mut self, cdx: Option<u8>) -> Result<()> {
         self.header.values.clear();
-        for v in self.column_values.values.as_ref() {
-            self.header.values.push(String::from_utf8(v.clone())?);
+        for v in &self.column_values.values {
+            self.header.values.push(String::from_utf8(v.into())?);
         }
         // FIXME - validate column names
-        self.header.line.clone_from(&self.column_values.line);
+        self.header.line.clear();
+        if let Some(delim) = cdx {
+            self.header.line.extend_from_slice(b" CDX");
+            self.header.line.push(delim);
+        }
+        self.header.line.extend_from_slice(self.column_values.line());
         self.header.eol = self.column_values.eol;
         Ok(())
     }
 
-    #[hotpath::measure]
     fn read_line(&mut self) -> Result<()> {
         self.loc.prev_bytes = self.loc.bytes;
         self.column_values.eol = read_line::read(
-            &mut self.column_values.line,
+            self.column_values.line_mut(),
             &mut self.reader.0,
             &self.options.column_config,
             &mut self.loc,
@@ -594,13 +595,11 @@ impl TextFile {
         Ok(())
     }
 
-    #[hotpath::measure]
     fn split(&mut self) {
         // self.column_values.values.read(&self.column_values.line, &self.options.column_config);
         self.column_values.split(&self.options.column_config);
     }
     /// Read the next line of the file, returning true if EOF is reached.
-    #[hotpath::measure]
     pub fn get_line(&mut self) -> Result<bool> {
         self.read_line()?;
         if self.column_values.eol == read_line::ReadResult::Eof {
@@ -617,10 +616,10 @@ impl TextFile {
     fn set_quote_from_header(&mut self, offset: usize) {
         // FIXME, if quotes is already Multi and includes those quotes, do nothing
         // Probably other settings for which we should do nothing.
-        if self.column_values.line.len() > offset {
-            if self.column_values.line[offset] == b'"' {
+        if self.column_values.line().len() > offset {
+            if self.column_values.line()[offset] == b'"' {
                 self.options.column_config.quotes = input::Quotes::Single(b'"', b'"');
-            } else if self.column_values.line[offset] == b'\'' {
+            } else if self.column_values.line()[offset] == b'\'' {
                 self.options.column_config.quotes = input::Quotes::Single(b'\'', b'\'');
             }
         }
@@ -642,7 +641,7 @@ impl TextFile {
             return Ok(());
         }
 
-        let has_cdx = self.column_values.line.starts_with(b" CDX");
+        let has_cdx = self.column_values.line().starts_with(b" CDX");
         match (self.options.cdx, has_cdx) {
             (CdxMode::Forbidden, true) => {
                 return Err(anyhow::anyhow!("CDX header is forbidden"));
@@ -653,35 +652,30 @@ impl TextFile {
             (CdxMode::Optional | CdxMode::Required, true) => {
                 let delimiter = *self
                     .column_values
-                    .line
+                    .line()
                     .get(4)
                     .ok_or_else(|| anyhow::anyhow!("CDX header is missing delimiter byte"))?;
                 self.set_quote_from_header(5);
                 self.options.column_config.delimiter = Delimiter::Char(delimiter);
-                self.column_values
-                    .values
-                    .read(&self.column_values.line[5..], &self.options.column_config);
+                self.column_values.line_mut().drain(0..5);
+                self.column_values.values.read(&self.options.column_config);
                 self.options.saw_header = Some(SawHeader::Cdx);
-                self.copy_column_names()?;
+                self.copy_column_names(Some(delimiter))?;
                 self.loc.reset(); // CDX header doesn't count as a line of data, so reset line and byte counts to zero
                 self.get_line()?;
             }
             (CdxMode::Optional | CdxMode::Forbidden | CdxMode::Ignore, false)
             | (CdxMode::Ignore, true) => match self.options.header {
                 Header::Yes => {
-                    self.column_values
-                        .values
-                        .read(&self.column_values.line, &self.options.column_config);
+                    self.column_values.values.read(&self.options.column_config);
                     self.options.saw_header = Some(SawHeader::Yes);
                     self.set_quote_from_header(0);
-                    self.copy_column_names()?;
+                    self.copy_column_names(None)?;
                     self.loc.reset(); // header line doesn't count as a line of data, so reset line and byte counts to zero
                     self.get_line()?;
                 }
                 Header::No => {
-                    self.column_values
-                        .values
-                        .read(&self.column_values.line, &self.options.column_config);
+                    self.column_values.values.read(&self.options.column_config);
                     self.header.generate(self.column_values.values.len());
                     self.options.saw_header = Some(SawHeader::No);
                     if self.do_split {
