@@ -153,7 +153,7 @@ fn read_unquoted(
             return Ok(if line.is_empty() { ReadResult::Eof } else { ReadResult::NoTerminator });
         }
 
-        if let Some(index) = find_eol(available) {
+        if let Some(index) = memchr::memchr2(b'\n', b'\r', available) {
             line.extend_from_slice(&available[..index]);
             if available[index] == b'\r' {
                 let consume_len =
@@ -277,10 +277,6 @@ fn read_quoted(
             consume(reader, location, consumed);
         }
     }
-}
-
-fn find_eol(bytes: &[u8]) -> Option<usize> {
-    bytes.iter().position(|&byte| byte == b'\n' || byte == b'\r')
 }
 
 fn quote_close(open: u8, quotes: &Quotes) -> Option<u8> {
