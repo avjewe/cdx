@@ -1,6 +1,8 @@
 //! text file reading.
 
 use crate::prelude::*;
+use crate::read_line::ReadResult;
+use crate::util::FileLocData;
 use crate::util::is_cdx;
 use crate::*;
 use input::Delimiter;
@@ -239,7 +241,7 @@ pub struct TextLine {
     /// column values, decoded and unquoted
     values: input::Columns,
     /// The EOL observed at the end of the line.
-    eol: read_line::ReadResult,
+    eol: ReadResult,
 }
 
 impl std::ops::Index<usize> for TextLine {
@@ -257,7 +259,7 @@ pub struct HeaderLine {
     /// column names, decoded and unquoted
     pub values: Vec<String>,
     /// The EOL observed at the end of the header line.
-    pub eol: read_line::ReadResult,
+    pub eol: ReadResult,
 }
 
 impl std::ops::Index<usize> for HeaderLine {
@@ -292,13 +294,13 @@ impl HeaderLine {
     pub fn clear(&mut self) {
         self.line.clear();
         self.values.clear();
-        self.eol = read_line::ReadResult::Lf;
+        self.eol = ReadResult::Lf;
     }
 
     /// Generate default column names (`c1`, `c2`, ...). The underlying line is set to empty string.
     pub fn generate(&mut self, num_cols: usize) {
         self.values = generate_column_names(num_cols);
-        self.eol = read_line::ReadResult::Eof;
+        self.eol = ReadResult::Eof;
         self.line.clear();
     }
 
@@ -323,7 +325,7 @@ impl HeaderLine {
             end -= 1;
         }
         self.line = line[0..end].to_vec();
-        self.eol = read_line::ReadResult::Lf;
+        self.eol = ReadResult::Lf;
         let mut cols = input::Columns::with_data(&line[start..end]);
         cols.read(options);
         self.values.clear();
@@ -349,7 +351,7 @@ impl TextLine {
     /// Clear the line and columns.
     pub fn clear(&mut self) {
         self.values.clear();
-        self.eol = read_line::ReadResult::Lf;
+        self.eol = ReadResult::Lf;
     }
     /// Get a reference to the columns.
     #[must_use]
@@ -408,7 +410,9 @@ pub struct TextFile {
     /// Do we bother splitting into columns?
     do_split: bool,
     /// Where are we in the file? (line number, byte offset, etc.)
-    loc: util::FileLocData,
+    loc: FileLocData,
+    /// use `fast_read`
+    use_fast_read: Option<u8>,
 }
 
 impl std::ops::Index<usize> for TextFile {
@@ -467,7 +471,8 @@ impl TextFile {
             column_values: TextLine::default(),
             done: false,
             do_split: true,
-            loc: util::FileLocData::new(file_name),
+            loc: FileLocData::new(file_name),
+            use_fast_read: None,
         };
         me.read_first_line()?;
         Ok(me)
@@ -486,7 +491,7 @@ impl TextFile {
 
     /// Get the current line number
     #[must_use]
-    pub const fn loc(&self) -> &util::FileLocData {
+    pub const fn loc(&self) -> &FileLocData {
         &self.loc
     }
 
@@ -601,8 +606,17 @@ impl TextFile {
     }
     /// Read the next line of the file, returning true if EOF is reached.
     pub fn get_line(&mut self) -> Result<bool> {
+        if let Some(delim) = self.use_fast_read {
+            self.column_values.eol =
+                self.column_values.values.read_fast(delim, &mut self.reader.0, &mut self.loc)?;
+            if self.column_values.eol == ReadResult::Eof {
+                self.done = true;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
         self.read_line()?;
-        if self.column_values.eol == read_line::ReadResult::Eof {
+        if self.column_values.eol == ReadResult::Eof {
             self.done = true;
             return Ok(true);
         }
@@ -625,8 +639,19 @@ impl TextFile {
         }
     }
 
+    fn set_fast_read(&mut self) {
+        let c = &self.config().column_config;
+        if c.quotes == input::Quotes::None
+            && c.backslash == input::BackslashMode::Off
+            && let Delimiter::Char(ch) = c.delimiter
+        {
+            self.use_fast_read = Some(ch);
+        }
+    }
     /// Read column names and the first data record according to header and CDX settings.
     pub fn read_first_line(&mut self) -> anyhow::Result<()> {
+        // validate, e.g. no \n or \r as delim
+        // set boolean fancy fast thing
         self.header.clear();
         if self.options.saw_header.is_some() {
             return Err(anyhow::anyhow!(
@@ -635,7 +660,7 @@ impl TextFile {
         }
 
         self.read_line()?;
-        if self.column_values.eol == read_line::ReadResult::Eof {
+        if self.column_values.eol == ReadResult::Eof {
             self.options.saw_header = Some(SawHeader::Empty);
             self.done = true;
             return Ok(());
@@ -684,6 +709,7 @@ impl TextFile {
                 }
             },
         }
+        self.set_fast_read();
         Ok(())
     }
     /// Get the columns parsed from the last record, as Strings, with lossy utf-8 decoding.

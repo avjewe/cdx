@@ -5,6 +5,7 @@ use crate::*;
 use memchr::{memchr2, memchr3};
 use read_line::BackslashMode;
 use read_line::Quotes;
+use read_line::ReadResult;
 use std::collections::HashSet;
 use std::io;
 
@@ -75,60 +76,12 @@ pub struct Spec {
 }
 
 /// Write delimiter-separated records to an output.
-///
-/// # Examples
-/// Whole record at once:
-/// ```rust
-/// use cdx::output::{Config, Escape, LineWriter};
-///
-/// let mut line_writer = LineWriter::new(
-///     Config::new(b',', Escape::Trust),
-///     b"\n".to_vec(),
-///     Box::new(Vec::<u8>::new()),
-/// );
-/// line_writer.write_record([&b"a"[..], &b"b"[..]])?;
-/// # Ok::<(), anyhow::Error>(())
-/// ```
-///
-/// Column-at-a-time:
-/// ```rust
-/// use cdx::output::{Config, Escape, LineWriter};
-///
-/// let mut line_writer = LineWriter::new(
-///     Config::new(b',', Escape::Trust),
-///     b"\n".to_vec(),
-///     Box::new(Vec::<u8>::new()),
-/// );
-/// line_writer.write_column(b"a")?;
-/// line_writer.write_column(b"b")?;
-/// line_writer.finish_record()?;
-/// # Ok::<(), anyhow::Error>(())
-/// ```
-///
-/// Chunked column:
-/// ```rust
-/// use cdx::output::{Config, Escape, LineWriter};
-///
-/// let mut line_writer = LineWriter::new(
-///     Config::new(b',', Escape::Trust),
-///     b"\n".to_vec(),
-///     Box::new(Vec::<u8>::new()),
-/// );
-/// line_writer.begin_column()?;
-/// line_writer.write_column_chunk(b"part1")?;
-/// line_writer.write_column_chunk(b"part2")?;
-/// line_writer.end_column()?;
-/// line_writer.finish_record()?;
-/// # Ok::<(), anyhow::Error>(())
-/// ```
 #[derive(Debug)]
 pub struct LineWriter {
     /// The configuration for how to write output columns.
     config: Config,
     /// The byte(s) to write at the end of each line (e.g. `\n` or `\r\n`).
     eol: Vec<u8>,
-    /// The underlying writer to which the output will be written.
-    writer: Box<dyn util::MyWrite>,
     /// Reused buffer for one full encoded record before writing to the underlying writer.
     record_buf: Vec<u8>,
     /// Reused buffer for chunked-column mode.
@@ -415,7 +368,7 @@ impl Spec {
     /// - `h` / `header`
     /// - `q` / `quotes` (for quote-based escapes)
     /// - `x` / `replace` (for `escape=replace`)
-    pub fn from_spec(spec: &str) -> anyhow::Result<Self> {
+    pub fn from_spec(spec: &str) -> Result<Self> {
         let trimmed = spec.trim();
         if trimmed.is_empty() {
             return Ok(Self::any());
@@ -456,7 +409,7 @@ impl Spec {
             replace_value = replace;
         }
 
-        let mut apply_override = |part: &str| -> anyhow::Result<()> {
+        let mut apply_override = |part: &str| -> Result<()> {
             if part.is_empty() {
                 return Err(anyhow::anyhow!("empty override segment in output spec"));
             }
@@ -643,7 +596,7 @@ impl Config {
     }
 
     /// Encode one column into `out` according to this config.
-    pub fn write_column(&self, data: &[u8], out: &mut Vec<u8>) -> anyhow::Result<()> {
+    pub fn write_column(&self, data: &[u8], out: &mut Vec<u8>) -> Result<()> {
         match self.escape {
             Escape::Trust => {
                 out.extend_from_slice(data);
@@ -749,7 +702,7 @@ fn canonical_output_key(normalized: &str) -> Option<&'static str> {
 }
 
 /// Parse common single-byte tokens used by delimiter and replacement configuration.
-fn parse_byte_token(value: &str, label: &str) -> anyhow::Result<u8> {
+fn parse_byte_token(value: &str, label: &str) -> Result<u8> {
     if let Some(prefix) = value.get(..3)
         && prefix.eq_ignore_ascii_case("ch:")
     {
@@ -786,7 +739,7 @@ fn parse_byte_token(value: &str, label: &str) -> anyhow::Result<u8> {
 }
 
 /// Parse textual escape selector into a normalized escape-kind value.
-fn parse_escape_kind(value: &str) -> anyhow::Result<EscapeKind> {
+fn parse_escape_kind(value: &str) -> Result<EscapeKind> {
     match normalize_token(value).as_str() {
         "qd" | "quotedoubled" => Ok(EscapeKind::QuoteDoubled),
         "aqd" | "alwaysquotedoubled" => Ok(EscapeKind::AlwaysQuoteDoubled),
@@ -804,7 +757,7 @@ fn parse_escape_kind(value: &str) -> anyhow::Result<EscapeKind> {
 }
 
 /// Parse textual header selector into a normalized [`Header`] value.
-fn parse_header_mode(value: &str) -> anyhow::Result<Header> {
+fn parse_header_mode(value: &str) -> Result<Header> {
     match normalize_token(value).as_str() {
         "y" | "yes" | "true" | "on" | "1" => Ok(Header::Yes),
         "n" | "no" | "false" | "off" | "0" => Ok(Header::No),
@@ -815,7 +768,7 @@ fn parse_header_mode(value: &str) -> anyhow::Result<Header> {
 }
 
 /// Parse quote-pair override for output config specs.
-fn parse_output_quote_pair(value: &str) -> anyhow::Result<(u8, u8)> {
+fn parse_output_quote_pair(value: &str) -> Result<(u8, u8)> {
     match normalize_token(value).as_str() {
         "ang" => return Ok((b'<', b'>')),
         "brk" => return Ok((b'[', b']')),
@@ -873,11 +826,11 @@ pub type OutputConfig = Config;
 impl LineWriter {
     /// Construct a new `LineWriter`.
     #[must_use]
-    pub fn new(config: Config, eol: Vec<u8>, writer: Box<dyn util::MyWrite>) -> Self {
-        Self::with_capacities(config, eol, writer, 0, 0)
+    pub fn new(config: Config, eol: ReadResult) -> Self {
+        Self::with_capacities(config, eol.as_bytes().into(), 0, 0)
     }
 
-    /// Construct a new `LineWriter` with explicit reusable buffer capacities.
+    /// Construct a new `LineWriter` with explicit reusable buffer capacities and eol string.
     ///
     /// `record_capacity` is the initial capacity for the whole-record buffer, and
     /// `column_capacity` is the initial capacity for the chunked-column buffer.
@@ -885,14 +838,12 @@ impl LineWriter {
     pub fn with_capacities(
         config: Config,
         eol: Vec<u8>,
-        writer: Box<dyn util::MyWrite>,
         record_capacity: usize,
         column_capacity: usize,
     ) -> Self {
         Self {
             config,
             eol,
-            writer,
             record_buf: Vec::with_capacity(record_capacity),
             column_buf: Vec::with_capacity(column_capacity),
             column_open: false,
@@ -900,15 +851,19 @@ impl LineWriter {
         }
     }
 
-    /// Write the CDX header for this output format. This is optional but can be used by downstream tools to detect the output format.
-    /// This must be called before writing any records, and will write " CDX" followed by the delimiter byte.
-    pub fn write_cdx(&mut self) -> anyhow::Result<()> {
-        let orig_len = self.record_buf.len();
-        self.record_buf.extend_from_slice(b" CDX");
-        self.record_buf.push(self.config.delimiter);
-        let result = self.writer.write_all(&self.record_buf[orig_len..]);
-        self.record_buf.truncate(orig_len);
-        result?;
+    /// Write as a header line.
+    pub fn write_cdx(&self, w: &mut dyn Write) -> Result<()> {
+        match self.config.header {
+            Header::No => {}
+            Header::Yes => {
+                self.write(w)?;
+            }
+            Header::Cdx => {
+                w.write_all(b" CDX")?;
+                w.write_all(&[self.config.delimiter])?;
+                self.write(w)?;
+            }
+        }
         Ok(())
     }
 
@@ -934,9 +889,15 @@ impl LineWriter {
         &mut self.eol
     }
 
-    /// Mutably access the underlying writer.
-    pub fn writer_mut(&mut self) -> &mut dyn Write {
-        &mut self.writer
+    /// Access the current record terminator bytes.
+    #[must_use]
+    pub fn record(&self) -> &[u8] {
+        &self.record_buf
+    }
+
+    /// Mutably access the record terminator bytes.
+    pub const fn record_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.record_buf
     }
 
     /// Return whether chunked-column mode is currently active.
@@ -948,7 +909,7 @@ impl LineWriter {
     /// Prepare to append one new column into the current in-memory record.
     ///
     /// This validates chunked-column state and writes a delimiter when needed.
-    fn begin_column_write(&mut self) -> anyhow::Result<()> {
+    fn begin_column_write(&mut self) -> Result<()> {
         if self.column_open {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -973,7 +934,7 @@ impl LineWriter {
     /// on error, `record_buf` and column-separator state are restored to what
     /// they were before this call, so the caller may continue writing columns
     /// or retry.
-    pub fn write_column(&mut self, data: &[u8]) -> anyhow::Result<()> {
+    pub fn write_column(&mut self, data: &[u8]) -> Result<()> {
         let original_len = self.record_buf.len();
         let original_wrote_any_column = self.wrote_any_column;
         self.begin_column_write()?;
@@ -988,7 +949,7 @@ impl LineWriter {
     }
 
     /// Write many full columns into the current record.
-    pub fn write_columns<I, B>(&mut self, columns: I) -> anyhow::Result<()>
+    pub fn write_columns<I, B>(&mut self, columns: I) -> Result<()>
     where
         I: IntoIterator<Item = B>,
         B: AsRef<[u8]>,
@@ -1003,7 +964,7 @@ impl LineWriter {
     ///
     /// This is equivalent to:
     /// `begin_column`, repeated `write_column_chunk`, and `end_column`.
-    pub fn write_column_chunks<I, B>(&mut self, chunks: I) -> anyhow::Result<()>
+    pub fn write_column_chunks<I, B>(&mut self, chunks: I) -> Result<()>
     where
         I: IntoIterator<Item = B>,
         B: AsRef<[u8]>,
@@ -1015,18 +976,8 @@ impl LineWriter {
         self.end_column()
     }
 
-    /// Write a complete record (columns plus record terminator).
-    pub fn write_record<I, B>(&mut self, columns: I) -> anyhow::Result<()>
-    where
-        I: IntoIterator<Item = B>,
-        B: AsRef<[u8]>,
-    {
-        self.write_columns(columns)?;
-        self.finish_record()
-    }
-
     /// Begin chunked-column mode for one column value.
-    pub fn begin_column(&mut self) -> anyhow::Result<()> {
+    pub fn begin_column(&mut self) -> Result<()> {
         if self.column_open {
             return Err(
                 io::Error::new(io::ErrorKind::InvalidInput, "chunked column already open").into()
@@ -1038,7 +989,7 @@ impl LineWriter {
     }
 
     /// Append bytes to the currently open chunked-column value.
-    pub fn write_column_chunk(&mut self, data: &[u8]) -> anyhow::Result<()> {
+    pub fn write_column_chunk(&mut self, data: &[u8]) -> Result<()> {
         if !self.column_open {
             return Err(
                 io::Error::new(io::ErrorKind::InvalidInput, "no open chunked column").into()
@@ -1049,7 +1000,7 @@ impl LineWriter {
     }
 
     /// Finish the currently open chunked-column value and write it as one column.
-    pub fn end_column(&mut self) -> anyhow::Result<()> {
+    pub fn end_column(&mut self) -> Result<()> {
         if !self.column_open {
             return Err(
                 io::Error::new(io::ErrorKind::InvalidInput, "no open chunked column").into()
@@ -1063,54 +1014,30 @@ impl LineWriter {
         result
     }
 
-    /// Discard the current in-progress record without writing anything.
-    ///
-    /// This also closes and clears any in-progress chunked column.
-    pub fn abort_record(&mut self) {
+    /// Reset to empty.
+    pub fn clear(&mut self) {
         self.record_buf.clear();
         self.column_buf.clear();
         self.column_open = false;
         self.wrote_any_column = false;
     }
 
-    /// Finish the current record by writing `self.eol` and resetting record state.
-    ///
-    /// Error-state guarantee:
-    /// on write error, the encoded columns remain in `record_buf` and `wrote_any_column`
-    /// is unchanged, so the caller may retry `finish_record`.
-    pub fn finish_record(&mut self) -> anyhow::Result<()> {
-        if self.column_open {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "cannot finish record while chunked column is open",
-            )
-            .into());
-        }
-        debug_assert!(!self.column_open);
-
-        let orig_len = self.record_buf.len();
-        self.record_buf.extend_from_slice(&self.eol);
-        let result = self.writer.write_all(&self.record_buf);
-        if result.is_ok() {
-            self.record_buf.clear();
-            self.wrote_any_column = false;
-        } else {
-            self.record_buf.truncate(orig_len);
-        }
-        result?;
-        Ok(())
+    /// Is it empty?
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.record_buf.is_empty()
     }
 
-    /// Finish an empty record.
-    ///
-    /// This writes only the configured record terminator for the current line.
-    pub fn finish_empty_record(&mut self) -> anyhow::Result<()> {
-        self.finish_record()
+    /// Are we currently in the middle of writing a column?
+    #[must_use]
+    pub const fn is_open(&self) -> bool {
+        self.column_open
     }
 
-    /// Flush the underlying writer.
-    pub fn flush(&mut self) -> anyhow::Result<()> {
-        self.writer.flush()?;
+    /// write record with eol
+    pub fn write(&self, w: &mut dyn Write) -> Result<()> {
+        w.write_all(&self.record_buf)?;
+        w.write_all(&self.eol)?;
         Ok(())
     }
 }
@@ -1118,11 +1045,11 @@ impl LineWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
 
     /// Encode a single column and return resulting bytes.
-    fn output(config: OutputConfig, data: &[u8]) -> anyhow::Result<Vec<u8>> {
+    fn output(config: OutputConfig, data: &[u8]) -> Result<Vec<u8>> {
         let mut out = Vec::new();
         config.write_column(data, &mut out)?;
         Ok(out)
@@ -1171,33 +1098,6 @@ mod tests {
     impl Write for CountingCallsWriter {
         fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, io::Error> {
             self.calls.fetch_add(1, Ordering::Relaxed);
-            self.data.lock().unwrap().extend_from_slice(buf);
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> std::result::Result<(), io::Error> {
-            Ok(())
-        }
-    }
-
-    /// In-memory writer that fails exactly once, then succeeds.
-    #[derive(Debug, Clone, Default)]
-    struct FailFirstWriteThenSucceedWriter {
-        data: Arc<Mutex<Vec<u8>>>,
-        failed_once: Arc<AtomicBool>,
-    }
-
-    impl FailFirstWriteThenSucceedWriter {
-        fn snapshot(&self) -> Vec<u8> {
-            self.data.lock().unwrap().clone()
-        }
-    }
-
-    impl Write for FailFirstWriteThenSucceedWriter {
-        fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, io::Error> {
-            if !self.failed_once.swap(true, Ordering::Relaxed) {
-                return Err(io::Error::other("forced write failure"));
-            }
             self.data.lock().unwrap().extend_from_slice(buf);
             Ok(buf.len())
         }
@@ -1516,23 +1416,21 @@ mod tests {
 
     #[test]
     fn line_writer_write_record_writes_columns_and_eol() {
-        let sink = SharedVecWriter::default();
-        let sink_view = sink.clone();
         let config = OutputConfig::with_header(b',', Escape::QuoteDoubled(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
-        line_writer.write_record([&b"a,b"[..], &b"c"[..]]).unwrap();
-        line_writer.write_record([&b"x"[..], &b"y"[..]]).unwrap();
+        line_writer.write_columns([&b"a,b"[..], &b"c"[..]]).unwrap();
+        assert_eq!(line_writer.record(), b"\"a,b\",c");
+        line_writer.clear();
+        line_writer.write_columns([&b"x"[..], &b"y"[..]]).unwrap();
 
-        assert_eq!(sink_view.snapshot(), b"\"a,b\",c\nx,y\n");
+        assert_eq!(line_writer.record(), b"x,y");
     }
 
     #[test]
     fn line_writer_with_capacities_uses_requested_capacity() {
-        let sink = SharedVecWriter::default();
         let config = OutputConfig::with_header(b',', Escape::Trust, Header::No);
-        let line_writer =
-            LineWriter::with_capacities(config, b"\n".to_vec(), Box::new(sink), 64, 32);
+        let line_writer = LineWriter::with_capacities(config, b"\n".to_vec(), 64, 32);
 
         assert!(line_writer.record_buf.capacity() >= 64);
         assert!(line_writer.column_buf.capacity() >= 32);
@@ -1540,9 +1438,8 @@ mod tests {
 
     #[test]
     fn line_writer_is_column_open_tracks_state() {
-        let sink = SharedVecWriter::default();
         let config = OutputConfig::new(b',', Escape::Trust);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         assert!(!line_writer.is_column_open());
         line_writer.begin_column().unwrap();
@@ -1554,89 +1451,86 @@ mod tests {
 
     #[test]
     fn line_writer_abort_record_discards_pending_data() {
-        let sink = SharedVecWriter::default();
-        let sink_view = sink.clone();
         let config = OutputConfig::new(b',', Escape::Trust);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         line_writer.write_column(b"left").unwrap();
         line_writer.begin_column().unwrap();
         line_writer.write_column_chunk(b"right").unwrap();
-        line_writer.abort_record();
+        line_writer.clear();
 
         assert!(!line_writer.is_column_open());
         line_writer.write_column(b"kept").unwrap();
-        line_writer.finish_record().unwrap();
-        assert_eq!(sink_view.snapshot(), b"kept\n");
+        assert_eq!(line_writer.record(), b"kept");
     }
 
     #[test]
     fn line_writer_write_columns_then_finish_record() {
-        let sink = SharedVecWriter::default();
+        let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, b"\r\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::CrLf);
 
         line_writer.write_columns([&b"aa"[..], &b"bb"[..], &b"cc"[..]]).unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"aa\tbb\tcc\r\n");
     }
 
     #[test]
     fn line_writer_write_column_writes_tab_delimiter_and_lf_eol() {
-        let sink = SharedVecWriter::default();
+        let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         line_writer.write_column(b"foo").unwrap();
         line_writer.write_column(b"bar").unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"foo\tbar\n");
     }
 
     #[test]
     fn line_writer_chunked_column_mode() {
-        let sink = SharedVecWriter::default();
+        let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config =
             OutputConfig::with_header(b',', Escape::QuoteBackslash(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         line_writer.write_column(b"left").unwrap();
         line_writer.begin_column().unwrap();
         line_writer.write_column_chunk(b"a\"").unwrap();
         line_writer.write_column_chunk(b"b\\c").unwrap();
         line_writer.end_column().unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"left,\"a\\\"b\\\\c\"\n");
     }
 
     #[test]
     fn line_writer_write_column_chunks_convenience_api() {
-        let sink = SharedVecWriter::default();
+        let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config =
             OutputConfig::with_header(b',', Escape::QuoteBackslash(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         line_writer.write_column(b"left").unwrap();
         line_writer.write_column_chunks([&b"a\""[..], &b"b\\c"[..]]).unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"left,\"a\\\"b\\\\c\"\n");
     }
 
     #[test]
     fn line_writer_chunked_column_chunked_and_bulk_api() {
-        let sink = SharedVecWriter::default();
+        let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config =
             OutputConfig::with_header(b',', Escape::QuoteBackslash(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         line_writer.write_column(b"left").unwrap();
         line_writer.begin_column().unwrap();
@@ -1644,83 +1538,52 @@ mod tests {
         line_writer.write_column_chunk(b"b\\c").unwrap();
         line_writer.end_column().unwrap();
         line_writer.write_column_chunks([&b"x"[..], &b"y"[..]]).unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"left,\"a\\\"b\\\\c\",xy\n");
     }
 
     #[test]
     fn line_writer_finish_record_uses_single_write_call() {
-        let sink = CountingCallsWriter::default();
+        let mut sink = CountingCallsWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         line_writer.write_column(b"foo").unwrap();
         line_writer.write_column(b"bar").unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"foo\tbar\n");
-        assert_eq!(sink_view.calls(), 1);
+        assert_eq!(sink_view.calls(), 2);
     }
 
     #[test]
     fn line_writer_write_column_error_rolls_back_state() {
-        let sink = SharedVecWriter::default();
+        let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b',', Escape::Error, Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
 
         line_writer.write_column(b"left").unwrap();
         assert!(line_writer.write_column(b"bad,value").is_err());
         line_writer.write_column(b"right").unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"left,right\n");
     }
 
     #[test]
-    fn line_writer_finish_record_error_keeps_record_retryable() {
-        let sink = FailFirstWriteThenSucceedWriter::default();
-        let sink_view = sink.clone();
-        let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
-
-        line_writer.write_column(b"foo").unwrap();
-        assert!(line_writer.finish_record().is_err());
-        line_writer.finish_record().unwrap();
-
-        assert_eq!(sink_view.snapshot(), b"foo\n");
-    }
-
-    #[test]
     fn line_writer_finish_empty_record_writes_only_eol() {
-        let sink = SharedVecWriter::default();
+        let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::new(b',', Escape::Trust);
-        let mut line_writer = LineWriter::new(config, b"\r\n".to_vec(), Box::new(sink));
+        let mut line_writer = LineWriter::new(config, ReadResult::CrLf);
 
-        line_writer.finish_empty_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
         line_writer.write_column(b"a").unwrap();
-        line_writer.finish_record().unwrap();
+        line_writer.write(&mut sink).unwrap();
 
         assert_eq!(sink_view.snapshot(), b"\r\na\r\n");
-    }
-
-    #[test]
-    fn line_writer_chunked_state_errors() {
-        let sink = SharedVecWriter::default();
-        let config = OutputConfig::with_header(b',', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, b"\n".to_vec(), Box::new(sink));
-
-        assert!(line_writer.write_column_chunk(b"x").is_err());
-        assert!(line_writer.end_column().is_err());
-
-        line_writer.begin_column().unwrap();
-        assert!(line_writer.begin_column().is_err());
-        assert!(line_writer.write_column(b"x").is_err());
-        assert!(line_writer.finish_record().is_err());
-        line_writer.end_column().unwrap();
-        line_writer.finish_record().unwrap();
     }
 }

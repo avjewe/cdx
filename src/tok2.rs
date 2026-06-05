@@ -1,6 +1,7 @@
 //! Turn an expression into a Vec<Token>
 
 use crate::prelude::*;
+use crate::*;
 
 /// Mathematical operations.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -96,6 +97,35 @@ const fn can_binary(token: &Token) -> bool {
         Func(_, _) => true,
     }
 }
+
+fn get_alpha_prefix(data: &str) -> &str {
+    let end = data.chars().position(|b| !b.is_ascii_alphanumeric()).unwrap_or(data.len());
+
+    &data[..end]
+}
+
+fn get_based_number(data: &str, base: u32) -> Result<u64> {
+    let num = u64::from_str_radix(data, base)?;
+    Ok(num)
+}
+
+fn get_special(mut input: &str) -> Result<Option<(&str, u64)>> {
+    if input.len() < 2 {
+        Ok(None)
+    } else {
+        let ch = input.take_first();
+        let tok = get_alpha_prefix(input);
+        match ch {
+            'b' | 'B' => Ok(Some((&input[tok.len()..], get_based_number(tok, 2)?))),
+            'o' | 'O' => Ok(Some((&input[tok.len()..], get_based_number(tok, 8)?))),
+            'x' | 'X' => Ok(Some((&input[tok.len()..], get_based_number(tok, 16)?))),
+            'r' | 'R' => Ok(Some((&input[tok.len()..], roman::read_roman(tok.as_bytes())?))),
+            _ => Ok(None),
+        }
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
 pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
     let orig = orig.as_ref();
     let mut input = orig;
@@ -179,7 +209,6 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                         && !res.is_empty()
                         && let Token::Number(n) = res[res.len() - 1]
                     {
-                        // Token::Dice(n, )
                         let (x, _y) = var[1..].to_f64();
                         let pos = res.len() - 1;
                         res[pos] = Token::Dice(n as usize, x as usize);
@@ -187,9 +216,20 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                         res.push(Token::Var(var));
                     }
                 } else if ch.is_ascii_alphanumeric() {
-                    let (x, y) = orig[orig.len() - prev..].to_f64();
-                    input = y;
-                    res.push(Token::Number(x));
+                    debug_assert!(
+                        ch.is_ascii_digit(),
+                        "is_ascii_alphanumeric but not is_ascii_digit"
+                    );
+                    if ch == '0'
+                        && let Some((data, val)) = get_special(input)?
+                    {
+                        res.push(Token::Number(val as f64));
+                        input = data;
+                    } else {
+                        let (x, y) = orig[orig.len() - prev..].to_f64();
+                        input = y;
+                        res.push(Token::Number(x));
+                    }
                 } else if ch.is_whitespace() {
                     // Do nothing.
                 } else {

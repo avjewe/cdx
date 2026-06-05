@@ -5,8 +5,6 @@ use crate::util::FakeSlice;
 use crate::*;
 use base64::Engine;
 use base64::engine::general_purpose;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Mutex;
 
 /// Transform a value to another value, in the context of a (typically unused) `TextLine`
@@ -18,14 +16,7 @@ pub trait Trans {
         Ok(())
     }
 }
-/// The `Trans` trait, but useful.
-pub trait UsefulTrans: Trans + fmt::Debug {}
-impl<T> UsefulTrans for T where T: Trans + fmt::Debug {}
-/// The `Trans` trait, but safe.
-pub trait SafeTrans: Trans + Send + Sync + fmt::Debug {}
-impl<T> SafeTrans for T where T: Trans + Send + Sync + fmt::Debug {}
-/// Reference to useful `Trans` trait.
-pub type CompareRef = Rc<RefCell<dyn UsefulTrans>>;
+useful!(Trans);
 
 #[derive(Default, Clone, Debug)]
 struct SelectTrans {

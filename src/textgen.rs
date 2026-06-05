@@ -4,8 +4,6 @@ use crate::prelude::*;
 use crate::*;
 use itertools::Itertools;
 use rand_distr::{Distribution, Normal};
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Mutex;
 
 /// location context for Gen
@@ -28,14 +26,7 @@ pub trait Gen {
         None
     }
 }
-/// The `Gen` trait, but useful.
-pub trait UsefulGen: Gen + fmt::Debug {}
-impl<T> UsefulGen for T where T: Gen + fmt::Debug {}
-/// The `Gen` trait, but safe.
-pub trait SafeGen: Gen + Send + Sync + fmt::Debug {}
-impl<T> SafeGen for T where T: Gen + Send + Sync + fmt::Debug {}
-/// Reference to useful `Gen` trait.
-pub type GenRef = Rc<RefCell<dyn UsefulGen>>;
+useful!(Gen);
 
 #[derive(Debug, Clone)]
 struct CombineGen {
@@ -349,14 +340,7 @@ pub trait FullGen {
     /// write one column value
     fn write(&mut self, w: &mut dyn Write) -> Result<()>;
 }
-/// The `FullGen` trait, but useful.
-pub trait UsefulFullGen: FullGen + fmt::Debug {}
-impl<T> UsefulFullGen for T where T: FullGen + fmt::Debug {}
-/// The `FullGen` trait, but safe.
-pub trait SafeFullGen: FullGen + Send + Sync + fmt::Debug {}
-impl<T> SafeFullGen for T where T: FullGen + Send + Sync + fmt::Debug {}
-/// Reference to useful `FullGen` trait.
-pub type FullGerRef = Rc<RefCell<dyn UsefulFullGen>>;
+useful!(FullGen);
 
 #[derive(Debug, Clone)]
 struct BytesGen {

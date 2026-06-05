@@ -4,6 +4,7 @@
 //! parsed column buffers are reused across calls to [`Columns::read`].
 
 use memchr::memchr_iter;
+use memchr::memchr3_iter;
 use std::collections::HashSet;
 use std::iter::FusedIterator;
 use std::ops::{Index, Range};
@@ -12,8 +13,10 @@ use crate::prelude::*;
 pub use crate::read_line::BackslashMode;
 pub use crate::read_line::Config;
 pub use crate::read_line::Quotes;
+use crate::read_line::ReadResult;
 pub use crate::read_line::UnterminatedQuoteMode;
-// use crate::*;
+use crate::util::FileLocData;
+use crate::*;
 
 /// How input records are split into columns.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -814,8 +817,22 @@ impl Columns {
 
     /// access input buffer
     #[must_use]
-    pub const fn input(&self) -> &Vec<u8> {
+    pub fn input(&self) -> &[u8] {
         &self.input
+    }
+
+    /// Mutably access the reusable input buffer.
+    ///
+    /// Call [`Columns::read`] after filling this buffer to parse it. Parsing will clear any previous
+    /// output ranges before reading the current buffer contents.
+    pub const fn ptrs_mut(&mut self) -> &mut Vec<Range<usize>> {
+        &mut self.ptrs
+    }
+
+    /// access input buffer
+    #[must_use]
+    pub fn ptrs(&self) -> &[Range<usize>] {
+        &self.ptrs
     }
 
     /// access decoded buffer, might old or empty.
@@ -1378,11 +1395,127 @@ impl Columns {
             self.finish_column(column_start, record_len);
         }
     }
+
+    /// If no quoting or escaping and single character delimiter
+    /// extra fast all-in-one line and column parsing
+    pub fn read_fast(
+        &mut self,
+        delim: u8,
+        reader: &mut dyn BufRead,
+        location: &mut FileLocData,
+    ) -> anyhow::Result<ReadResult> {
+        location.prev_bytes = location.bytes;
+        location.line += 1;
+        let mut start = 0usize;
+        let mut first_time = true;
+        loop {
+            let available = reader.fill_buf()?;
+            if available.is_empty() {
+                if first_time {
+                    location.line -= 1;
+                    return Ok(ReadResult::Eof);
+                }
+                let end = self.input().len();
+                self.ptrs.push(start..end);
+                return Ok(ReadResult::NoTerminator);
+            } else if first_time {
+                first_time = false;
+                self.clear();
+            }
+
+            for index in memchr3_iter(delim, b'\n', b'\r', available) {
+                let end = self.input().len() + index;
+                self.ptrs.push(start..end);
+                start = end + 1;
+                assert!(index < available.len());
+                if available[index] == b'\r' {
+                    self.input.extend_from_slice(&available[..index]);
+                    let consume_len = if available.get(index + 1) == Some(&b'\n') {
+                        index + 2
+                    } else {
+                        index + 1
+                    };
+                    let cr_ends_buffer = consume_len == available.len();
+                    read_line::consume(reader, location, consume_len);
+                    if cr_ends_buffer
+                        && consume_len == index + 1
+                        && read_line::consume_split_lf(reader, location)?
+                    {
+                        return Ok(ReadResult::CrLf);
+                    }
+                    return Ok(if consume_len == index + 2 {
+                        ReadResult::CrLf
+                    } else {
+                        ReadResult::Cr
+                    });
+                } else if available[index] == b'\n' {
+                    self.input.extend_from_slice(&available[..index]);
+                    read_line::consume(reader, location, index + 1);
+                    return Ok(ReadResult::Lf);
+                }
+            }
+            self.input.extend_from_slice(available);
+            let len = available.len();
+            read_line::consume(reader, location, len);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::BufReader;
+    use std::io::Cursor;
+
+    fn run_fast_test(data: &[u8]) {
+        let mut loc2 = FileLocData::new("test");
+        let mut cols2 = Columns::new();
+        let reader2 = Cursor::new(data);
+        let mut f2 = BufReader::new(reader2);
+
+        let config = Config::simple(b'\t');
+        let eol2 = read_line::read(cols2.input_mut(), &mut f2, &config, &mut loc2).unwrap();
+        cols2.read(&config);
+
+        let mut cols3 = cols2.clone();
+        let mut loc3 = loc2.clone();
+        let eol3 = read_line::read(cols3.input_mut(), &mut f2, &config, &mut loc3).unwrap();
+        cols3.read(&config);
+
+        for capacity in [2, 3, 5, 7, 11, 100, 200] {
+            let mut loc = FileLocData::new("test");
+            let mut cols = Columns::new();
+            let reader = Cursor::new(data);
+            let mut f = BufReader::with_capacity(capacity, reader);
+            let eol = cols.read_fast(b'\t', &mut f, &mut loc).unwrap();
+            assert_eq!(eol, eol2);
+            assert_eq!(cols, cols2);
+
+            let eol = cols.read_fast(b'\t', &mut f, &mut loc).unwrap();
+            assert_eq!(eol, eol3);
+            assert_eq!(cols, cols3);
+        }
+    }
+
+    #[test]
+    fn fast_test_1() {
+        run_fast_test(b"abc\tdef\tghi\n12345\t67\t891011\n");
+        run_fast_test(b"abc\tdef\tghi\r12345\t67\t891011\r");
+        run_fast_test(b"abc\tdef\tghi\r\n12345\t67\t891011\r\n");
+        run_fast_test(b"abc\tdef\tghi\n12345\t67\t891011");
+    }
+
+    #[test]
+    fn fast_tests() {
+        run_fast_test(b"abc\tdef\tghi\n");
+        run_fast_test(b"abc\tdef\tghi");
+        run_fast_test(b"abc\tdef\tghi\r\n");
+        run_fast_test(b"abc\tdef\tghi\r");
+
+        run_fast_test(b"abc\tdef\tghi\naaaaa");
+        run_fast_test(b"abc\tdef\tghi\r\naaaaa");
+        run_fast_test(b"abc\tdef\tghi\raaaaa");
+    }
 
     /// Parse one record and clone the current output columns.
     fn parse_record(record: &[u8], options: &Config) -> Vec<Vec<u8>> {
@@ -1658,7 +1791,7 @@ mod tests {
         columns.clear_cols();
 
         assert!(columns.is_empty());
-        assert_eq!(columns.input().as_slice(), b"a,b");
+        assert_eq!(columns.input(), b"a,b");
     }
 
     #[test]

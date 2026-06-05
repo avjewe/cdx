@@ -29,8 +29,6 @@ use crate::num::{Junk, JunkType, JunkVal, fcmp, ulp_to_ulong};
 use crate::prelude::*;
 use crate::util::prerr_n;
 use crate::*;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Mutex;
 
 /// method of comparing two slices
@@ -48,14 +46,7 @@ pub trait Compare {
     /// Compare self to slice for equality
     fn equal_self(&self, right: &[u8]) -> bool;
 }
-/// The `Compare` trait, but useful.
-pub trait UsefulCompare: Compare + fmt::Debug {}
-impl<T> UsefulCompare for T where T: Compare + fmt::Debug {}
-/// The `Compare` trait, but safe.
-pub trait SafeCompare: Compare + Send + Sync + fmt::Debug {}
-impl<T> SafeCompare for T where T: Compare + Send + Sync + fmt::Debug {}
-/// Reference to useful `Compare` trait.
-pub type CompareRef = Rc<RefCell<dyn UsefulCompare>>;
+useful!(Compare);
 
 /// method of comparing two lines
 pub trait LineCompare {
@@ -121,14 +112,7 @@ pub trait LineCompare {
     /// Compare self to line for equality
     fn equal_self_line(&mut self, right: &[u8], delim: u8) -> bool;
 }
-/// The `LineCompare` trait, but safe.
-pub trait UsefulLineCompare: LineCompare + fmt::Debug {}
-impl<T> UsefulLineCompare for T where T: LineCompare + fmt::Debug {}
-/// The `LineCompare` trait, but safe.
-pub trait SafeLineCompare: LineCompare + Send + Sync + fmt::Debug {}
-impl<T> SafeLineCompare for T where T: LineCompare + Send + Sync + fmt::Debug {}
-/// Reference to useful `LineCompare` trait.
-pub type LineCompareRef = Rc<RefCell<dyn UsefulLineCompare>>;
+useful!(LineCompare);
 
 /// Settings for one Compare object
 #[derive(Debug)]

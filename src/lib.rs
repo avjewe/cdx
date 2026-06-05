@@ -101,6 +101,7 @@ pub mod output;
 pub mod prelude;
 pub mod read_line;
 pub mod recyclable_vec;
+pub mod roman;
 pub mod sampler;
 mod shunting_yard;
 pub mod solve;
@@ -146,5 +147,24 @@ pub fn get_str(data: &ColumnNamesRef, index: usize) -> &str {
 macro_rules! svec {
     ($($x:expr),* $(,)?) => {
         vec![$($x.to_string()),*]
+    };
+}
+
+/// Make useful versions of traits
+#[macro_export]
+macro_rules! useful {
+    ($trait_name:ident) => {
+        pastey::paste! {
+            /// Useful version of trait $`trait_name`
+            pub trait [<Useful $trait_name>]: $trait_name + std::fmt::Debug {}
+            impl<T> [<Useful $trait_name>] for T where T: $trait_name + fmt::Debug {}
+
+            /// Safe version of trait $`trait_name`
+            pub trait [<Safe $trait_name>]: $trait_name + Send + Sync + std::fmt::Debug {}
+            impl<T> [<Safe $trait_name>] for T where T: $trait_name + Send + Sync + std::fmt::Debug {}
+
+            #[doc = " Reference to useful `" $trait_name "` trait."]
+            pub type [<$trait_name Ref>] = std::rc::Rc<std::cell::RefCell<dyn [<Useful $trait_name>]>>;
+        }
     };
 }

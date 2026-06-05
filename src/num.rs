@@ -130,6 +130,8 @@ pub enum NumFormat {
     Power10,
     /// simplest rational approximation
     Rational(usize),
+    /// Roman Numerals
+    Roman,
 }
 impl Default for NumFormat {
     fn default() -> Self {
@@ -146,6 +148,8 @@ impl NumFormat {
             Ok(Self::Short(None))
         } else if spec.eq_ignore_ascii_case("float") {
             Ok(Self::Float(None))
+        } else if spec.eq_ignore_ascii_case("roman") {
+            Ok(Self::Roman)
         } else if spec.eq_ignore_ascii_case("power2") || spec.eq_ignore_ascii_case("p2") {
             Ok(Self::Power2)
         } else if spec.eq_ignore_ascii_case("power10") || spec.eq_ignore_ascii_case("p10") {
@@ -211,6 +215,9 @@ impl NumFormat {
             let (x, y) = crate::format::get_rational(num, n as u32);
             write!(w, "{x}/{y}")?;
             return Ok(());
+        }
+        if Self::Roman == nfmt {
+            return crate::roman::write_roman_f(num, &mut w);
         }
         num = num.round();
         if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {

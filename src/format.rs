@@ -145,6 +145,7 @@ fn format_inner(num: f64, is_10: bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_format2() {
         assert!(format_power2(0) == "0");

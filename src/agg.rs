@@ -22,14 +22,7 @@ pub trait Agg {
         0.0
     }
 }
-
-/// The Agg trait, but useful.
-pub trait UsefulAgg: Agg + fmt::Debug {}
-impl<T> UsefulAgg for T where T: Agg + fmt::Debug {}
-/// The Agg trait, but safe.
-pub trait SafeAgg: Agg + Send + Sync + fmt::Debug {}
-impl<T> SafeAgg for T where T: Agg + Send + Sync + fmt::Debug {}
-type AggRef = Rc<RefCell<dyn UsefulAgg>>;
+useful!(Agg);
 
 /// Agg with context
 #[derive(Clone, Debug)]
@@ -65,13 +58,7 @@ pub trait LineAgg {
     /// does this `LineAgg` specifically refer to this input column?
     fn is_col(&self, col: usize) -> bool;
 }
-/// The `LineAgg` trait, but useful.
-pub trait UsefulLineAgg: LineAgg + fmt::Debug {}
-impl<T> UsefulLineAgg for T where T: LineAgg + fmt::Debug {}
-/// The `LineAgg` trait, but safe.
-pub trait SafeLineAgg: LineAgg + Send + Sync + fmt::Debug {}
-impl<T> SafeLineAgg for T where T: LineAgg + Send + Sync + fmt::Debug {}
-type LineAggRef = Rc<RefCell<dyn UsefulLineAgg>>;
+useful!(LineAgg);
 
 /// `LineAgg` with Context
 #[derive(Clone, Debug)]
@@ -236,13 +223,7 @@ pub trait Counter {
     /// get number of things in data
     fn counter(&mut self, data: &[u8]) -> usize;
 }
-/// The Counter trait, but useful.
-pub trait UsefulCounter: Counter + fmt::Debug {}
-impl<T> UsefulCounter for T where T: Counter + fmt::Debug {}
-type CounterRef = Rc<RefCell<dyn UsefulCounter>>;
-/// The Counter trait, but safe.
-pub trait SafeCounter: Counter + Send + Sync + fmt::Debug {}
-impl<T> SafeCounter for T where T: Counter + Send + Sync + fmt::Debug {}
+useful!(Counter);
 
 #[derive(Debug, Clone, Default)]
 struct CountChar {

@@ -3,6 +3,7 @@
 
 use crate::num::{Junk, JunkType, suffix_valf, suffix_value};
 use crate::prelude::*;
+use crate::*;
 use std::ops::Range;
 
 /// Case Sensitive or not
@@ -485,6 +486,36 @@ const fn is_exp(buf: &[u8]) -> bool {
     assert!(buf.len() > 2);
     buf[2].is_ascii_digit()
 }
+
+// fn get_an_prefix(data: &[u8]) -> &[u8] {
+//     let end = data
+//         .iter()
+//         .position(|b| !b.is_ascii_alphanumeric())
+//         .unwrap_or(data.len());
+
+//     &data[..end]
+// }
+
+// fn get_special(buf: &[u8]) -> Option<(usize, &[u8])> {
+//     if buf.len() < 2 || buf[0] != b'0' {
+//         return None;
+//     }
+//     let p = get_an_prefix(&buf[2..]);
+// // i32::from_str_radix(hex_str, 16);
+//     if buf[1] == b'x' || buf[1] == b'X' {
+//         let res = usize::from_radix(&p, 16);
+//         SpecialNum::Hex
+//     } else if buf[1] == b'o' || buf[1] == b'O' {
+//         SpecialNum::Oct
+//     } else if buf[1] == b'b' || buf[1] == b'B' {
+//         SpecialNum::Bin
+//     } else if buf[1] == b'r' || buf[1] == b'R' {
+//         let res = roman::read_roman(p).unwrap();
+//         return Some((res, &buf[2 + p.len()..]));
+//     } else {
+//         return None;
+//     }
+// }
 
 impl Text for [u8] {
     type Char = u8;

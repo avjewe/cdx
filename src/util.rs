@@ -706,6 +706,11 @@ impl AsMut<io::BufWriter<Box<dyn MyWrite>>> for Outfile {
 
 /// Make an Outfile from a file name
 pub fn get_writer(name: &str) -> Result<Outfile> {
+    Ok(Outfile::new(get_buf_writer(name)?, name))
+}
+
+/// Make an Outfile from a file name
+pub fn get_buf_writer(name: &str) -> Result<io::BufWriter<Box<dyn MyWrite>>> {
     let inner: Box<dyn MyWrite> = {
         if name == "-" {
             Box::new(io::stdout())
@@ -715,7 +720,7 @@ pub fn get_writer(name: &str) -> Result<Outfile> {
             Box::new(fs::OpenOptions::new().write(true).create(true).open(name)?)
         }
     };
-    Ok(Outfile::new(io::BufWriter::new(inner), name))
+    Ok(io::BufWriter::new(inner))
 }
 
 // should return Cow<>

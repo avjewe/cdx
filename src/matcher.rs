@@ -37,10 +37,8 @@ use crate::util::{CheckBuff, CompareOp};
 use crate::*;
 use memchr::memmem::find;
 use regex::Regex;
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::Write;
-use std::rc::Rc;
 use std::sync::Mutex;
 
 /// Match against [`TextLine`]
@@ -60,14 +58,7 @@ pub trait LineMatch {
         ret
     }
 }
-/// The `LineMatch` trait, but useful.
-pub trait UsefulLineMatch: LineMatch + fmt::Debug {}
-impl<T> UsefulLineMatch for T where T: LineMatch + fmt::Debug {}
-/// The `LineMatch` trait, but safe.
-pub trait SafeLineMatch: LineMatch + Send + Sync + fmt::Debug {}
-impl<T> SafeLineMatch for T where T: LineMatch + Send + Sync + fmt::Debug {}
-/// Reference to useful `LineMatch` trait.
-pub type LineMatchRef = Rc<RefCell<dyn UsefulLineMatch>>;
+useful!(LineMatch);
 
 const fn not_str(negate: bool) -> &'static str {
     if negate { "not-" } else { "" }
@@ -105,14 +96,7 @@ pub trait Match {
         res
     }
 }
-/// The `Match` trait, but useful.
-pub trait UsefulMatch: Match + fmt::Debug {}
-impl<T> UsefulMatch for T where T: Match + fmt::Debug {}
-/// The `Match` trait, but safe.
-pub trait SafeMatch: Match + Send + Sync + fmt::Debug {}
-impl<T> SafeMatch for T where T: Match + Send + Sync + fmt::Debug {}
-/// Reference to useful `Match` trait.
-pub type MatchRef = Rc<RefCell<dyn UsefulMatch>>;
+useful!(Match);
 
 /// a threshold
 #[derive(Copy, Clone, Debug, PartialEq)]

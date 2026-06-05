@@ -299,12 +299,15 @@ fn location_display(location: &FileLocData) -> String {
     format!("{}:{}", location.name, location.line + 1)
 }
 
-fn consume(reader: &mut dyn BufRead, location: &mut FileLocData, bytes: usize) {
+pub(crate) fn consume(reader: &mut dyn BufRead, location: &mut FileLocData, bytes: usize) {
     reader.consume(bytes);
     location.bytes += bytes;
 }
 
-fn consume_split_lf(reader: &mut dyn BufRead, location: &mut FileLocData) -> anyhow::Result<bool> {
+pub(crate) fn consume_split_lf(
+    reader: &mut dyn BufRead,
+    location: &mut FileLocData,
+) -> anyhow::Result<bool> {
     if fill_buf(reader, location)?.first() == Some(&b'\n') {
         consume(reader, location, 1);
         return Ok(true);

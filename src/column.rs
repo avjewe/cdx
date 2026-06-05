@@ -5,9 +5,8 @@ use crate::matcher::MatchMaker;
 use crate::prelude::*;
 use crate::util::find_close;
 use crate::*;
-use std::cell::RefCell;
+use output::LineWriter;
 use std::collections::HashSet;
-use std::rc::Rc;
 use std::str;
 
 /// What to do if there would be duplicate column names
@@ -508,32 +507,32 @@ pub trait ColumnFun {
     fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()>;
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()>;
+    /// write the column values (called many times)
+    fn output(&mut self, _w: &mut LineWriter, _line: &TextLine) -> Result<()> {
+        Ok(())
+    }
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()>;
 }
-/// The `ColumnFun` trait, but useful.
-pub trait UsefulColumnFun: ColumnFun + fmt::Debug {}
-impl<T> UsefulColumnFun for T where T: ColumnFun + fmt::Debug {}
-/// The `ColumnFun` trait, but safe.
-pub trait SafeColumnFun: ColumnFun + Send + Sync + fmt::Debug {}
-impl<T> SafeColumnFun for T where T: ColumnFun + Send + Sync + fmt::Debug {}
-/// Reference to useful `ColumnFun` trait.
-pub type ColumnFunRef = Rc<RefCell<dyn UsefulColumnFun>>;
+useful!(ColumnFun);
 
 /// write a single column
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct ColumnExpr {
     name: String,
     expr: Expr,
+    format: NumFormat,
 }
 
 impl ColumnExpr {
+    // FIXME - include format in spec or pass in from command line
     /// new from Expr or Name:Expr
     pub fn new(spec: &str) -> Result<Self> {
         if let Some((a, b)) = spec.split_once(':') {
-            Ok(Self { name: a.to_string(), expr: Expr::new(b)? })
+            Ok(Self { name: a.to_string(), expr: Expr::new(b)?, format: NumFormat::default() })
         } else {
-            Ok(Self { name: String::new(), expr: Expr::new(spec)? })
+            Ok(Self { name: String::new(), expr: Expr::new(spec)?, format: NumFormat::default() })
         }
     }
 }
@@ -544,8 +543,7 @@ impl ColumnFun for ColumnExpr {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
-        write!(w, "{}", self.expr.eval(line))?;
-        Ok(())
+        self.format.print(self.expr.eval(line), w)
     }
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
@@ -599,6 +597,11 @@ impl ColumnFun for ColumnWhole {
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
         w.write_all(line.line())?;
+        Ok(())
+    }
+    /// write the column values (called many times)
+    fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        w.write_column(line.line())?;
         Ok(())
     }
     /// resolve any named columns
