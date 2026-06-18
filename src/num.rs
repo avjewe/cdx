@@ -132,6 +132,8 @@ pub enum NumFormat {
     Rational(usize),
     /// Roman Numerals
     Roman,
+    /// Dyadic fractions. Can get rather wordy.
+    Dyadic,
 }
 impl Default for NumFormat {
     fn default() -> Self {
@@ -150,6 +152,8 @@ impl NumFormat {
             Ok(Self::Float(None))
         } else if spec.eq_ignore_ascii_case("roman") {
             Ok(Self::Roman)
+        } else if spec.eq_ignore_ascii_case("dyadic") {
+            Ok(Self::Dyadic)
         } else if spec.eq_ignore_ascii_case("power2") || spec.eq_ignore_ascii_case("p2") {
             Ok(Self::Power2)
         } else if spec.eq_ignore_ascii_case("power10") || spec.eq_ignore_ascii_case("p10") {
@@ -218,6 +222,10 @@ impl NumFormat {
         }
         if Self::Roman == nfmt {
             return crate::roman::write_roman_f(num, &mut w);
+        }
+        if Self::Dyadic == nfmt {
+            w.write_all(crate::dyadic::format_frac(num).as_bytes())?;
+            return Ok(());
         }
         num = num.round();
         if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {

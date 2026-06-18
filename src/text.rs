@@ -487,15 +487,6 @@ const fn is_exp(buf: &[u8]) -> bool {
     buf[2].is_ascii_digit()
 }
 
-// fn get_an_prefix(data: &[u8]) -> &[u8] {
-//     let end = data
-//         .iter()
-//         .position(|b| !b.is_ascii_alphanumeric())
-//         .unwrap_or(data.len());
-
-//     &data[..end]
-// }
-
 // fn get_special(buf: &[u8]) -> Option<(usize, &[u8])> {
 //     if buf.len() < 2 || buf[0] != b'0' {
 //         return None;

@@ -202,7 +202,9 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                 if ch.is_alphabetic() {
                     let mut var = String::new();
                     var.push(ch);
-                    while !input.is_empty() && input.first().is_alphanumeric() {
+                    while !input.is_empty()
+                        && (input.first().is_alphanumeric() || input.first() == '_')
+                    {
                         var.push(input.take_first());
                     }
                     if is_d(&var)

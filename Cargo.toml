@@ -41,6 +41,7 @@ anyhow = "1"
 itertools = "0"
 twox-hash = "2"
 pastey = "0"
+rustyline = "18.0.0"
 
 [profile.release]
 debug = true
