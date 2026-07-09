@@ -191,7 +191,7 @@ impl Trans for NormSpaceUtf8 {
         let mut need_space = false;
         self.tmp.clear();
         for x in String::from_utf8_lossy(src).chars() {
-            if x.is_whitespace() || x == std::char::REPLACEMENT_CHARACTER {
+            if x.is_whitespace() || x == char::REPLACEMENT_CHARACTER {
                 need_space = true;
             } else {
                 if need_space && !self.tmp.is_empty() {

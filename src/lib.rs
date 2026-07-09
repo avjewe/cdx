@@ -123,6 +123,7 @@ pub mod use_memory_tracker;
 pub mod util;
 
 pub use crate::input_file::TextFile;
+pub use crate::output::LineWriter;
 pub use crate::recyclable_vec::RVec;
 
 /// A list of column names.

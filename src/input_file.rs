@@ -495,6 +495,11 @@ impl TextFile {
         &self.loc
     }
 
+    /// Get the EOL
+    pub const fn eol(&self) -> ReadResult {
+        self.column_values.eol
+    }
+
     /// config
     #[must_use]
     pub const fn config(&self) -> &Config {

@@ -447,6 +447,12 @@ impl ColumnFun for LineAgger {
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
         self.agg.borrow_mut().result(w, self.fmt)
     }
+
+    fn output(&mut self, w: &mut LineWriter, _line: &TextLine) -> Result<()> {
+        w.begin_column()?;
+        self.agg.borrow_mut().result(w, self.fmt)?;
+        w.end_column()
+    }
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.agg.borrow_mut().lookup(field_names)
@@ -462,6 +468,13 @@ impl ColumnFun for Agger {
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
         self.agg.borrow_mut().result(w, self.fmt)
     }
+
+    fn output(&mut self, w: &mut LineWriter, _line: &TextLine) -> Result<()> {
+        w.begin_column()?;
+        self.agg.borrow_mut().result(w, self.fmt)?;
+        w.end_column()
+    }
+
     /// resolve any named columns
     fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())

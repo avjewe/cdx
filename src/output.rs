@@ -12,7 +12,7 @@ use std::io;
 /// What to do if a column value contains the column delimiter or a newline
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Escape {
-    /// Surround whole column with quotes, and double any quote bytes inside the column.
+    /// Surround whole column with quotes if necessary, and double any quote bytes inside the column.
     QuoteDoubled(u8, u8), // (open, close)
     /// Always surround whole column with quotes, and double any quote bytes inside the column.
     AlwaysQuoteDoubled(u8, u8), // (open, close)
@@ -60,12 +60,34 @@ impl Default for Config {
     }
 }
 
+/// End of line bytes
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Eol {
+    /// One of the standard `Cr`, `Lf`, `CrLf`
+    Plain(ReadResult),
+    /// Any arbitrary bytes
+    Fancy(Vec<u8>),
+}
+
+impl Default for Eol {
+    fn default() -> Self {
+        Self::Plain(ReadResult::Lf)
+    }
+}
+
+impl Eol {
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::Plain(r) => r.as_bytes(),
+            Self::Fancy(v) => v,
+        }
+    }
+}
 /// Optional output overrides resolved against an [`input_file::Config`](crate::input_file::Config).
 ///
 /// Each `Some(...)` value overrides the corresponding output setting.
 /// Each `None` value is derived from the input configuration.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-#[expect(missing_copy_implementations)]
 pub struct Spec {
     /// Optional output delimiter override.
     pub delimiter: Option<u8>,
@@ -73,10 +95,12 @@ pub struct Spec {
     pub escape: Option<Escape>,
     /// Optional output header-mode override.
     pub header: Option<Header>,
+    /// Optional end of line.
+    pub eol: Option<Eol>,
 }
 
 /// Write delimiter-separated records to an output.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LineWriter {
     /// The configuration for how to write output columns.
     config: Config,
@@ -328,13 +352,18 @@ impl Spec {
     /// Construct an empty spec that derives all output fields from input config.
     #[must_use]
     pub const fn new() -> Self {
-        Self { delimiter: None, escape: None, header: None }
+        Self { delimiter: None, escape: None, header: None, eol: None }
     }
 
     /// Construct a spec equivalent to [`Config::tsv`], with every field explicitly set.
     #[must_use]
     pub const fn tsv() -> Self {
-        Self { delimiter: Some(b'\t'), escape: Some(Escape::Backslash), header: Some(Header::Yes) }
+        Self {
+            delimiter: Some(b'\t'),
+            escape: Some(Escape::Backslash),
+            header: Some(Header::Yes),
+            eol: None,
+        }
     }
 
     /// Construct a spec equivalent to [`Config::csv`], with every field explicitly set.
@@ -344,6 +373,7 @@ impl Spec {
             delimiter: Some(b','),
             escape: Some(Escape::QuoteDoubled(b'"', b'"')),
             header: Some(Header::Yes),
+            eol: Some(Eol::Plain(ReadResult::CrLf)),
         }
     }
 
@@ -351,6 +381,15 @@ impl Spec {
     #[must_use]
     pub const fn any() -> Self {
         Self::new()
+    }
+
+    /// return eol bytes
+    #[must_use]
+    pub fn eol(&self, input: ReadResult) -> &[u8] {
+        match self.eol {
+            None => input.as_bytes(),
+            Some(ref eol) => eol.as_bytes(),
+        }
     }
 
     /// Parse a command-line style output spec.
@@ -823,11 +862,27 @@ const fn escape_parts(escape: Escape) -> (EscapeKind, (u8, u8), Option<u8>) {
 /// Prefer [`Config`].
 pub type OutputConfig = Config;
 
+impl Write for LineWriter {
+    // Continues existing column.
+    // MUST be bracketed by begin_column / end_column
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.write_column_chunk(buf).map_err(io::Error::other)?;
+        // Return the number of bytes successfully written
+        Ok(buf.len())
+    }
+
+    // Flushes any intermediately buffered data to the final destination
+    fn flush(&mut self) -> io::Result<()> {
+        // Our vector updates immediately, so flush has no extra work
+        Ok(())
+    }
+}
+
 impl LineWriter {
     /// Construct a new `LineWriter`.
     #[must_use]
-    pub fn new(config: Config, eol: ReadResult) -> Self {
-        Self::with_capacities(config, eol.as_bytes().into(), 0, 0)
+    pub fn new(config: Config, eol: &[u8]) -> Self {
+        Self::with_capacities(config, eol, 0, 0)
     }
 
     /// Construct a new `LineWriter` with explicit reusable buffer capacities and eol string.
@@ -837,18 +892,25 @@ impl LineWriter {
     #[must_use]
     pub fn with_capacities(
         config: Config,
-        eol: Vec<u8>,
+        eol: &[u8],
         record_capacity: usize,
         column_capacity: usize,
     ) -> Self {
         Self {
             config,
-            eol,
+            eol: eol.into(),
             record_buf: Vec::with_capacity(record_capacity),
             column_buf: Vec::with_capacity(column_capacity),
             column_open: false,
             wrote_any_column: false,
         }
+    }
+
+    /// Build output config by applying `spec` overrides to values derived from `input.config()`.
+    pub fn from_spec(&mut self, input: &TextFile, spec: &Spec) {
+        // FIXME. After the first time, don't do this
+        self.config = Config::from_spec(input, spec);
+        self.eol = spec.eol(input.eol()).into();
     }
 
     /// Write as a header line.
@@ -1222,6 +1284,7 @@ mod tests {
                 delimiter: Some(b'\t'),
                 escape: Some(Escape::AlwaysQuoteBackslash(b'<', b'>')),
                 header: Some(Header::Yes),
+                eol: Some(Eol::Plain(ReadResult::CrLf))
             }
         );
     }
@@ -1316,7 +1379,7 @@ mod tests {
     /// Verifies empty spec leaves all output fields unresolved for input-driven derivation.
     #[test]
     fn output_spec_new_is_all_none() {
-        assert_eq!(Spec::new(), Spec { delimiter: None, escape: None, header: None });
+        assert_eq!(Spec::new(), Spec { delimiter: None, escape: None, header: None, eol: None });
     }
 
     /// Verifies `Spec::any` is an alias of `Spec::new`.
@@ -1334,6 +1397,7 @@ mod tests {
                 delimiter: Some(Config::csv().delimiter),
                 escape: Some(Config::csv().escape),
                 header: Some(Config::csv().header),
+                eol: Some(Eol::Plain(ReadResult::CrLf))
             }
         );
         assert_eq!(
@@ -1342,6 +1406,7 @@ mod tests {
                 delimiter: Some(Config::tsv().delimiter),
                 escape: Some(Config::tsv().escape),
                 header: Some(Config::tsv().header),
+                eol: None,
             }
         );
     }
@@ -1372,7 +1437,7 @@ mod tests {
     #[test]
     fn output_config_from_input_and_spec_replace_dot_for_space_delimiter() {
         let input = input_file::Config::from_delim(input::Delimiter::Char(b','));
-        let spec = Spec { delimiter: Some(b' '), escape: None, header: None };
+        let spec = Spec { delimiter: Some(b' '), escape: None, header: None, eol: None };
         let output = Config::from_input_and_spec(&input, &spec);
         assert_eq!(output.escape, Escape::Replace(b'.'));
     }
@@ -1407,8 +1472,12 @@ mod tests {
     #[test]
     fn output_config_from_input_and_spec_overrides() {
         let input = input_file::Config::csv();
-        let spec =
-            Spec { delimiter: Some(b'|'), escape: Some(Escape::Delete), header: Some(Header::No) };
+        let spec = Spec {
+            delimiter: Some(b'|'),
+            escape: Some(Escape::Delete),
+            header: Some(Header::No),
+            eol: None,
+        };
 
         let output = Config::from_input_and_spec(&input, &spec);
         assert_eq!(output, Config { delimiter: b'|', escape: Escape::Delete, header: Header::No });
@@ -1417,7 +1486,7 @@ mod tests {
     #[test]
     fn line_writer_write_record_writes_columns_and_eol() {
         let config = OutputConfig::with_header(b',', Escape::QuoteDoubled(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_columns([&b"a,b"[..], &b"c"[..]]).unwrap();
         assert_eq!(line_writer.record(), b"\"a,b\",c");
@@ -1430,7 +1499,7 @@ mod tests {
     #[test]
     fn line_writer_with_capacities_uses_requested_capacity() {
         let config = OutputConfig::with_header(b',', Escape::Trust, Header::No);
-        let line_writer = LineWriter::with_capacities(config, b"\n".to_vec(), 64, 32);
+        let line_writer = LineWriter::with_capacities(config, b"\n", 64, 32);
 
         assert!(line_writer.record_buf.capacity() >= 64);
         assert!(line_writer.column_buf.capacity() >= 32);
@@ -1439,7 +1508,7 @@ mod tests {
     #[test]
     fn line_writer_is_column_open_tracks_state() {
         let config = OutputConfig::new(b',', Escape::Trust);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         assert!(!line_writer.is_column_open());
         line_writer.begin_column().unwrap();
@@ -1452,7 +1521,7 @@ mod tests {
     #[test]
     fn line_writer_abort_record_discards_pending_data() {
         let config = OutputConfig::new(b',', Escape::Trust);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_column(b"left").unwrap();
         line_writer.begin_column().unwrap();
@@ -1469,7 +1538,7 @@ mod tests {
         let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::CrLf);
+        let mut line_writer = LineWriter::new(config, b"\r\n");
 
         line_writer.write_columns([&b"aa"[..], &b"bb"[..], &b"cc"[..]]).unwrap();
         line_writer.write(&mut sink).unwrap();
@@ -1482,7 +1551,7 @@ mod tests {
         let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_column(b"foo").unwrap();
         line_writer.write_column(b"bar").unwrap();
@@ -1497,7 +1566,7 @@ mod tests {
         let sink_view = sink.clone();
         let config =
             OutputConfig::with_header(b',', Escape::QuoteBackslash(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_column(b"left").unwrap();
         line_writer.begin_column().unwrap();
@@ -1515,7 +1584,7 @@ mod tests {
         let sink_view = sink.clone();
         let config =
             OutputConfig::with_header(b',', Escape::QuoteBackslash(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_column(b"left").unwrap();
         line_writer.write_column_chunks([&b"a\""[..], &b"b\\c"[..]]).unwrap();
@@ -1530,7 +1599,7 @@ mod tests {
         let sink_view = sink.clone();
         let config =
             OutputConfig::with_header(b',', Escape::QuoteBackslash(b'"', b'"'), Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_column(b"left").unwrap();
         line_writer.begin_column().unwrap();
@@ -1548,7 +1617,7 @@ mod tests {
         let mut sink = CountingCallsWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b'\t', Escape::Trust, Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_column(b"foo").unwrap();
         line_writer.write_column(b"bar").unwrap();
@@ -1563,7 +1632,7 @@ mod tests {
         let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::with_header(b',', Escape::Error, Header::No);
-        let mut line_writer = LineWriter::new(config, ReadResult::Lf);
+        let mut line_writer = LineWriter::new(config, b"\n");
 
         line_writer.write_column(b"left").unwrap();
         assert!(line_writer.write_column(b"bad,value").is_err());
@@ -1578,7 +1647,7 @@ mod tests {
         let mut sink = SharedVecWriter::default();
         let sink_view = sink.clone();
         let config = OutputConfig::new(b',', Escape::Trust);
-        let mut line_writer = LineWriter::new(config, ReadResult::CrLf);
+        let mut line_writer = LineWriter::new(config, b"\r\n");
 
         line_writer.write(&mut sink).unwrap();
         line_writer.write_column(b"a").unwrap();

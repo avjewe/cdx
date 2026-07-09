@@ -141,6 +141,8 @@ impl Default for NumFormat {
         // Self::Short(None)
     }
 }
+const FORMAT_CHOICES: &str = "Number format must be short[.N], plain[.N], float[.N], rational[.N], roman, dyadic, power2 or power10";
+
 impl NumFormat {
     /// new from string
     pub fn new(spec: &str) -> Result<Self> {
@@ -175,14 +177,10 @@ impl NumFormat {
                     Ok(Self::Rational(p))
                 }
             } else {
-                err!(
-                    "Number format must be short[.N], plain[.N], float[.N], rational[.N], power2 or power10"
-                )
+                err!(FORMAT_CHOICES)
             }
         } else {
-            err!(
-                "Number format must be short[.N], plain[.N], float[.N], rational[.N], power2 or power10"
-            )
+            err!(FORMAT_CHOICES)
         }
     }
 

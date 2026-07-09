@@ -5,7 +5,6 @@ use crate::matcher::MatchMaker;
 use crate::prelude::*;
 use crate::util::find_close;
 use crate::*;
-use output::LineWriter;
 use std::collections::HashSet;
 use std::str;
 
@@ -508,9 +507,7 @@ pub trait ColumnFun {
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()>;
     /// write the column values (called many times)
-    fn output(&mut self, _w: &mut LineWriter, _line: &TextLine) -> Result<()> {
-        Ok(())
-    }
+    fn output(&mut self, _w: &mut LineWriter, _line: &TextLine) -> Result<()>;
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()>;
 }
@@ -545,6 +542,11 @@ impl ColumnFun for ColumnExpr {
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
         self.format.print(self.expr.eval(line), w)
     }
+    fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        w.begin_column()?;
+        self.format.print(self.expr.eval(line), &mut *w)?;
+        w.end_column()
+    }
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.expr.lookup(field_names)
@@ -578,6 +580,9 @@ impl ColumnFun for ColumnSingle {
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
         text.write(w, &line.columns()[self.col.num])?;
         Ok(())
+    }
+    fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        w.write_column(&line.columns()[self.col.num])
     }
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
@@ -636,6 +641,11 @@ impl ColumnFun for ColumnCount {
         self.num += 1;
         Ok(())
     }
+    fn output(&mut self, w: &mut LineWriter, _line: &TextLine) -> Result<()> {
+        w.write_column(self.num.to_string().as_bytes())?;
+        self.num += 1;
+        Ok(())
+    }
     /// resolve any named columns
     fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())
@@ -666,6 +676,9 @@ impl ColumnFun for ColumnLiteral {
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, text: &TextFileMode) -> Result<()> {
         text.write(w, &self.value)?;
         Ok(())
+    }
+    fn output(&mut self, w: &mut LineWriter, _line: &TextLine) -> Result<()> {
+        w.write_column(&self.value)
     }
     /// resolve any named columns
     fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
@@ -1069,6 +1082,33 @@ impl ColumnSet {
     }
 
     /// write the appropriate selection from the given columns, but no trailing newline
+    pub fn output(&mut self, w: &mut LineWriter, cols: &TextLine) -> Result<()> {
+        if !self.did_lookup {
+            return cdx_err(CdxError::NeedLookup);
+        }
+        if self.columns.is_empty() {
+            return Ok(());
+        }
+        if self.agg.is_empty() {
+            for c in &self.columns {
+                w.write_column(Self::fetch(c, &mut self.trans, cols)?)?;
+            }
+        } else {
+            for agg in &mut self.agg.v {
+                agg.reset();
+                for i in 0..self.columns.len() {
+                    let val = Self::fetch(&self.columns[i], &mut self.trans, cols)?;
+                    agg.add(val);
+                }
+                w.begin_column()?;
+                agg.write(w, cols, &TextFileMode::default())?;
+                w.end_column()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// write the appropriate selection from the given columns, but no trailing newline
     pub fn write3s(&self, w: &mut dyn Write, cols: &ColumnNamesRef, delim: u8) -> Result<()> {
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
@@ -1217,6 +1257,7 @@ pub struct ColumnClump {
     text: TextFileMode,
 }
 
+// FIXME -- should own a LineWriter, not a TextFileMode
 impl ColumnClump {
     /// new `ColumnClump` from parts
     #[must_use]
@@ -1252,6 +1293,11 @@ impl ColumnFun for ColumnClump {
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
         self.cols.write(w, line, &self.text)?;
         Ok(())
+    }
+    fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        w.begin_column()?;
+        self.cols.write(w, line, &self.text)?;
+        w.end_column()
     }
 
     fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
@@ -1290,6 +1336,9 @@ impl ColumnFun for ReaderColumns {
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
         self.columns.write3(w, line, text)?;
         Ok(())
+    }
+    fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        self.columns.output(w, line)
     }
 
     fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
@@ -1357,6 +1406,14 @@ impl Writer {
             }
         }
         w.write_all(b"\n")?;
+        Ok(())
+    }
+
+    /// Write the column values
+    pub fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        for c in &mut self.v {
+            c.output(w, line)?;
+        }
         Ok(())
     }
 }
@@ -1567,6 +1624,15 @@ impl ColumnFun for CompositeColumn {
         }
         text.write(w, self.suffix.as_bytes())?;
         Ok(())
+    }
+    fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        w.begin_column()?;
+        for x in &self.parts {
+            w.write_column_chunk(x.prefix.as_bytes())?;
+            w.write_column_chunk(line.get(x.col.num))?;
+        }
+        w.write_column_chunk(self.suffix.as_bytes())?;
+        w.end_column()
     }
     /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
