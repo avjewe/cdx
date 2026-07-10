@@ -526,6 +526,7 @@ pub fn write_all_nl(w: &mut impl Write, buf: &[u8]) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
 #[cfg(feature = "s3")]
 struct S3Reader {
     //    name : String,
