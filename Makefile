@@ -6,7 +6,7 @@ update:
 	cargo audit
 
 check:
-	cargo clippy
+	cargo clippy --examples --tests --bins --benches --all-targets
 	cargo test -q -- --no-capture
 	./run_tests
 
