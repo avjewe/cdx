@@ -148,34 +148,34 @@ mod tests {
 
     #[test]
     fn test_format2() {
-        assert!(format_power2(0) == "0");
-        assert!(format_power2(1) == "1");
-        assert!(format_power2f(-1f64) == "-1");
-        assert!(format_power2(999) == "999");
-        assert!(format_power2(1000) == "1K");
-        assert!(format_power2(1024) == "1K");
-        assert!(format_power2(1025) == "1.1K");
-        assert!(format_power2(10137) == "9.9K");
-        assert!(format_power2(10138) == "10K");
-        assert!(format_power2(97 * 1024) == "97K");
-        assert!(format_power2(97 * 1024 + 1) == "98K");
-        assert!(format_power2(999 * 1024) == "999K");
-        assert!(format_power2(999 * 1024 + 1) == "1M");
+        assert_eq!(format_power2(0), "0");
+        assert_eq!(format_power2(1), "1");
+        assert_eq!(format_power2f(-1f64), "-1");
+        assert_eq!(format_power2(999), "999");
+        assert_eq!(format_power2(1000), "1K");
+        assert_eq!(format_power2(1024), "1K");
+        assert_eq!(format_power2(1025), "1.1K");
+        assert_eq!(format_power2(10137), "9.9K");
+        assert_eq!(format_power2(10138), "10K");
+        assert_eq!(format_power2(97 * 1024), "97K");
+        assert_eq!(format_power2(97 * 1024 + 1), "98K");
+        assert_eq!(format_power2(999 * 1024), "999K");
+        assert_eq!(format_power2(999 * 1024 + 1), "1M");
     }
     #[test]
     fn test_format10() {
-        assert!(format_power10(0) == "0");
-        assert!(format_power10(1) == "1");
-        assert!(format_power10f(-1f64) == "-1");
-        assert!(format_power10(999) == "999");
-        assert!(format_power10(1000) == "1k");
-        assert!(format_power10(1001) == "1.1k");
-        assert!(format_power10(9900) == "9.9k");
-        assert!(format_power10(9901) == "10k");
-        assert!(format_power10(10000) == "10k");
-        assert!(format_power10(97000) == "97k");
-        assert!(format_power10(97001) == "98k");
-        assert!(format_power10(999_000) == "999k");
-        assert!(format_power10(999_001) == "1m");
+        assert_eq!(format_power10(0), "0");
+        assert_eq!(format_power10(1), "1");
+        assert_eq!(format_power10f(-1f64), "-1");
+        assert_eq!(format_power10(999), "999");
+        assert_eq!(format_power10(1000), "1k");
+        assert_eq!(format_power10(1001), "1.1k");
+        assert_eq!(format_power10(9900), "9.9k");
+        assert_eq!(format_power10(9901), "10k");
+        assert_eq!(format_power10(10000), "10k");
+        assert_eq!(format_power10(97000), "97k");
+        assert_eq!(format_power10(97001), "98k");
+        assert_eq!(format_power10(999_000), "999k");
+        assert_eq!(format_power10(999_001), "1m");
     }
 }
