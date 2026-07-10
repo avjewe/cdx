@@ -184,7 +184,7 @@ pub fn upper_bound_n(data: &[u8], comp: &mut LineCompList) -> usize {
             begin = stop;
         }
     }
-    debug_assert!(begin == end);
+    debug_assert_eq!(begin, end);
     begin
 }
 

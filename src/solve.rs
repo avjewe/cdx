@@ -22,7 +22,7 @@ pub(crate) struct LetterInfo {
 // Check if the attempt matches the word given the exact pattern
 #[must_use]
 pub(crate) fn matches(word: &[u8], guess: &[LetterInfo]) -> bool {
-    debug_assert!(word.len() == guess.len());
+    debug_assert_eq!(word.len(), guess.len());
 
     let mut used = vec![false; word.len()];
     // first pass: exact matches

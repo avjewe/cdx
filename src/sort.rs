@@ -644,7 +644,7 @@ fn merge_lines(
 
 fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
-        assert!(items.len() == 2);
+        assert_eq!(items.len(), 2);
         if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
             items.swap(0, 1);
         }
@@ -664,8 +664,8 @@ fn sort_lines(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut Line
 // Like sort_lines but output into temp, rather than sorting in place
 fn sort_lines_temp(data: &[u8], items: &mut [Item], temp: &mut [Item], cmp: &mut LineCompList) {
     if items.len() == 2 {
-        assert!(items.len() == 2);
-        assert!(temp.len() == 2);
+        assert_eq!(items.len(), 2);
+        assert_eq!(temp.len(), 2);
         if cmp.comp_items(data, &items[0], &items[1]) == Ordering::Greater {
             temp[0] = items[1];
             temp[1] = items[0];

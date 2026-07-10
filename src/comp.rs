@@ -663,8 +663,8 @@ fn skip_comma(mut a: &[u8]) -> &[u8] {
 fn frac_cmp(mut a: &[u8], mut b: &[u8]) -> Ordering {
     debug_assert!(!a.is_empty());
     debug_assert!(!b.is_empty());
-    debug_assert!(a[0] == b'.');
-    debug_assert!(b[0] == b'.');
+    debug_assert_eq!(a[0], b'.');
+    debug_assert_eq!(b[0], b'.');
     a = &a[1..];
     b = &b[1..];
     while !a.is_empty() && !b.is_empty() && (a[0] == b[0]) && a[0].is_ascii_digit() {

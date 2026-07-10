@@ -30,7 +30,7 @@ impl Smooth {
         Self { small, large, data, jump: 1, pos: 0, size: 0 }
     }
     fn verify(&self) -> bool {
-        debug_assert!(self.data.len() == self.large);
+        debug_assert_eq!(self.data.len(), self.large);
         debug_assert!(self.size <= self.large);
         debug_assert!(self.size <= self.large);
         //	debug_assert!(self.pos <= self.jump);
