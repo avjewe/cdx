@@ -75,6 +75,7 @@ pub fn add_help(mut a: clap::Command) -> clap::Command {
     )
 }
 
+// Add optional value, num_args(0..=1)
 pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command {
     let mut b = clap::Arg::new(x.name);
     if x.positional {

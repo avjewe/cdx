@@ -4,6 +4,6 @@ one	two	three
 aaa	bbb	ccc
 ddd	eee	fff
 #stdout
- CDX	two	one
+two	one
 bbb	aaa
 eee	ddd

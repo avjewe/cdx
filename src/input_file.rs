@@ -483,6 +483,12 @@ impl TextFile {
         self.options.delim()
     }
 
+    /// return name of owned file
+    #[must_use]
+    pub fn fname(&self) -> &str {
+        &self.reader.1
+    }
+
     /// Get the current line number
     #[must_use]
     pub const fn line_number(&self) -> usize {
@@ -495,9 +501,14 @@ impl TextFile {
         &self.loc
     }
 
-    /// Get the EOL
+    /// Get the EOL of the most recently read data line
     pub const fn eol(&self) -> ReadResult {
         self.column_values.eol
+    }
+
+    /// Get the EOL for the file as a whole
+    pub fn default_eol(&self) -> ReadResult {
+        if self.has_header() { self.header.eol } else { self.column_values.eol }
     }
 
     /// config
@@ -510,11 +521,16 @@ impl TextFile {
     pub fn is_empty(&self) -> bool {
         self.options.saw_header == Some(SawHeader::Empty)
     }
-    /// Is the file zero bytes?
+    /// Did the file have a header line?
     #[must_use]
     pub fn has_header(&self) -> bool {
         self.options.saw_header == Some(SawHeader::Yes)
             || self.options.saw_header == Some(SawHeader::Cdx)
+    }
+    /// Did the file have a cdx header line?
+    #[must_use]
+    pub fn has_cdx_header(&self) -> bool {
+        self.options.saw_header == Some(SawHeader::Cdx)
     }
     /// Create a new `TextFile` with the given reader and default options.
     pub fn new_cdx(file_name: &str) -> Result<Self> {

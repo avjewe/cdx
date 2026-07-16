@@ -94,7 +94,9 @@ pub struct Spec {
     /// Optional output escape-mode override.
     pub escape: Option<Escape>,
     /// Optional output header-mode override.
-    pub header: Option<Header>,
+    pub header: Option<bool>,
+    /// Optional output cdx-mode override.
+    pub cdx: Option<bool>,
     /// Optional end of line.
     pub eol: Option<Eol>,
 }
@@ -330,21 +332,46 @@ fn derive_escape(input: &input_file::Config, spec: &Spec, output_delimiter: u8) 
 }
 
 /// Derive output header mode when `Spec.header` is not explicitly provided.
+fn derive_cdx(input: &input_file::Config, spec: &Spec, h: Header) -> Header {
+    debug_assert_ne!(h, Header::Cdx);
+    if h != Header::Yes {
+        return h;
+    }
+    match spec.cdx {
+        Some(true) => Header::Cdx,
+        Some(false) => Header::Yes,
+        None => {
+            // inherit
+            if let Some(saw_header) = input.saw_header {
+                return match saw_header {
+                    input_file::SawHeader::Cdx => Header::Cdx,
+                    _ => h,
+                };
+            }
+            h
+        }
+    }
+}
+
+/// Derive output header mode when `Spec.header` is not explicitly provided.
 const fn derive_header(input: &input_file::Config, spec: &Spec) -> Header {
-    if let Some(header) = spec.header {
-        return header;
-    }
+    match spec.header {
+        Some(false) => Header::No,
+        Some(true) => Header::Yes,
+        None => {
+            // inherit
+            if let Some(saw_header) = input.saw_header {
+                return match saw_header {
+                    input_file::SawHeader::Yes | input_file::SawHeader::Cdx => Header::Yes,
+                    input_file::SawHeader::No | input_file::SawHeader::Empty => Header::No,
+                };
+            }
 
-    if let Some(saw_header) = input.saw_header {
-        return match saw_header {
-            input_file::SawHeader::Yes | input_file::SawHeader::Cdx => Header::Yes,
-            input_file::SawHeader::No | input_file::SawHeader::Empty => Header::No,
-        };
-    }
-
-    match input.header {
-        input_file::Header::Yes => Header::Yes,
-        input_file::Header::No => Header::No,
+            match input.header {
+                input_file::Header::Yes => Header::Yes,
+                input_file::Header::No => Header::No,
+            }
+        }
     }
 }
 
@@ -352,7 +379,7 @@ impl Spec {
     /// Construct an empty spec that derives all output fields from input config.
     #[must_use]
     pub const fn new() -> Self {
-        Self { delimiter: None, escape: None, header: None, eol: None }
+        Self { delimiter: None, escape: None, header: None, cdx: None, eol: None }
     }
 
     /// Construct a spec equivalent to [`Config::tsv`], with every field explicitly set.
@@ -361,7 +388,8 @@ impl Spec {
         Self {
             delimiter: Some(b'\t'),
             escape: Some(Escape::Backslash),
-            header: Some(Header::Yes),
+            header: Some(true),
+            cdx: Some(false),
             eol: None,
         }
     }
@@ -372,7 +400,8 @@ impl Spec {
         Self {
             delimiter: Some(b','),
             escape: Some(Escape::QuoteDoubled(b'"', b'"')),
-            header: Some(Header::Yes),
+            header: Some(true),
+            cdx: Some(false),
             eol: Some(Eol::Plain(ReadResult::CrLf)),
         }
     }
@@ -476,6 +505,9 @@ impl Spec {
                 }
                 "header" => {
                     out.header = Some(parse_header_mode(value_raw)?);
+                }
+                "cdx" => {
+                    out.cdx = Some(parse_header_mode(value_raw)?);
                 }
                 "quotes" => {
                     quote_pair = Some(parse_output_quote_pair(value_raw)?);
@@ -625,6 +657,7 @@ impl Config {
         let delimiter = derive_delimiter(input, spec);
         let escape = derive_escape(input, spec, delimiter);
         let header = derive_header(input, spec);
+        let header = derive_cdx(input, spec, header);
         Self { delimiter, escape, header }
     }
 
@@ -736,6 +769,7 @@ fn canonical_output_key(normalized: &str) -> Option<&'static str> {
         "h" | "header" => Some("header"),
         "q" | "quotes" => Some("quotes"),
         "x" | "replace" => Some("replace"),
+        "cdx" => Some("cdx"),
         _ => None,
     }
 }
@@ -796,10 +830,10 @@ fn parse_escape_kind(value: &str) -> Result<EscapeKind> {
 }
 
 /// Parse textual header selector into a normalized [`Header`] value.
-fn parse_header_mode(value: &str) -> Result<Header> {
+fn parse_header_mode(value: &str) -> Result<bool> {
     match normalize_token(value).as_str() {
-        "y" | "yes" | "true" | "on" | "1" => Ok(Header::Yes),
-        "n" | "no" | "false" | "off" | "0" => Ok(Header::No),
+        "y" | "yes" | "true" | "on" | "1" => Ok(true),
+        "n" | "no" | "false" | "off" | "0" => Ok(false),
         _ => Err(anyhow::anyhow!(format!(
             "unknown header value `{value}`; expected one of: y|yes|true|on|1, n|no|false|off|0"
         ))),
@@ -910,7 +944,7 @@ impl LineWriter {
     pub fn from_spec(&mut self, input: &TextFile, spec: &Spec) {
         // FIXME. After the first time, don't do this
         self.config = Config::from_spec(input, spec);
-        self.eol = spec.eol(input.eol()).into();
+        self.eol = spec.eol(input.default_eol()).into();
     }
 
     /// Write as a header line.
@@ -1283,7 +1317,8 @@ mod tests {
             Spec {
                 delimiter: Some(b'\t'),
                 escape: Some(Escape::AlwaysQuoteBackslash(b'<', b'>')),
-                header: Some(Header::Yes),
+                header: Some(true),
+                cdx: Some(false),
                 eol: Some(Eol::Plain(ReadResult::CrLf))
             }
         );
@@ -1294,21 +1329,21 @@ mod tests {
     fn output_spec_from_spec_quote_values() {
         let one = Spec::from_spec("csv,e=qd,q='").unwrap();
         assert_eq!(one.escape, Some(Escape::QuoteDoubled(b'\'', b'\'')));
-        assert_eq!(one.header, Some(Header::Yes));
+        assert_eq!(one.header, Some(true));
 
         let two = Spec::from_spec("csv,e=qb,q=[]").unwrap();
         assert_eq!(two.escape, Some(Escape::QuoteBackslash(b'[', b']')));
-        assert_eq!(two.header, Some(Header::Yes));
+        assert_eq!(two.header, Some(true));
     }
 
     /// Verifies output spec parser supports header overrides.
     #[test]
     fn output_spec_from_spec_header_values() {
         let yes = Spec::from_spec("csv,h=yes").unwrap();
-        assert_eq!(yes.header, Some(Header::Yes));
+        assert_eq!(yes.header, Some(true));
 
         let no = Spec::from_spec("csv,header=off").unwrap();
-        assert_eq!(no.header, Some(Header::No));
+        assert_eq!(no.header, Some(false));
     }
 
     /// Verifies output spec parser requires replace byte when `escape=replace`.
@@ -1379,36 +1414,16 @@ mod tests {
     /// Verifies empty spec leaves all output fields unresolved for input-driven derivation.
     #[test]
     fn output_spec_new_is_all_none() {
-        assert_eq!(Spec::new(), Spec { delimiter: None, escape: None, header: None, eol: None });
+        assert_eq!(
+            Spec::new(),
+            Spec { delimiter: None, escape: None, header: None, cdx: None, eol: None }
+        );
     }
 
     /// Verifies `Spec::any` is an alias of `Spec::new`.
     #[test]
     fn output_spec_any_matches_new() {
         assert_eq!(Spec::any(), Spec::new());
-    }
-
-    /// Verifies `Spec::csv` and `Spec::tsv` mirror the corresponding output config defaults.
-    #[test]
-    fn output_spec_csv_tsv_match_config_defaults() {
-        assert_eq!(
-            Spec::csv(),
-            Spec {
-                delimiter: Some(Config::csv().delimiter),
-                escape: Some(Config::csv().escape),
-                header: Some(Config::csv().header),
-                eol: Some(Eol::Plain(ReadResult::CrLf))
-            }
-        );
-        assert_eq!(
-            Spec::tsv(),
-            Spec {
-                delimiter: Some(Config::tsv().delimiter),
-                escape: Some(Config::tsv().escape),
-                header: Some(Config::tsv().header),
-                eol: None,
-            }
-        );
     }
 
     /// Verifies input-driven derivation for standard CSV options.
@@ -1437,7 +1452,7 @@ mod tests {
     #[test]
     fn output_config_from_input_and_spec_replace_dot_for_space_delimiter() {
         let input = input_file::Config::from_delim(input::Delimiter::Char(b','));
-        let spec = Spec { delimiter: Some(b' '), escape: None, header: None, eol: None };
+        let spec = Spec { delimiter: Some(b' '), escape: None, header: None, cdx: None, eol: None };
         let output = Config::from_input_and_spec(&input, &spec);
         assert_eq!(output.escape, Escape::Replace(b'.'));
     }
@@ -1461,7 +1476,7 @@ mod tests {
         input.saw_header = Some(input_file::SawHeader::Cdx);
 
         let output = Config::from_input_and_spec(&input, &Spec::new());
-        assert_eq!(output.header, Header::Yes);
+        assert_eq!(output.header, Header::Cdx);
 
         input.saw_header = Some(input_file::SawHeader::No);
         let output = Config::from_input_and_spec(&input, &Spec::new());
@@ -1475,7 +1490,8 @@ mod tests {
         let spec = Spec {
             delimiter: Some(b'|'),
             escape: Some(Escape::Delete),
-            header: Some(Header::No),
+            header: Some(false),
+            cdx: Some(false),
             eol: None,
         };
 

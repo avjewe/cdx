@@ -7,8 +7,8 @@ use cdx::*;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Evaluate Formatted Expressions.", args::FileCount::Zero);
     const A: [ArgSpec; 2] = [
-        arg! {"fmt", "f", "Format", "How to format values."},
-        arg! {"trig", "t", "Trigonometric Mode", "Trigonometric mode for trig functions."},
+        arg! {"format", "f", "Format", "How to format values."},
+        arg! {"degrees", "d", "", "Use degrees instead of radians for trig functions."},
     ];
     let (args, _files) = args::parse(&prog, &A, argv, settings)?;
     let mut fmt = NumFormat::default();
@@ -16,14 +16,8 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     for x in args {
         if x.name == "fmt" {
             fmt = NumFormat::new(&x.value)?;
-        } else if x.name == "trig" {
-            trig_mode = match x.value.as_str() {
-                "radians" => TrigMode::Radians,
-                "degrees" => TrigMode::Degrees,
-                _ => {
-                    return Err(anyhow!("Invalid trigonometric mode: {}", x.value));
-                }
-            };
+        } else if x.name == "degrees" {
+            trig_mode = TrigMode::Degrees;
         } else {
             unreachable!();
         }

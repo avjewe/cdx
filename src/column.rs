@@ -261,6 +261,11 @@ impl ColumnHeader {
             res.push_str(x);
         }
     }
+
+    /// append column names
+    pub fn add_header(&self, text: &mut LineWriter) -> Result<()> {
+        text.write_columns(&self.cols)
+    }
 }
 
 /// A column set is a collection of column specifications, which when interpreted

@@ -12,8 +12,8 @@ use cdx::textgen::GenMaker;
 use cdx::trans::TransMaker;
 use cdx::util::HeaderChecker;
 
-const A: [ArgSpec; 11] = [
-    arg! {"text-out", "", "Format", "Output text file format"},
+const A: [ArgSpec; 10] = [
+    // arg! {"text-out", "", "Format", "Output text file format"},
     arg! {"Input", "I", "Format", "Input text file format"},
     arg! {"Output", "O", "Format", "Output text file format"},
     arg! {"std-agg", "", "", "Show aggregators"},

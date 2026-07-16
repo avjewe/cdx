@@ -52,12 +52,20 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         header.clear();
         not_header.clear();
         v.add_names(&mut header, f.names())?;
+        // FIXME! We need a way to have output header but no input header
         if f.has_header() {
-            not_header = header.get_head(&settings.text_out());
+            header.add_header(&mut lw)?;
+            if settings.checker.check_output(&lw, &f)? {
+                lw.write_cdx(&mut w.0)?;
+            }
+            lw.clear();
         }
-        if settings.checker.check(not_header.as_bytes(), x)? {
-            w.write_all(not_header.as_bytes())?;
-        }
+        // if f.has_header() {
+        //     not_header = header.get_head(&settings.text_out());
+        // }
+        // if settings.checker.check(not_header.as_bytes(), x)? {
+        //     w.write_all(not_header.as_bytes())?;
+        // }
         if f.is_done() {
             continue;
         }

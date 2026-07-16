@@ -1,6 +1,66 @@
 //! Numeric Helpers
+#![allow(dead_code)]
+#![allow(clippy::unneeded_field_pattern)]
 
+trait Integer {
+    const MAX: Self;
+    const MIN: Self;
+}
 use crate::prelude::*;
+// #[allow(dead_code)]
+// struct Container<T : Integer, const MIN : T = {T::MIN}, const MAX : T = {T::MAX}> {
+//     payload: T,
+// }
+
+struct WeatherReading {
+    station_id: String,
+    recorded_at: u32,
+    temperature: f64,
+    humidity: f64,
+    pressure: f64,
+}
+fn is_dangerous(
+    WeatherReading {
+        station_id: _,
+        recorded_at: _,
+        temperature,
+        humidity,
+        pressure,
+    }: &WeatherReading,
+) -> bool {
+    if *temperature > 40.0 {
+        // assuming °C, that's 104°F or 313.15K
+        return true;
+    }
+    if *humidity < 5.0 {
+        // assuming percentage
+        return true;
+    }
+    if *pressure < 960.0 {
+        // assuming hPa, that's 28.35 inHg
+        return true;
+    }
+    false
+}
+
+impl WeatherReading {
+    fn is_dangerous(&self) -> bool {
+        let Self { station_id: _, recorded_at: _, temperature, humidity, pressure } = self;
+        if *temperature > 40.0 {
+            // assuming °C, that's 104°F or 313.15K
+            return true;
+        }
+        if *humidity < 5.0 {
+            // assuming percentage
+            return true;
+        }
+        if *pressure < 960.0 {
+            // assuming hPa, that's 28.35 inHg
+            return true;
+        }
+        false
+    }
+}
 
 /// is target closer to num/denom than to (num-1)/denom or (num+1)/denom
 #[must_use]
@@ -92,16 +152,12 @@ impl Junk {
     }
 }
 
-/// ordering for f64
+/// ordering for f64. `total_cmp`, but 0.0 == -0.0
 #[must_use]
 pub fn fcmp(x: f64, y: f64) -> Ordering {
-    if x == y {
-        return Ordering::Equal;
-    }
-    if x > y {
-        return Ordering::Greater;
-    }
-    Ordering::Less
+    let x = if x == 0.0 { 0.0 } else { x };
+    let y = if y == 0.0 { 0.0 } else { y };
+    x.total_cmp(&y)
 }
 
 /// convert an f64 to a similarly ordered u64
