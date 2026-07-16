@@ -34,8 +34,6 @@ pub fn global_args() -> &'static [ArgSpec] {
 pub struct Settings {
     /// --header controls how to mix and match input files with different CDX headers
     pub checker: HeaderChecker,
-    pub text_out: Option<TextFileMode>,
-
     pub input: cdx::input_file::Config,
     pub output: cdx::output::Spec,
 }
@@ -45,13 +43,10 @@ impl Settings {
         Self::default()
     }
     pub fn text_out(&self) -> TextFileMode {
-        self.text_out.unwrap_or_default()
+        TextFileMode::default()
     }
     pub fn text_out2(&self, delim: u8) -> TextFileMode {
-        match self.text_out {
-            Some(x) => x,
-            None => cdx::prelude::TextFileMode { delim, ..Default::default() },
-        }
+        cdx::prelude::TextFileMode { delim, ..Default::default() }
     }
     pub fn output(&self, input: &cdx::input_file::Config) -> Result<cdx::output::Config> {
         Ok(cdx::output::Config::from_input_and_spec(input, &self.output))
@@ -105,9 +100,7 @@ impl Settings {
     }
     pub fn consume(&mut self, args: &[ArgValue]) -> Result<()> {
         for x in args {
-            if x.name == "text-out" {
-                // self.text_out = Some(TextFileMode::new(&x.value)?);
-            } else if x.name == "Input" {
+            if x.name == "Input" {
                 self.input = cdx::input_file::Config::from_spec(&x.value)?;
             } else if x.name == "Output" {
                 self.output = cdx::output::Spec::from_spec(&x.value)?;

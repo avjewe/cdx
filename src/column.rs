@@ -229,10 +229,6 @@ impl ColumnHeader {
     #[must_use]
     pub fn get_head(&self, text: &TextFileMode) -> String {
         let mut res = String::with_capacity(self.get_size() + 6);
-        if text.head_mode.has_cdx() {
-            res.push_str(" CDX");
-            res.push(text.delim as char);
-        }
         self.add_head(&mut res, text);
         res.push('\n');
         res

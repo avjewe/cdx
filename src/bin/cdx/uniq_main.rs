@@ -178,8 +178,10 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
 
     assert_eq!(files.len(), 1);
     let mut w = get_writer("-")?;
+    let mut lw = LineWriter::default();
 
     // FIXME - if hash then fail if other things are set
+    // FIXME - HEADER??
     if hash {
         let mut f = util::get_reader(&files[0])?;
         let mut line = Vec::new();
@@ -216,6 +218,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         agg.fill(&mut c_write, f.names());
         c_write.lookup(f.names())?;
     }
+    lw.from_spec(&f, &settings.output);
 
     if f.has_header() {
         let mut ch = ColumnHeader::new();
@@ -230,7 +233,11 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         } else {
             c_write.add_names(&mut ch, f.names())?;
         }
-        w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
+        ch.add_header(&mut lw)?;
+        if settings.checker.check_output(&lw, &f)? {
+            lw.write_cdx(&mut w.0)?;
+        }
+        lw.clear();
     }
     if f.is_done() {
         return Ok(());

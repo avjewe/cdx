@@ -29,13 +29,7 @@ struct SelectTrans {
 impl SelectTrans {
     #[must_use]
     const fn mode(delim: char) -> TextFileMode {
-        TextFileMode {
-            head_mode: util::HeadMode::No,
-            col_mode: util::QuoteMode::Plain,
-            delim: util::auto_escape(delim),
-            line_break: b'\n',
-            repl: b' ',
-        }
+        TextFileMode { delim: util::auto_escape(delim), line_break: b'\n' }
     }
 
     fn new(spec: &str) -> Result<Self> {

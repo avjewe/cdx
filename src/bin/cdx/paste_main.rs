@@ -76,8 +76,11 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut do_header = true;
     let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
     let mut curr_cols = 0;
+    let mut lw = LineWriter::default();
     for x in &files {
         let f = TextFile::new(x, &settings.input)?;
+        // we're doing this for every file, maybe it should be just the first?
+        lw.from_spec(&f, &settings.output);
         if !f.has_header() {
             do_header = false;
         }
@@ -98,7 +101,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut w = get_writer("-")?;
     header.check_rename()?;
     if do_header {
-        w.write_all(header.get_head(&settings.text_out()).as_bytes())?;
+        header.add_header(&mut lw)?;
+        lw.write_cdx(&mut w.0)?;
+        lw.clear();
     }
     dflt.lookup(header.field_names())?;
     while num_live > 0 {

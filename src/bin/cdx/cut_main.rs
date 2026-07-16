@@ -40,7 +40,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     }
 
     let mut w = get_writer("-")?;
-    let mut not_header = String::new();
     let mut lw = LineWriter::default();
     for x in &files {
         let mut f = TextFile::new(x, &settings.input)?;
@@ -50,7 +49,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         lw.from_spec(&f, &settings.output);
         v.lookup(f.names())?;
         header.clear();
-        not_header.clear();
         v.add_names(&mut header, f.names())?;
         // FIXME! We need a way to have output header but no input header
         if f.has_header() {
@@ -60,12 +58,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
             lw.clear();
         }
-        // if f.has_header() {
-        //     not_header = header.get_head(&settings.text_out());
-        // }
-        // if settings.checker.check(not_header.as_bytes(), x)? {
-        //     w.write_all(not_header.as_bytes())?;
-        // }
         if f.is_done() {
             continue;
         }
@@ -78,31 +70,6 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             }
         }
     }
-    // let mut not_header = String::new();
-    // for x in &files {
-    //     let mut f = TextFile::new(x, &settings.input)?;
-    //     if f.is_empty() {
-    //         continue;
-    //     }
-    //     v.lookup(f.names())?;
-    //     header.clear();
-    //     not_header.clear();
-    //     v.add_names(&mut header, f.names())?;
-    //     if f.has_header() {
-    //         not_header = header.get_head(&settings.text_out());
-    //     }
-    //     if settings.checker.check(not_header.as_bytes(), x)? {
-    //         w.write_all(not_header.as_bytes())?;
-    //     }
-    //     if f.is_done() {
-    //         continue;
-    //     }
-    //     loop {
-    //         v.write(&mut w.0, f.values())?;
-    //         if f.get_line()? {
-    //             break;
-    //         }
-    //     }
-    // }
+
     Ok(())
 }

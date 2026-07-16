@@ -132,6 +132,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut header = ColumnHeader::new();
     let mut w = get_writer("-")?;
     let slow = num.do_it || !skips.is_empty() || !removes.is_empty();
+    let mut lw = LineWriter::default();
 
     if slow {
         let mut v = Writer::new(settings.text_out());
@@ -151,22 +152,22 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if num.do_it && num.end {
             not_v.push(Box::new(ColumnLiteral::new(b"", "unused")));
         }
-        let mut not_header = String::new();
 
         for x in &files {
             let mut f = TextFile::new(x, &settings.input)?;
             if f.is_empty() {
                 continue;
             }
+            lw.from_spec(&f, &settings.output);
             v.lookup(f.names())?;
             header.clear();
-            not_header.clear();
             v.add_names(&mut header, f.names())?;
             if f.has_header() {
-                not_header = header.get_head(&settings.text_out());
-            }
-            if settings.checker.check(not_header.as_bytes(), x)? {
-                w.write_all(not_header.as_bytes())?;
+                header.add_header(&mut lw)?;
+                if settings.checker.check_output(&lw, &f)? {
+                    lw.write_cdx(&mut w.0)?;
+                }
+                lw.clear();
             }
             if f.is_done() {
                 return Ok(());

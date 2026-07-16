@@ -47,26 +47,28 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         no_match.map(|s| get_writer(&s)).transpose();
     let mut no_match = no_match?;
     let mut need_no_match_header = true;
+    let mut lw: LineWriter = LineWriter::default();
 
     for x in &files {
         let mut f = TextFile::new(x, &settings.input)?;
         if f.is_empty() {
             continue;
         }
+        lw.from_spec(&f, &settings.output);
         list.lookup(f.names())?;
-        let mut not_header = String::new();
         let mut header = ColumnHeader::new();
         loc.add(&mut header)?;
         header.push_all(f.names())?;
         if f.has_header() {
-            not_header = header.get_head(&settings.text_out());
+            header.add_header(&mut lw)?;
+            if settings.checker.check_output(&lw, &f)? {
+                lw.write_cdx(&mut w.0)?;
+            }
             if need_no_match_header && let Some(o) = no_match.as_mut() {
-                o.write_all(not_header.as_bytes())?;
+                lw.write_cdx(&mut o.0)?;
                 need_no_match_header = false;
             }
-        }
-        if settings.checker.check(not_header.as_bytes(), x)? {
-            w.write_all(not_header.as_bytes())?;
+            lw.clear();
         }
         if f.is_done() {
             continue;

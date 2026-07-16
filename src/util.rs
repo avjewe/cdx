@@ -275,27 +275,14 @@ If --text-in specified "maybe" as the header mode, then the output default is
 #[derive(Debug, Copy, Clone)]
 /// how to parse a text file into lines and columns
 pub struct TextFileMode {
-    /// yes, no, maybe
-    pub head_mode: HeadMode,
-    /// plain, quote, backslash
-    pub col_mode: QuoteMode,
     /// column delimiter
     pub delim: u8,
     /// line delimiter
     pub line_break: u8,
-    /// replacement character for plain encoding
-    // maybe should be Option<u8> where None means to drop, rather than replace
-    pub repl: u8,
 }
 impl Default for TextFileMode {
     fn default() -> Self {
-        Self {
-            head_mode: HeadMode::Maybe,
-            col_mode: QuoteMode::Plain,
-            delim: b'\t',
-            line_break: b'\n',
-            repl: b' ',
-        }
+        Self { delim: b'\t', line_break: b'\n' }
     }
 }
 impl TextFileMode {
@@ -306,62 +293,20 @@ impl TextFileMode {
     /// new from spec, with defaults
     pub fn new_with(spec: &str, dflt: &Self) -> Result<Self> {
         let mut spec = spec;
-        let mut head_mode = dflt.head_mode;
-        let mut col_mode = dflt.col_mode;
         let mut delim = dflt.delim;
         let mut line_break = dflt.line_break;
-        let mut repl = dflt.repl;
 
-        // 1st char : header mode. y - yes, n - no, s - skip, m - maybe, x - cdx
-        if !spec.is_empty() {
-            let ch = spec.take_first();
-            if ch == 'y' {
-                head_mode = HeadMode::Yes;
-            } else if ch == 'n' {
-                head_mode = HeadMode::No;
-            } else if ch == 's' {
-                head_mode = HeadMode::Skip;
-            } else if ch == 'm' {
-                head_mode = HeadMode::Maybe;
-            } else if ch == 'x' {
-                head_mode = HeadMode::Cdx;
-            } else {
-                return err!(
-                    "First char of text-fmt spec must be y (yes), n (no), m (maybe) s (skip) or x (cdx) not '{ch}'"
-                );
-            }
-        }
         // 2nd char : delimiter.
         if !spec.is_empty() {
             let ch = spec.take_first();
             delim = auto_escape(ch);
-        }
-        // 3rd char : quoting. p - plain, q - quote, b - backslash
-        if !spec.is_empty() {
-            let ch = spec.take_first();
-            if ch == 'p' {
-                col_mode = QuoteMode::Plain;
-            } else if ch == 'q' {
-                col_mode = QuoteMode::Quote;
-            } else if ch == 'b' {
-                col_mode = QuoteMode::Backslash;
-            } else {
-                return err!(
-                    "Fourth char of text-fmt spec must be p (plain), q (quote) or b (backslash) not '{ch}'"
-                );
-            }
-        }
-        // 4th character : repl for plain encoding
-        if !spec.is_empty() {
-            let ch = spec.take_first();
-            repl = auto_escape(ch);
         }
         // 5th char : end of line
         if !spec.is_empty() {
             let ch = spec.take_first();
             line_break = auto_escape(ch);
         }
-        Ok(Self { head_mode, col_mode, delim, line_break, repl })
+        Ok(Self { delim, line_break })
     }
 
     /// print the help for `TextFileMode`
@@ -372,11 +317,7 @@ impl TextFileMode {
     /// write a column value, properly escaped
     /// print help for text modes
     pub fn write(&self, w: &mut dyn Write, buf: &[u8]) -> Result<()> {
-        match self.col_mode {
-            QuoteMode::Plain => write_plain(w, buf, self.delim, self.line_break, self.repl),
-            QuoteMode::Backslash => write_backslash(w, buf, self.delim, self.line_break),
-            QuoteMode::Quote => write_quotes(w, buf, self.delim, self.line_break),
-        }
+        write_plain(w, buf)
     }
 
     /// append a newline, if line does not already end with one. Return false.
@@ -454,40 +395,8 @@ impl FakeSlice {
     }
 }
 
-fn write_plain(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8, repl: u8) -> Result<()> {
+fn write_plain(w: &mut dyn Write, buf: &[u8]) -> Result<()> {
     for ch in buf {
-        if *ch == tab || *ch == eol {
-            w.write_all(&[repl])?;
-        } else {
-            w.write_all(&[*ch])?;
-        }
-    }
-    Ok(())
-}
-
-fn write_backslash(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8) -> Result<()> {
-    for ch in buf {
-        if *ch == tab || *ch == eol || *ch == b'\\' {
-            w.write_all(b"\\")?;
-            w.write_all(&[enslash(*ch)])?;
-        } else {
-            w.write_all(&[*ch])?;
-        }
-    }
-    Ok(())
-}
-
-fn write_quotes(w: &mut dyn Write, buf: &[u8], tab: u8, eol: u8) -> Result<()> {
-    let mut made_quote = false;
-    for ch in buf {
-        if *ch == b'"' {
-            w.write_all(b"\"\"")?;
-            continue;
-        }
-        if !made_quote && (*ch == tab || *ch == eol) {
-            made_quote = true;
-            w.write_all(b"\"")?;
-        }
         w.write_all(&[*ch])?;
     }
     Ok(())
@@ -1237,7 +1146,7 @@ impl HeaderChecker {
                     } else {
                         if !self.head.is_empty() {
                             return err!(
-                                "No CDX Header found in {}, but first file had one.",
+                                "No CDX Header found in {}, but first file had 1 one.",
                                 fname
                             );
                         }
