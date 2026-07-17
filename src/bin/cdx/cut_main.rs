@@ -19,7 +19,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
     let mut header = ColumnHeader::new();
-    let mut v = Writer::new(settings.text_out());
+    let mut v = Writer::new();
     for x in args {
         if x.name == "dups" {
             header.set_handling(DupColHandling::new(&x.value)?);

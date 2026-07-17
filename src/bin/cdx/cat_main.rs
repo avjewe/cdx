@@ -135,7 +135,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut lw = LineWriter::default();
 
     if slow {
-        let mut v = Writer::new(settings.text_out());
+        let mut v = Writer::new();
         if num.do_it && !num.end {
             v.push(Box::new(ColumnCount::new(num.start, &num.name)));
         }
@@ -144,7 +144,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             v.push(Box::new(ColumnCount::new(num.start, &num.name)));
         }
 
-        let mut not_v = Writer::new(settings.text_out());
+        let mut not_v = Writer::new();
         if num.do_it && !num.end {
             not_v.push(Box::new(ColumnLiteral::new(b"", "unused")));
         }

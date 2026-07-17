@@ -135,10 +135,13 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             if show_file_name != Tri::No {
                 ch.push("column")?;
             }
-            let mut c_write = Writer::new(settings.text_out());
+            let mut c_write = Writer::new();
             agg.fill(&mut c_write);
             c_write.add_names(&mut ch, &[])?;
-            w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
+            let mut lw = LineWriter::default();
+            ch.add_header(&mut lw)?;
+            lw.write_cdx(&mut w.0)?;
+            lw.clear();
         }
         if !total_only {
             for x in &aggs {
@@ -183,12 +186,14 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             Tri::No => false,
             Tri::Maybe => agg.len() > 1 || show_file,
         };
+        let mut lw = LineWriter::default();
         for x in &files {
             let mut f = TextFile::new(x, &settings.input)?;
             if f.is_empty() {
                 continue;
             }
-            let mut c_write = Writer::new(settings.text_out2(f.delim()));
+            lw.from_spec(&f, &settings.output);
+            let mut c_write = Writer::new();
             agg.fill(&mut c_write);
             c_write.lookup(f.names())?;
 
@@ -199,7 +204,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                     ch.push(&file_name_col)?;
                 }
                 c_write.add_names(&mut ch, f.names())?;
-                w.write_all(ch.get_head(&settings.text_out()).as_bytes())?;
+                ch.add_header(&mut lw)?;
+                lw.write_cdx(&mut w.0)?;
+                lw.clear();
             }
 
             if f.is_done() {
@@ -218,7 +225,10 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
                     w.write_all(x.as_bytes())?;
                     w.write_all(b"\t")?;
                 }
-                c_write.write(&mut w.0, &empty_line)?;
+                // c_write.write(&mut w.0, &empty_line)?;
+                c_write.output(&mut lw, &empty_line)?;
+                lw.write(&mut w.0)?;
+                lw.clear();
             }
             #[expect(clippy::needless_range_loop)]
             for i in 0..agg.len() {

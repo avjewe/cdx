@@ -42,12 +42,6 @@ impl Settings {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn text_out(&self) -> TextFileMode {
-        TextFileMode::default()
-    }
-    pub fn text_out2(&self, delim: u8) -> TextFileMode {
-        cdx::prelude::TextFileMode { delim, ..Default::default() }
-    }
     pub fn output(&self, input: &cdx::input_file::Config) -> Result<cdx::output::Config> {
         Ok(cdx::output::Config::from_input_and_spec(input, &self.output))
     }
@@ -88,7 +82,8 @@ impl Settings {
         } else if name == "std-match" {
             MatchMaker::help();
         } else if name == "std-text" {
-            TextFileMode::text_help();
+            // FIXME
+            // TextFileMode::text_help();
         } else if name == "std-trans" {
             TransMaker::help();
         } else if name == "std-help" {

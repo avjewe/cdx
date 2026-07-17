@@ -206,7 +206,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     }
     comp.lookup(f.names())?;
     count.lookup(f.names())?;
-    let mut c_write = Writer::new(settings.text_out());
+    let mut c_write = Writer::new();
     if !agg.is_empty() {
         if count.pos == CountPos::Begin {
             agg.push_first_prefix(&format!("{},1,count", count.name))?;
@@ -250,14 +250,18 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         let mut tmp = f.values().clone();
         loop {
             if f.get_line()? {
-                c_write.write(&mut w.0, &tmp)?;
+                c_write.output(&mut lw, &tmp)?;
+                lw.write(&mut w.0)?;
+                lw.clear();
                 break;
             }
             if comp.equal_cols(&f.1, f.values()) {
                 count.assign(&mut tmp, f.values());
                 agg.add(f.values());
             } else {
-                c_write.write(&mut w.0, &tmp)?;
+                c_write.output(&mut lw, &tmp)?;
+                lw.write(&mut w.0)?;
+                lw.clear();
                 tmp = f.values().clone();
                 agg.reset();
                 agg.add(f.values());

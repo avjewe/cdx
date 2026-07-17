@@ -234,14 +234,6 @@ impl ColumnHeader {
         res
     }
 
-    /// get new string, which is the column names joined
-    #[must_use]
-    pub fn get_head_short(&self, text: &TextFileMode) -> String {
-        let mut res = String::with_capacity(self.get_size());
-        self.add_head(&mut res, text);
-        res
-    }
-
     fn get_size(&self) -> usize {
         self.cols.iter().map(String::len).sum::<usize>() + self.cols.len() - 1
     }
@@ -1386,14 +1378,13 @@ impl ColumnFun for ReaderColumns {
 #[derive(Default, Debug)]
 pub struct Writer {
     v: Vec<Box<dyn UsefulColumnFun>>,
-    text: TextFileMode,
 }
 
 impl Writer {
     /// new Writer
     #[must_use]
-    pub fn new(text: TextFileMode) -> Self {
-        Self { v: Vec::new(), text }
+    pub fn new() -> Self {
+        Self { v: Vec::new() }
     }
     /// is it empty
     #[must_use]
@@ -1416,22 +1407,6 @@ impl Writer {
         for x in &self.v {
             x.add_names(w, head)?;
         }
-        Ok(())
-    }
-    /// Write the column values
-    pub fn write(&mut self, w: &mut dyn Write, line: &TextLine) -> Result<()> {
-        let mut iter = self.v.iter_mut();
-        match iter.next() {
-            None => {}
-            Some(first) => {
-                first.write(w, line, &self.text)?;
-                for x in iter {
-                    w.write_all(&[self.text.delim])?;
-                    x.write(w, line, &self.text)?;
-                }
-            }
-        }
-        w.write_all(b"\n")?;
         Ok(())
     }
 

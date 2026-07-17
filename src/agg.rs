@@ -472,7 +472,8 @@ impl ColumnFun for Agger {
     fn output(&mut self, w: &mut LineWriter, _line: &TextLine) -> Result<()> {
         w.begin_column()?;
         self.agg.borrow_mut().result(w, self.fmt)?;
-        w.end_column()
+        w.end_column()?;
+        Ok(())
     }
 
     /// resolve any named columns
