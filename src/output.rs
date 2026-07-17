@@ -1044,6 +1044,13 @@ impl LineWriter {
         }
     }
 
+    /// Write one full column into the current record, with no escaping or quoting
+    pub fn write_literal_column(&mut self, data: &[u8]) -> Result<()> {
+        self.begin_column_write()?;
+        self.record_buf.extend_from_slice(data);
+        Ok(())
+    }
+
     /// Write many full columns into the current record.
     pub fn write_columns<I, B>(&mut self, columns: I) -> Result<()>
     where

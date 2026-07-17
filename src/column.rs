@@ -591,7 +591,7 @@ impl ColumnFun for ColumnSingle {
     }
 }
 
-/// write the whole line
+/// write the whole line, properly quotes as a single column value
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ColumnWhole;
 
@@ -608,6 +608,31 @@ impl ColumnFun for ColumnWhole {
     /// write the column values (called many times)
     fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
         w.write_column(line.line())?;
+        Ok(())
+    }
+    /// resolve any named columns
+    fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// write the whole input line, bytes unchanged.
+#[derive(Debug, Default, Copy, Clone)]
+pub struct ColumnWholeLiteral;
+
+impl ColumnFun for ColumnWholeLiteral {
+    /// write the column names (called once)
+    fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
+        w.push_all(head)
+    }
+    /// write the column values (called many times)
+    fn write(&mut self, _w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
+        Ok(())
+    }
+    /// write the column values (called many times)
+    fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
+        w.write_literal_column(line.line())?;
         Ok(())
     }
     /// resolve any named columns

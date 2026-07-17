@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use cdx::column::{ColumnCount, ColumnLiteral, ColumnWhole};
+use cdx::column::{ColumnCount, ColumnLiteral, ColumnWholeLiteral};
 use cdx::prelude::*;
 use cdx::util::get_reader;
 use cdx::*;
@@ -139,7 +139,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if num.do_it && !num.end {
             v.push(Box::new(ColumnCount::new(num.start, &num.name)));
         }
-        v.push(Box::new(ColumnWhole));
+        v.push(Box::new(ColumnWholeLiteral));
         if num.do_it && num.end {
             v.push(Box::new(ColumnCount::new(num.start, &num.name)));
         }
@@ -148,7 +148,7 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         if num.do_it && !num.end {
             not_v.push(Box::new(ColumnLiteral::new(b"", "unused")));
         }
-        not_v.push(Box::new(ColumnWhole));
+        not_v.push(Box::new(ColumnWholeLiteral));
         if num.do_it && num.end {
             not_v.push(Box::new(ColumnLiteral::new(b"", "unused")));
         }
@@ -176,9 +176,13 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
             loop {
                 if !removes.umatch(f.line()) {
                     if skips.umatch(f.line()) {
-                        not_v.write(&mut w.0, f.values())?;
+                        not_v.output(&mut lw, f.values())?;
+                        lw.write(&mut w.0)?;
+                        lw.clear();
                     } else {
-                        v.write(&mut w.0, f.values())?;
+                        v.output(&mut lw, f.values())?;
+                        lw.write(&mut w.0)?;
+                        lw.clear();
                     }
                 }
                 if f.get_line()? {
