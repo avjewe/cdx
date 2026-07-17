@@ -445,6 +445,7 @@ impl ColumnFun for LineAgger {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         self.agg.borrow_mut().result(w, self.fmt)
     }
 
@@ -466,6 +467,7 @@ impl ColumnFun for Agger {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         self.agg.borrow_mut().result(w, self.fmt)
     }
 
@@ -560,24 +562,6 @@ impl AggList {
         n.fmt(self.fmt);
         n
     }
-    /*
-        /// fill vec with data
-        pub fn write(&mut self, data: &mut Vec<u8>, delim: u8, fmt : NumFormat) -> Result<()> {
-            for x in &mut self.v {
-                x.agg.borrow_mut().result(data, fmt)?;
-                data.push(delim);
-            }
-            Ok(())
-        }
-        /// fill vec with data
-        pub fn write_names(&mut self, data: &mut String, delim: u8) -> Result<()> {
-            for x in &mut self.v {
-                data.push_str(&x.name);
-                data.push(delim as char);
-            }
-            Ok(())
-        }
-    */
     /// index
     #[must_use]
     pub fn get(&self, pos: usize) -> &Agger {

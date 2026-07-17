@@ -639,6 +639,17 @@ impl Config {
         Self { delimiter: b',', escape: Escape::QuoteDoubled(b'"', b'"'), header: Header::Yes }
     }
 
+    /// return the column delimiter
+    #[must_use]
+    pub const fn get_delimiter(&self) -> u8 {
+        self.delimiter
+    }
+
+    /// return the column delimiter
+    pub const fn set_delimiter(&mut self, d: u8) {
+        self.delimiter = d;
+    }
+
     /// Build output config by applying `spec` overrides to values derived from `input`.
     ///
     /// Derivation rules:
@@ -938,6 +949,17 @@ impl LineWriter {
             column_open: false,
             wrote_any_column: false,
         }
+    }
+
+    /// get the column delimiter
+    #[must_use]
+    pub const fn get_delimiter(&self) -> u8 {
+        self.config.get_delimiter()
+    }
+
+    /// set the column delimiter
+    pub const fn set_delimiter(&mut self, d: u8) {
+        self.config.set_delimiter(d);
     }
 
     /// Build output config by applying `spec` overrides to values derived from `input.config()`.

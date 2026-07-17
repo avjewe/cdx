@@ -533,6 +533,7 @@ impl ColumnFun for ColumnExpr {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         self.format.print(self.expr.eval(line), w)
     }
     fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
@@ -571,6 +572,7 @@ impl ColumnFun for ColumnSingle {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         text.write(w, &line.columns()[self.col.num])?;
         Ok(())
     }
@@ -594,6 +596,7 @@ impl ColumnFun for ColumnWhole {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         w.write_all(line.line())?;
         Ok(())
     }
@@ -619,6 +622,7 @@ impl ColumnFun for ColumnWholeLiteral {
     }
     /// write the column values (called many times)
     fn write(&mut self, _w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         debug_assert!(false);
         Ok(())
     }
@@ -655,6 +659,7 @@ impl ColumnFun for ColumnCount {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         w.write_all(self.num.to_string().as_bytes())?;
         self.num += 1;
         Ok(())
@@ -692,6 +697,7 @@ impl ColumnFun for ColumnLiteral {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, _line: &TextLine, text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         text.write(w, &self.value)?;
         Ok(())
     }
@@ -1006,6 +1012,7 @@ impl ColumnSet {
     /// write the appropriate selection from the given columns
     /// trying to write a non-existent column is an error
     pub fn write(&self, w: &mut dyn Write, cols: &ColumnNamesRef, delim: &str) -> Result<()> {
+        debug_assert!(false);
         if !self.did_lookup {
             return cdx_err(CdxError::NeedLookup);
         }
@@ -1118,9 +1125,7 @@ impl ColumnSet {
                     let val = Self::fetch(&self.columns[i], &mut self.trans, cols)?;
                     agg.add(val);
                 }
-                w.begin_column()?;
-                agg.write(w, cols, &TextFileMode::default())?;
-                w.end_column()?;
+                agg.output(w, cols)?;
             }
         }
         Ok(())
@@ -1272,19 +1277,20 @@ impl ColumnSet {
 pub struct ColumnClump {
     cols: Box<dyn UsefulColumnFun>,
     name: String,
-    text: TextFileMode,
+    writer: LineWriter,
 }
 
 // FIXME -- should own a LineWriter, not a TextFileMode
 impl ColumnClump {
     /// new `ColumnClump` from parts
     #[must_use]
-    pub fn new(cols: Box<dyn UsefulColumnFun>, name: &str, delim: u8) -> Self {
-        let text = TextFileMode { delim, ..Default::default() };
-        Self { cols, name: name.to_string(), text }
+    pub fn new(cols: Box<dyn UsefulColumnFun>, name: &str, config: output::Config) -> Self {
+        let writer = LineWriter::new(config, b"");
+        Self { cols, name: name.to_string(), writer }
     }
     /// new `ColumnClump` from spec : DelimOutcol:Columns
     /// e.g. ,group:1-3
+    // FIXME, should have access to full Config
     pub fn from_spec(orig_spec: &str) -> Result<Self> {
         let mut spec = orig_spec;
         if spec.is_empty() {
@@ -1302,20 +1308,22 @@ impl ColumnClump {
         let mut g = ColumnSet::new();
         g.add_yes(parts.1)?;
         let cols = Box::new(ReaderColumns::new(g));
-        let text = TextFileMode { delim: delim as u8, ..Default::default() };
-        Ok(Self { cols, name: parts.0.to_string(), text })
+        let config = output::Config { delimiter: delim as u8, ..Default::default() };
+        let writer = LineWriter::new(config, b"");
+        Ok(Self { cols, name: parts.0.to_string(), writer })
     }
 }
 
 impl ColumnFun for ColumnClump {
-    fn write(&mut self, w: &mut dyn Write, line: &TextLine, _text: &TextFileMode) -> Result<()> {
-        self.cols.write(w, line, &self.text)?;
+    fn write(&mut self, _w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
+        // self.cols.write(w, line, &self.text)?;
         Ok(())
     }
     fn output(&mut self, w: &mut LineWriter, line: &TextLine) -> Result<()> {
-        w.begin_column()?;
-        self.cols.write(w, line, &self.text)?;
-        w.end_column()
+        self.writer.clear();
+        self.cols.output(&mut self.writer, line)?;
+        w.write_column(self.writer.record())
     }
 
     fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
@@ -1352,6 +1360,7 @@ pub fn write_colname(w: &mut dyn Write, col: &OutCol, head: &ColumnNamesRef) -> 
 
 impl ColumnFun for ReaderColumns {
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         self.columns.write3(w, line, text)?;
         Ok(())
     }
@@ -1619,6 +1628,7 @@ impl ColumnFun for CompositeColumn {
     }
     /// write the column values (called many times)
     fn write(&mut self, w: &mut dyn Write, line: &TextLine, text: &TextFileMode) -> Result<()> {
+        debug_assert!(false);
         for x in &self.parts {
             text.write(w, x.prefix.as_bytes())?;
             text.write(w, line.get(x.col.num))?;
