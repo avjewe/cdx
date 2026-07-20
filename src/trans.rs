@@ -21,25 +21,27 @@ useful!(Trans);
 #[derive(Default, Clone, Debug)]
 struct SelectTrans {
     cols: ColumnSet,
-    in_mode: TextFileMode,
-    out_mode: TextFileMode,
+    in_delim: u8, // should be full input::Config
+    writer: LineWriter,
     text: TextLine,
 }
 
 impl SelectTrans {
-    #[must_use]
-    const fn mode(delim: char) -> TextFileMode {
-        TextFileMode { delim: util::auto_escape(delim), line_break: b'\n' }
-    }
-
+    // FIXME - need full line writer config
     fn new(spec: &str) -> Result<Self> {
         let mut chars = spec.chars();
         match (chars.next(), chars.next()) {
             (Some(in_delim), Some(out_delim)) => {
-                let in_mode = Self::mode(in_delim);
-                let out_mode = Self::mode(out_delim);
+                let out_config =
+                    output::Config { delimiter: out_delim as u8, ..Default::default() };
+                let writer = LineWriter::new(out_config, b"");
                 let cols = ColumnSet::from_spec(chars.as_str())?;
-                Ok(Self { cols, in_mode, out_mode, text: TextLine::default() })
+                Ok(Self {
+                    cols,
+                    in_delim: util::auto_escape(in_delim),
+                    writer,
+                    text: TextLine::default(),
+                })
             }
             _ => err!("Invalid select spec : {}", spec),
         }
@@ -50,8 +52,12 @@ impl Trans for SelectTrans {
     fn trans(&mut self, src: &[u8], _cont: &TextLine, dst: &mut Vec<u8>) -> Result<()> {
         self.text.line_mut().clear();
         self.text.line_mut().extend_from_slice(src);
-        self.text.split_plain(self.in_mode.delim);
-        self.cols.write3(dst, &self.text, &self.out_mode)
+        self.text.split_plain(self.in_delim);
+
+        self.writer.clear();
+        self.cols.output(&mut self.writer, &self.text)?;
+        dst.extend_from_slice(self.writer.record());
+        Ok(())
     }
     fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         self.cols.lookup(&[])?;

@@ -544,6 +544,11 @@ impl TextFile {
     pub const fn no_split(&mut self) {
         self.do_split(false);
     }
+    /// Get the fields of the current line
+    #[must_use]
+    pub const fn column_values(&self) -> &input::Columns {
+        &self.column_values.values
+    }
     /// Get the original bytes of the current line
     #[must_use]
     pub fn line(&self) -> &[u8] {

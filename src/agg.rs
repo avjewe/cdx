@@ -436,49 +436,32 @@ impl AggCol {
 }
 
 impl ColumnFun for LineAgger {
-    /// write the column names (called once)
     fn add_names(&self, w: &mut ColumnHeader, head: &ColumnNamesRef) -> Result<()> {
         match &self.out {
             AggType::Replace => w.push(self.agg.borrow().replace(head)),
             AggType::Prefix(s) | AggType::Append(s) => w.push(s),
         }
     }
-    /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
-        debug_assert!(false);
-        self.agg.borrow_mut().result(w, self.fmt)
-    }
-
     fn output(&mut self, w: &mut LineWriter, _line: &TextLine) -> Result<()> {
         w.begin_column()?;
         self.agg.borrow_mut().result(w, self.fmt)?;
         w.end_column()
     }
-    /// resolve any named columns
     fn lookup(&mut self, field_names: &ColumnNamesRef) -> Result<()> {
         self.agg.borrow_mut().lookup(field_names)
     }
 }
 
 impl ColumnFun for Agger {
-    /// write the column names (called once)
     fn add_names(&self, w: &mut ColumnHeader, _head: &ColumnNamesRef) -> Result<()> {
         w.push(&self.out)
     }
-    /// write the column values (called many times)
-    fn write(&mut self, w: &mut dyn Write, _line: &TextLine, _text: &TextFileMode) -> Result<()> {
-        debug_assert!(false);
-        self.agg.borrow_mut().result(w, self.fmt)
-    }
-
     fn output(&mut self, w: &mut LineWriter, _line: &TextLine) -> Result<()> {
         w.begin_column()?;
         self.agg.borrow_mut().result(w, self.fmt)?;
         w.end_column()?;
         Ok(())
     }
-
-    /// resolve any named columns
     fn lookup(&mut self, _field_names: &ColumnNamesRef) -> Result<()> {
         Ok(())
     }

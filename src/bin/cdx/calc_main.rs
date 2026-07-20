@@ -14,8 +14,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut fmt = NumFormat::default();
     let mut trig_mode = TrigMode::default();
     for x in args {
-        if x.name == "fmt" {
+        if x.name == "format" {
             fmt = NumFormat::new(&x.value)?;
+            eprintln!("{fmt:#?}");
         } else if x.name == "degrees" {
             trig_mode = TrigMode::Degrees;
         } else {

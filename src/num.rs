@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 #![allow(clippy::unneeded_field_pattern)]
 
+use crate::*;
+
 trait Integer {
     const MAX: Self;
     const MIN: Self;
@@ -189,7 +191,7 @@ pub enum NumFormat {
     /// Roman Numerals
     Roman,
     /// Dyadic fractions. Can get rather wordy.
-    Dyadic,
+    Dyadic(dyadic::Dyadic),
 }
 impl Default for NumFormat {
     fn default() -> Self {
@@ -202,31 +204,34 @@ const FORMAT_CHOICES: &str = "Number format must be short[.N], plain[.N], float[
 impl NumFormat {
     /// new from string
     pub fn new(spec: &str) -> Result<Self> {
-        if spec.eq_ignore_ascii_case("plain") {
+        let spec = spec.to_lowercase();
+        if spec == "plain" {
             Ok(Self::Plain(None))
-        } else if spec.eq_ignore_ascii_case("short") {
+        } else if spec == "short" {
             Ok(Self::Short(None))
-        } else if spec.eq_ignore_ascii_case("float") {
+        } else if spec == "float" {
             Ok(Self::Float(None))
-        } else if spec.eq_ignore_ascii_case("roman") {
+        } else if spec == "roman" {
             Ok(Self::Roman)
-        } else if spec.eq_ignore_ascii_case("dyadic") {
-            Ok(Self::Dyadic)
-        } else if spec.eq_ignore_ascii_case("power2") || spec.eq_ignore_ascii_case("p2") {
+        } else if spec == "dyadic" {
+            Ok(Self::Dyadic(dyadic::Dyadic::default()))
+        } else if let Some(suffix) = spec.strip_prefix("dyadic,") {
+            Ok(Self::Dyadic(dyadic::Dyadic::from_spec(suffix)?))
+        } else if spec == "power2" || spec == "p2" {
             Ok(Self::Power2)
-        } else if spec.eq_ignore_ascii_case("power10") || spec.eq_ignore_ascii_case("p10") {
+        } else if spec == "power10" || spec == "p10" {
             Ok(Self::Power10)
-        } else if spec.eq_ignore_ascii_case("rational") {
+        } else if spec == "rational" {
             Ok(Self::Rational(3))
         } else if let Some((a, b)) = spec.split_once('.') {
             let p = b.to_usize_whole(spec.as_bytes(), "Num Format")?;
-            if a.eq_ignore_ascii_case("plain") {
+            if a == "plain" {
                 Ok(Self::Plain(Some(p)))
-            } else if a.eq_ignore_ascii_case("short") {
+            } else if a == "short" {
                 Ok(Self::Short(Some(p)))
-            } else if a.eq_ignore_ascii_case("float") {
+            } else if a == "float" {
                 Ok(Self::Float(Some(p)))
-            } else if a.eq_ignore_ascii_case("rational") {
+            } else if a == "rational" {
                 if p < 1 {
                     err!("Number of digits of precision for rational must be positive.")
                 } else {
@@ -251,45 +256,56 @@ impl NumFormat {
     }
 
     /// format a number
-    pub fn print(self, mut num: f64, mut w: impl Write) -> Result<()> {
+    pub fn print(self, num: f64, w: impl Write) -> Result<()> {
         let nfmt = self.new_format(num);
-        if let Self::Plain(n) = nfmt {
-            if let Some(prec) = n {
-                write!(w, "{num:.prec$}")?;
-            } else {
-                write!(w, "{num}")?;
+        nfmt.inner_print(num, w)
+    }
+    fn inner_print(self, mut num: f64, mut w: impl Write) -> Result<()> {
+        match self {
+            Self::Short(_n) => {
+                anyhow::bail!("bad");
             }
-            return Ok(());
-        }
-        if let Self::Float(n) = nfmt {
-            if let Some(prec) = n {
-                write!(w, "{num:.prec$e}")?;
-            } else {
-                write!(w, "{num:e}")?;
+
+            Self::Plain(n) => {
+                if let Some(prec) = n {
+                    write!(w, "{num:.prec$}")?;
+                } else {
+                    write!(w, "{num}")?;
+                }
             }
-            return Ok(());
-        }
-        if let Self::Rational(n) = nfmt {
-            let (x, y) = crate::format::get_rational(num, n as u32);
-            write!(w, "{x}/{y}")?;
-            return Ok(());
-        }
-        if Self::Roman == nfmt {
-            return crate::roman::write_roman_f(num, &mut w);
-        }
-        if Self::Dyadic == nfmt {
-            w.write_all(crate::dyadic::format_frac(num).as_bytes())?;
-            return Ok(());
-        }
-        num = num.round();
-        if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
-            write!(w, "{num}")?;
-            return Ok(());
-        }
-        if nfmt == Self::Power2 {
-            write!(w, "{}", crate::format::format_power2f(num))?;
-        } else {
-            write!(w, "{}", crate::format::format_power10f(num))?;
+            Self::Float(n) => {
+                if let Some(prec) = n {
+                    write!(w, "{num:.prec$e}")?;
+                } else {
+                    write!(w, "{num:e}")?;
+                }
+            }
+            Self::Rational(n) => {
+                let (x, y) = format::get_rational(num, n as u32);
+                write!(w, "{x}/{y}")?;
+            }
+            Self::Roman => {
+                roman::write_roman_f(num, &mut w)?;
+            }
+            Self::Dyadic(d) => {
+                w.write_all(d.format_frac(num).as_bytes())?;
+            }
+            Self::Power2 => {
+                num = num.round();
+                if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
+                    write!(w, "{num}")?;
+                    return Ok(());
+                }
+                write!(w, "{}", format::format_power2f(num))?;
+            }
+            Self::Power10 => {
+                num = num.round();
+                if num.abs() < 1000.0 || num.is_nan() || num.is_infinite() {
+                    write!(w, "{num}")?;
+                    return Ok(());
+                }
+                write!(w, "{}", format::format_power10f(num))?;
+            }
         }
         Ok(())
     }

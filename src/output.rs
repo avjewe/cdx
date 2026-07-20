@@ -102,7 +102,7 @@ pub struct Spec {
 }
 
 /// Write delimiter-separated records to an output.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct LineWriter {
     /// The configuration for how to write output columns.
     config: Config,

@@ -19,9 +19,7 @@ pub use crate::textgen::GenList;
 #[doc(inline)]
 pub use crate::trans::TransList;
 #[doc(inline)]
-pub use crate::util::{
-    CdxError, Error, FileLocList, Result, TextFileMode, Tri, cdx_err, err, get_writer, prerr,
-};
+pub use crate::util::{CdxError, Error, FileLocList, Result, Tri, cdx_err, err, get_writer, prerr};
 
 #[doc(inline)]
 pub use crate::input_file::TextLine;
