@@ -1,6 +1,7 @@
 //! global settings and command line arguments available to all tools
 
 use crate::args::ArgValue;
+use crate::args::OPT_ARG;
 use crate::args::add_arg;
 use crate::prelude::*;
 use cdx::agg::AggMaker;
@@ -13,17 +14,16 @@ use cdx::trans::TransMaker;
 use cdx::util::HeaderChecker;
 
 const A: [ArgSpec; 10] = [
-    // arg! {"text-out", "", "Format", "Output text file format"},
-    arg! {"Input", "I", "Format", "Input text file format"},
-    arg! {"Output", "O", "Format", "Output text file format"},
-    arg! {"std-agg", "", "", "Show aggregators"},
-    arg! {"std-comp", "", "", "Show comparators"},
-    arg! {"std-const", "", "", "Show constants"},
-    arg! {"std-func", "", "", "Show functions"},
-    arg! {"std-gen", "", "", "Show generators"},
-    arg! {"std-match", "", "", "Show matchers"},
-    arg! {"std-text", "", "", "Show text format help"},
-    arg! {"std-trans", "", "", "Show transforms"},
+    arg_old! {"Input", "I", "Format", "Input text file format"},
+    arg_old! {"Output", "O", "Format", "Output text file format"},
+    arg_old! {"std-agg", "", OPT_ARG, "Show aggregators"},
+    arg_old! {"std-comp", "", OPT_ARG, "Show comparators"},
+    arg_old! {"std-const", "", OPT_ARG, "Show constants"},
+    arg_old! {"std-func", "", OPT_ARG, "Show functions"},
+    arg_old! {"std-gen", "", OPT_ARG, "Show generators"},
+    arg_old! {"std-match", "", OPT_ARG, "Show matchers"},
+    arg_old! {"std-text", "", OPT_ARG, "Show text format help"},
+    arg_old! {"std-trans", "", OPT_ARG, "Show transforms"},
 ];
 
 pub fn global_args() -> &'static [ArgSpec] {
@@ -46,17 +46,19 @@ impl Settings {
         Ok(cdx::output::Config::from_input_and_spec(input, &self.output))
     }
     pub fn add_std_help(a: clap::Command) -> clap::Command {
-        add_arg(a, &arg! {"std-help", "", "", "Show help for standard args."}, false)
+        add_arg(a, &arg_old! {"std-help", "", "", "Show help for standard args."}, false)
     }
     pub fn handle_std_help(m: &clap::ArgMatches, help: &str) -> Result<()> {
         if let Some(src) = m.value_source("std-help")
             && src == clap::parser::ValueSource::CommandLine
         {
+            // Only the list of standard types
             Self::help();
             cdx_err(CdxError::NoError)
         } else if let Some(src) = m.value_source("help")
             && src == clap::parser::ValueSource::CommandLine
         {
+            // Tools, Standard types and such
             println!("{help}");
             cdx_err(CdxError::NoError)
         } else {
@@ -65,10 +67,10 @@ impl Settings {
     }
     pub fn help() {
         for x in &A {
-            eprintln!("{:12} {} {}", x.name, x.value, x.help);
+            println!("{:12} {} {}", x.name, x.value, x.help);
         }
     }
-    pub fn show_std_help(name: &str) -> Result<()> {
+    pub fn show_std_help(name: &str, value: &str) -> Result<()> {
         if name == "std-agg" {
             AggMaker::help();
         } else if name == "std-comp" {
@@ -80,7 +82,7 @@ impl Settings {
         } else if name == "std-gen" {
             GenMaker::help();
         } else if name == "std-match" {
-            MatchMaker::help();
+            MatchMaker::help(value);
         } else if name == "std-text" {
             // FIXME
             // TextFileMode::text_help();
@@ -100,7 +102,7 @@ impl Settings {
             } else if x.name == "Output" {
                 self.output = cdx::output::Spec::from_spec(&x.value)?;
             } else {
-                Self::show_std_help(&x.name)?;
+                Self::show_std_help(&x.name, &x.value)?;
                 return cdx_err(CdxError::NoError);
             }
         }

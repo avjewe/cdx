@@ -1843,28 +1843,33 @@ impl MatchMaker {
         Ok(())
     }
     /// Print all available Matchers to stdout.
-    pub fn help() {
-        println!("Modifiers :");
-        println!("utf8  Operations are on utf8 strings, rather than the default u8 bytes.");
-        println!("not   Treat a match as a non-match, and vice versa.");
-        println!("case  Ignore case. Exact behavior depends on 'utf8' setting.");
-        println!("trim  Remove leading and trailing whitespace before checking.");
-        println!("null  An empty string also matches. This check happens after trimming.");
-        println!("and   Interpret pattern as a multi-pattern, Match with AND.");
-        println!("or    Interpret pattern as a multi-pattern, Match with OR.\n");
-        println!("Methods :");
-        let mut results = Vec::new();
-        for x in &*MATCH_MAKER.lock().unwrap() {
-            results.push(format!("{:12}{}", x.tag, x.help));
+    pub fn help(value: &str) {
+        if value.is_empty() {
+            println!("Modifiers :");
+            println!("utf8  Operations are on utf8 strings, rather than the default u8 bytes.");
+            println!("not   Treat a match as a non-match, and vice versa.");
+            println!("case  Ignore case. Exact behavior depends on 'utf8' setting.");
+            println!("trim  Remove leading and trailing whitespace before checking.");
+            println!("null  An empty string also matches. This check happens after trimming.");
+            println!("and   Interpret pattern as a multi-pattern, Match with AND.");
+            println!("or    Interpret pattern as a multi-pattern, Match with OR.\n");
+            println!("Methods :");
+            let mut results = Vec::new();
+            for x in &*MATCH_MAKER.lock().unwrap() {
+                results.push(format!("{:12}{}", x.tag, x.help));
+            }
+            results.sort();
+            for x in results {
+                println!("{x}");
+            }
+            println!("See also https://avjewe.github.io/cdxdoc/Matcher.html.");
+        } else {
+            println!("Extra detail about Matcher {value}");
         }
-        results.sort();
-        for x in results {
-            println!("{x}");
-        }
-        println!("See also https://avjewe.github.io/cdxdoc/Matcher.html.");
     }
     /// Create a Matcher from a matcher spec and a pattern
     pub fn make2(matcher: &str, pattern: &str) -> Result<Matcher> {
+        // FIXME - if matcher and pattern are empty, error
         let mut m = Matcher::default();
         if !matcher.is_empty() {
             for x in matcher.split('.') {
@@ -1875,7 +1880,7 @@ impl MatchMaker {
                 } else if x.eq_ignore_ascii_case("trim") {
                     m.trim = true;
                 } else if x.eq_ignore_ascii_case("null") {
-                    m.negate = true;
+                    m.empty = true;
                 } else if x.eq_ignore_ascii_case("case") {
                     m.case = Case::Insens;
                 } else if x.eq_ignore_ascii_case("and") {
@@ -1883,6 +1888,8 @@ impl MatchMaker {
                 } else if x.eq_ignore_ascii_case("or") {
                     m.multi_mode = Some(Combiner::Or);
                 } else {
+                    // FIXME - error if multiple
+                    // Maybe error if not last
                     m.ctype = x.to_string();
                 }
             }

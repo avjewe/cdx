@@ -6,13 +6,13 @@ use cdx::*;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::Many);
     const A: [ArgSpec; 7] = [
-        arg! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
-        arg! {"show-const", "", "", "Print available constants"},
-        arg! {"show-func", "", "", "Print available functions"},
-        arg! {"or", "o", "", "A line matches if any of the matchers matches."},
-        arg! {"invert", "v", "", "Print lines that don't match."},
-        arg! {"location", "l", "name:what", "prefix extra columns of location context."},
-        arg! {"no-match", "V", "FileName", "Write non-matching lines here."},
+        arg_old! {"pattern", "p", "Col,Spec,Pattern", "Select line where this col matches this pattern."},
+        arg_old! {"show-const", "", "", "Print available constants"},
+        arg_old! {"show-func", "", "", "Print available functions"},
+        arg_old! {"or", "o", "", "A line matches if any of the matchers matches."},
+        arg_old! {"invert", "v", "", "Print lines that don't match."},
+        arg_old! {"location", "l", "name:what", "prefix extra columns of location context."},
+        arg_old! {"no-match", "V", "FileName", "Write non-matching lines here."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

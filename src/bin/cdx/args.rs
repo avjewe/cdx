@@ -2,24 +2,100 @@ use crate::globals;
 use cdx::prelude::*;
 use clap::ArgAction;
 
+pub(crate) const OPT_ARG: &str = "Opt";
+
+#[macro_export]
+macro_rules! arg_old {
+    ($a:expr,$b:expr,$c:expr,$d:expr) => {
+        args::ArgSpec {
+            name: $a,
+            help_name: concat!($a, "-help"),
+            help_text: "",
+            short: $b,
+            value: $c,
+            help: $d,
+            values: &[],
+            positional: false,
+        }
+    };
+}
 #[macro_export]
 macro_rules! arg {
-    ($a:expr,$b:expr,$c:expr,$d:expr) => {
-        args::ArgSpec { name: $a, short: $b, value: $c, help: $d, values: &[], positional: false }
+    ($a:expr,$b:expr,$c:expr,$d:expr,$e:expr) => {
+        args::ArgSpec {
+            name: $a,
+            help_name: concat!($a, "-help"),
+            help_text: $e,
+            short: $b,
+            value: $c,
+            help: $d,
+            values: &[],
+            positional: false,
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! arg_pos_old {
+    ($a:expr,$c:expr,$d:expr) => {
+        args::ArgSpec {
+            name: $a,
+            help_name: concat!($a, "-help"),
+            help_text: "",
+            short: "",
+            value: $c,
+            help: $d,
+            values: &[],
+            positional: true,
+        }
     };
 }
 
 #[macro_export]
 macro_rules! arg_pos {
-    ($a:expr,$c:expr,$d:expr) => {
-        args::ArgSpec { name: $a, short: "", value: $c, help: $d, values: &[], positional: true }
+    ($a:expr,$c:expr,$d:expr,$e:expr) => {
+        args::ArgSpec {
+            name: $a,
+            help_name: concat!($a, "-help"),
+            help_text: $e,
+            short: "",
+            value: $c,
+            help: $d,
+            values: &[],
+            positional: true,
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! arg_enum_old {
+    ($a:expr,$b:expr,$c:expr,$d:expr,$e:expr) => {
+        args::ArgSpec {
+            name: $a,
+            help_name: concat!($a, "-help"),
+            help_text: "",
+            short: $b,
+            value: $c,
+            help: $d,
+            values: $e,
+            positional: false,
+        }
     };
 }
 
 #[macro_export]
 macro_rules! arg_enum {
-    ($a:expr,$b:expr,$c:expr,$d:expr,$e:expr) => {
-        args::ArgSpec { name: $a, short: $b, value: $c, help: $d, values: $e, positional: false }
+    ($a:expr,$b:expr,$c:expr,$d:expr,$e:expr,$f:expr) => {
+        args::ArgSpec {
+            name: $a,
+            help_name: concat!($a, "-help"),
+            help_text: $f,
+            short: $b,
+            value: $c,
+            help: $d,
+            values: $e,
+            positional: false,
+        }
     };
 }
 
@@ -48,11 +124,37 @@ impl ProgSpec {
 #[derive(Debug, Clone, Copy)]
 pub struct ArgSpec {
     pub name: &'static str,
+    pub help_name: &'static str,
+    pub help_text: &'static str,
     pub short: &'static str,
     pub value: &'static str,
     pub help: &'static str,
     pub values: &'static [&'static str],
     pub positional: bool,
+}
+
+pub fn arg_help(arg: &str, args: &[ArgSpec]) -> bool {
+    if !arg.ends_with("-help") {
+        return false;
+    }
+    let arg = &arg[..arg.len() - 5];
+    for a in args {
+        if a.name == arg {
+            if a.value.is_empty() {
+                println!("--{arg}");
+            } else {
+                println!("--{arg}={}", a.value);
+            }
+            if a.help_text.is_empty() {
+                println!("No detailed help available for --{arg}");
+            } else {
+                println!("{}", a.help_text);
+            }
+            return true;
+        }
+    }
+    println!("Unexpected detailed help request --{arg}-help");
+    true
 }
 
 #[derive(Debug)]
@@ -86,8 +188,10 @@ pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command 
         }
         b = b.long(x.name).help(x.help);
         if x.value.is_empty() {
-            b = b.action(ArgAction::Append).num_args(0).default_missing_value("present");
+            b = b.action(ArgAction::Append).num_args(0).default_missing_value("");
             // b = b.action(ArgAction::Count);
+        } else if x.value == OPT_ARG {
+            b = b.action(ArgAction::Append).num_args(0..=1).default_missing_value("");
         } else {
             b = b.value_name(x.value).action(clap::ArgAction::Append);
         }
@@ -95,12 +199,22 @@ pub fn add_arg(a: clap::Command, x: &ArgSpec, hide_help: bool) -> clap::Command 
         if !x.values.is_empty() {
             b = b
                 .value_parser(clap::builder::PossibleValuesParser::new(x.values))
-                .hide_possible_values(true)
+                .hide_possible_values(false)
                 .ignore_case(true);
         }
     }
     b = b.hide_long_help(hide_help);
     b = b.hide(hide_help);
+    a.arg(b)
+}
+
+// Add optional value, num_args(0..=1)
+pub fn add_help_arg(a: clap::Command, x: &ArgSpec) -> clap::Command {
+    let mut b = clap::Arg::new(x.help_name);
+    b = b.long(x.help_name);
+    b = b.action(ArgAction::Append).num_args(0).default_missing_value("");
+    b = b.hide_long_help(true);
+    b = b.hide(true);
     a.arg(b)
 }
 
@@ -141,6 +255,9 @@ pub fn parse(
 
     for x in spec {
         a = add_arg(a, x, false);
+        if !x.positional && !x.name.contains("help") {
+            a = add_help_arg(a, x);
+        }
     }
     a = globals::Settings::add_std_help(a);
     for x in globals::global_args() {
@@ -165,6 +282,11 @@ pub fn parse(
         get_arg(&m, x, &mut v);
     }
     glob.consume(&v)?;
+    for arg in m.ids() {
+        if arg_help(arg.as_ref(), spec) {
+            return cdx_err(CdxError::NoError);
+        }
+    }
     v.clear();
     for x in spec {
         get_arg(&m, x, &mut v);

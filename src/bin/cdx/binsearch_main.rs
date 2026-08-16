@@ -88,11 +88,11 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let mut prog = args::ProgSpec::new("Search sorted files.", args::FileCount::Many);
     prog.usage = "[OPTIONS] pattern [input_files]...".to_string();
     const A: [ArgSpec; 5] = [
-        arg! {"key", "k", "Spec", "How to compare value to lines"},
-        arg! {"filename", "H", "ColName:Parts", "Prefix output lines with file name."},
-        arg! {"context", "C", "before,after",  "print lines of context around matches"},
-        arg! {"sub-delim", "s", "Char",  "Delimiter between keys for multi-column searches"},
-        arg_pos! {"pattern", "search string",  "Search for this string in each file"},
+        arg_old! {"key", "k", "Spec", "How to compare value to lines"},
+        arg_old! {"filename", "H", "ColName:Parts", "Prefix output lines with file name."},
+        arg_old! {"context", "C", "before,after",  "print lines of context around matches"},
+        arg_old! {"sub-delim", "s", "Char",  "Delimiter between keys for multi-column searches"},
+        arg_pos_old! {"pattern", "search string",  "Search for this string in each file"},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

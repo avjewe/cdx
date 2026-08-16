@@ -5,10 +5,10 @@ use cdx::prelude::*;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Join files on a matching column.", args::FileCount::Many);
     const A: [ArgSpec; 4] = [
-        arg! {"also", "a", "FileNum,FileName", "Write non-matching lines from this file to this file."},
-        arg! {"file", "f", "OutputFile", "Output File Name, default '-' for stdout"},
-        arg! {"key", "k", "Spec", "How to compare lines"},
-        arg! {"output", "o", "Spec", "Output columns : file.ColumnSet,file.ColumnSet"},
+        arg_old! {"also", "a", "FileNum,FileName", "Write non-matching lines from this file to this file."},
+        arg_old! {"file", "f", "OutputFile", "Output File Name, default '-' for stdout"},
+        arg_old! {"key", "k", "Spec", "How to compare lines"},
+        arg_old! {"output", "o", "Spec", "Output columns : file.ColumnSet,file.ColumnSet"},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

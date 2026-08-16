@@ -139,15 +139,14 @@ impl Count {
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select uniq lines.", args::FileCount::One);
-    const A: [ArgSpec; 8] = [
-        arg! {"agg", "a", "Col,Spec", "Merge value from this column, in place."},
-        arg! {"agg-pre", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, before other columns."},
-        arg! {"agg-post", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, after other columns."},
-        arg! {"key", "k", "Spec", "How to compare adjacent lines"},
-        arg! {"count", "c", "ColName,Position", "Write the count of matching line."},
-        arg! {"which", "w", "(First,Last,Min,Max)[,LineCompare]", "Which of the matching lines should be printed."},
-        arg! {"agg-help", "", "", "Print help for aggregators"},
-        arg! {"hash", "", "", "Input need not be ordered. Items are compared by 128 bit hashes, so false positives are theoretically possible."},
+    const A: [ArgSpec; 7] = [
+        arg_old! {"agg", "a", "Col,Spec", "Merge value from this column, in place."},
+        arg_old! {"agg-pre", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, before other columns."},
+        arg_old! {"agg-post", "", "NewCol,SrcCol,Spec", "Merge value from SrcCol into new column, after other columns."},
+        arg_old! {"key", "k", "Spec", "How to compare adjacent lines"},
+        arg_old! {"count", "c", "ColName,Position", "Write the count of matching line."},
+        arg_old! {"which", "w", "(First,Last,Min,Max)[,LineCompare]", "Which of the matching lines should be printed."},
+        arg_old! {"hash", "", "", "Input need not be ordered. Items are compared by 128 bit hashes, so false positives are theoretically possible."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

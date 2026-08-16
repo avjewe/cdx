@@ -93,11 +93,11 @@ pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> 
     for i in 2..globals::global_args().len() {
         let name = globals::global_args()[i].name;
         if matches.get_one::<String>(name).is_some() {
-            globals::Settings::show_std_help(name)?;
+            globals::Settings::show_std_help(name, "what")?;
         }
     }
     if matches.get_one::<String>("std-help").is_some() {
-        globals::Settings::show_std_help("std-help")?;
+        globals::Settings::show_std_help("std-help", "where")?;
     }
 
     Ok(())

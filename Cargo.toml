@@ -42,6 +42,7 @@ itertools = "0"
 twox-hash = "2"
 pastey = "0"
 rustyline = "18"
+dirs = "6"
 
 [profile.release]
 debug = true

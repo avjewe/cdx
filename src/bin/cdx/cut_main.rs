@@ -6,11 +6,11 @@ use cdx::*;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
     const A: [ArgSpec; 5] = [
-        arg! {"fields", "f", "Columns", "the columns to select."},
-        arg! {"group", "g", "Columns", "the columns in a bunch, e.g. '.group:1-3'"},
-        arg! {"expr", "e", "Name:Expr", "The result of an arithmetic expression."},
-        arg! {"composite", "c", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
-        arg_enum! {"dups", "D", "Mode",
+        arg_old! {"fields", "f", "Columns", "the columns to select."},
+        arg_old! {"group", "g", "Columns", "the columns in a bunch, e.g. '.group:1-3'"},
+        arg_old! {"expr", "e", "Name:Expr", "The result of an arithmetic expression."},
+        arg_old! {"composite", "c", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
+        arg_enum_old! {"dups", "D", "Mode",
 "Duplicate Column Handling. Values for Mode can be:
     Fail    : Fail if there are duplicate column names (default).
     Allow   : Allow duplicate column names.

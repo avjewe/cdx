@@ -16,15 +16,23 @@ pub enum DyadicKind {
 }
 
 /// Fraction where the denominator is a power of two
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Dyadic {
     /// Print lots of text
     kind: DyadicKind,
     denom: usize,
+    half_denom: f64,
+}
+
+impl Default for Dyadic {
+    fn default() -> Self {
+        Self::new(DyadicKind::default(), 32).unwrap()
+    }
 }
 
 impl Dyadic {
     /// Create new Dyadic
+    #[expect(clippy::cast_precision_loss)]
     pub fn new(kind: DyadicKind, denom: usize) -> Result<Self> {
         if !denom.is_power_of_two() {
             anyhow::bail!("denominator for dyadic must be a power of two 2 <= denom <= 64.");
@@ -35,7 +43,9 @@ impl Dyadic {
         if kind == DyadicKind::Pulled && denom < 8 {
             anyhow::bail!("denominator for dyadic::pulled must be at least 8.");
         }
-        Ok(Self { kind, denom })
+        let half_denom = 0.5 / (denom as f64);
+
+        Ok(Self { kind, denom, half_denom })
     }
     /// Create Dyadic from text specification
     pub fn from_spec(x: &str) -> Result<Self> {
@@ -81,13 +91,33 @@ fn format_smart(val: f64) -> String {
 }
 
 impl Dyadic {
+    /// return true if val is just under a whole number
+    #[must_use]
+    #[expect(clippy::suboptimal_flops)]
+    fn is_less(&self, prefix: &str, val: f64) -> Option<String> {
+        let nearest = val.round();
+        if val < nearest && val > (nearest - self.half_denom) {
+            Some(format!("{prefix}{nearest}"))
+        } else if self.kind == DyadicKind::Pulled
+            && val < nearest
+            && val > (nearest - (3.0 * self.half_denom))
+        // && val > -3.0f64.mul_add(self.half_denom, nearest)
+        {
+            Some(format!("{prefix}{nearest} - 1/{}", self.denom))
+        } else {
+            None
+        }
+    }
+
     /// Find best carpenter approximation
     #[must_use]
     pub fn format_frac(self, f: f64) -> String {
         let s = format_smart(f);
         let prefix =
             if self.kind == DyadicKind::Debug { format!("{s} == ") } else { String::new() };
-        if f < 0.0 {
+        if let Some(val) = self.is_less(&prefix, f) {
+            val
+        } else if f < 0.0 {
             format!("{prefix}-{}", self.format_frac2(f.abs()))
         } else if f >= 0.0 {
             format!("{prefix}{}", self.format_frac2(f))
@@ -110,13 +140,6 @@ impl Dyadic {
         }
     }
 
-    // const fn denom(x: usize) -> usize {
-    //     assert!(x < 32, "x must be between 0 and 31 inclusive");
-    //     if x == 0 {
-    //         return 1;
-    //     }
-    //     32 >> x.trailing_zeros()
-    // }
     const fn denom(x: usize, y: usize) -> usize {
         assert!(x < y, "x must be between 0 and MAX inclusive");
         if x == 0 {
@@ -149,10 +172,6 @@ impl Dyadic {
                 break;
             }
             let denom = Self::denom(values[i].0, self.denom);
-            // eprintln!("{i} {denom} {best_denom}");
-            // if denom >= best_denom && denom < 8 {
-            //     break;
-            // }
             if denom >= best_denom {
                 continue;
             }
@@ -205,7 +224,7 @@ mod tests {
     }
 
     // #[test]
-    // #[allow(clippy::zero_divided_by_zero)]
+    // #[expect(clippy::zero_divided_by_zero)]
     // fn print_format_frac() {
     //     let d = Dyadic::new(DyadicKind::Debug, 1024).unwrap();
     //     println!("{}", d.format_frac(1.00001));

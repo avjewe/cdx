@@ -7,13 +7,13 @@ use cdx::*;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sort lines.", args::FileCount::Many);
     const A: [ArgSpec; 7] = [
-        arg! {"key", "k", "Spec", "How to compare adjacent lines."},
-        arg! {"unique", "u", "", "Print only first of equal lines."},
-        arg! {"merge", "m", "", "Merge already sorted files."},
-        arg! {"check", "c", "", "Check to see if each input file is sorted."},
-        arg! {"Check", "C", "Number", "Check to see if each input file is sorted.\nReport this many failures before exiting."},
-        arg! {"alt-sort", "a", "", "Use alternate sort algorithm."},
-        arg! {"alt-merge", "A", "", "Use alternate merge algorithm."},
+        arg_old! {"key", "k", "Spec", "How to compare adjacent lines."},
+        arg_old! {"unique", "u", "", "Print only first of equal lines."},
+        arg_old! {"merge", "m", "", "Merge already sorted files."},
+        arg_old! {"check", "c", "", "Check to see if each input file is sorted."},
+        arg_old! {"Check", "C", "Number", "Check to see if each input file is sorted.\nReport this many failures before exiting."},
+        arg_old! {"alt-sort", "a", "", "Use alternate sort algorithm."},
+        arg_old! {"alt-merge", "A", "", "Use alternate merge algorithm."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

@@ -11,13 +11,6 @@ use std::f64::consts;
 use std::fmt::Write;
 use std::sync::LazyLock;
 
-/// evaluate a constant arithmetic expression
-pub fn calc(expr: &str, trig_mode: TrigMode) -> Result<f64> {
-    let mut c = Expr::new(expr)?;
-    c.set_trig_mode(trig_mode);
-    c.eval_plain()
-}
-
 /// evaluate an arithmetic expression
 pub fn eval(expr: &str) -> Result<f64> {
     let mut c = Expr::new(expr)?;
@@ -291,6 +284,7 @@ enum Node {
     Binary(BinaryOp),
     Func(FuncOp, usize),
     Dice(usize, usize),
+    Assign,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -324,6 +318,7 @@ pub struct Expr {
     vars: Vec<VarMap>, // FIXME - Rc<RefCell<Vec<VarMap>>>, shared
     stack: Vec<f64>,   // temp space for eval
     trig_mode: TrigMode,
+    fmt: NumFormat,
 }
 
 const fn to_f(x: bool) -> f64 {
@@ -370,6 +365,88 @@ impl Expr {
         self.trig_mode = mode;
     }
 
+    /// evaluate a constant arithmetic expression
+    pub fn calc(&mut self, expr: &str) -> Result<f64> {
+        self.expr_str = expr.to_string();
+        self.eval_plain()
+    }
+
+    /// get the current numeric format
+    #[must_use]
+    pub const fn fmt(&self) -> NumFormat {
+        self.fmt
+    }
+
+    /// set the current numeric format
+    pub const fn set_fmt(&mut self, fmt: NumFormat) {
+        self.fmt = fmt;
+    }
+
+    /// process input file
+    pub fn import_file(&mut self, file_name: &str, w: &mut dyn std::io::Write) -> Result<()> {
+        let file = std::fs::File::open(file_name)?;
+        let lines = std::io::BufReader::new(file).lines();
+
+        for line in lines {
+            let line = line?;
+            self.do_line(&line, w)?;
+        }
+        Ok(())
+    }
+
+    /// process input file, but produce no output
+    pub fn import_file_silent(&mut self, file_name: &str) -> Result<()> {
+        self.import_file(file_name, &mut std::io::sink())
+    }
+
+    /// process input line
+    pub fn do_line(&mut self, line: &str, w: &mut dyn std::io::Write) -> Result<()> {
+        let line = line.trim();
+        if line.is_empty() {
+            return Ok(());
+        }
+        if line.as_bytes()[0] == b'#' {
+            if line == "#degrees" {
+                self.set_trig_mode(TrigMode::Degrees);
+                writeln!(w, "Trig function now using degrees.")?;
+            } else if line == "#radians" {
+                self.set_trig_mode(TrigMode::Radians);
+                writeln!(w, "Trig function now using radians.")?;
+            } else if let Some(stripped) = line.strip_prefix("#format") {
+                let f = stripped.trim();
+                match NumFormat::new(f) {
+                    Ok(new_fmt) => self.set_fmt(new_fmt),
+                    Err(e) => {
+                        writeln!(w, "Error parsing format: {e}")?;
+                        return Ok(());
+                    }
+                }
+            } else if let Some(stripped) = line.strip_prefix("#import") {
+                let f = stripped.trim();
+                match self.import_file(f, w) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        writeln!(w, "Error importing file '{f}': {e}")?;
+                        return Ok(());
+                    }
+                }
+            } else {
+                writeln!(
+                    w,
+                    "Unrecognized directive: {line} should be one of #degrees, #radians, #import or #format <fmt>"
+                )?;
+            }
+            return Ok(());
+        }
+        match self.calc(line) {
+            Ok(v) => {
+                self.fmt().print(v, &mut *w)?;
+                w.write_all(b"\n")?;
+            }
+            Err(e) => writeln!(w, "{e}")?,
+        }
+        Ok(())
+    }
     #[expect(clippy::missing_asserts_for_indexing)]
     #[expect(clippy::cast_precision_loss)]
     fn apply_func(&self, op: FuncOp, args: &[f64]) -> f64 {
@@ -614,6 +691,18 @@ impl Expr {
                     }
                     e.push(Node::Binary(*op));
                 }
+                Token::Assign => {
+                    let top = e.len() - 1;
+                    if let Node::Value(right) = e[top]
+                        && let Node::Var(left) = e[top - 1]
+                    {
+                        self.vars[left].val = right;
+                        e[top - 1] = Node::Value(right);
+                        e.pop();
+                        continue;
+                    }
+                    e.push(Node::Assign);
+                }
                 Token::Unary(op) => {
                     if *op != UnaryOp::Plus {
                         if let Node::Value(v) = e.last_mut().unwrap() {
@@ -685,6 +774,9 @@ impl Expr {
                 Node::Dice(x, y) => self.stack.push(roll_dice(*x, *y)),
                 Node::Value(v) => self.stack.push(*v),
                 Node::Var(v) => self.stack.push(self.vars[*v].val),
+                Node::Assign => {
+                    panic!("Assign should have been handled in rpn_to_expr");
+                }
                 Node::Unary(op) => {
                     let top = self.stack.len() - 1;
                     self.stack[top] = apply_unary(*op, self.stack[top]);

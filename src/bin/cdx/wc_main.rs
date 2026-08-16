@@ -20,16 +20,16 @@ impl NamedAgg {
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Aggregate info on whole lines.", args::FileCount::Many);
     const A: [ArgSpec; 10] = [
-        arg! {"agg", "a", "NewCol,Spec", "Merge values into new column."},
-        arg! {"lines", "l", "", "Shortcut for '--agg lines,count'"},
-        arg! {"bytes", "b", "", "Shortcut for '--agg bytes,asum,chars'"},
-        arg! {"chars", "c", "", "Shortcut for '--agg chars,asum,utf8.chars'"},
-        arg! {"words", "w", "", "Shortcut for '--agg words,asum,swords'"},
-        arg! {"file", "f", "Tri,ColName", "Should we add the filename as the first column?"},
-        arg! {"with-header", "h", "Tri", "Should we write a cdx header?"},
-        arg! {"total", "t", "yes,no,maybe,only", "Should we write the totals line?"},
-        arg! {"format", "F", "plain,float,power2,power10", "Format for output numbers."},
-        arg! {"columns", "C", "", "Count each column separately."},
+        arg_old! {"agg", "a", "NewCol,Spec", "Merge values into new column."},
+        arg_old! {"lines", "l", "", "Shortcut for '--agg lines,count'"},
+        arg_old! {"bytes", "b", "", "Shortcut for '--agg bytes,asum,chars'"},
+        arg_old! {"chars", "c", "", "Shortcut for '--agg chars,asum,utf8.chars'"},
+        arg_old! {"words", "w", "", "Shortcut for '--agg words,asum,swords'"},
+        arg_old! {"file", "f", "Tri,ColName", "Should we add the filename as the first column?"},
+        arg_old! {"with-header", "h", "Tri", "Should we write a cdx header?"},
+        arg_old! {"total", "t", "yes,no,maybe,only", "Should we write the totals line?"},
+        arg_old! {"format", "F", "plain,float,power2,power10", "Format for output numbers."},
+        arg_old! {"columns", "C", "", "Count each column separately."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

@@ -13,6 +13,13 @@ use std::ops::{Deref, DerefMut};
 use std::str;
 use std::sync::LazyLock;
 
+/// Get the ~/.cdx/ directory, or None if it doesn't exist.
+#[must_use]
+pub fn get_config_dir() -> Option<std::path::PathBuf> {
+    let config_dir = dirs::home_dir()?.join(".cdx");
+
+    if config_dir.is_dir() { Some(config_dir) } else { None }
+}
 fn do_init() -> Result<()> {
     agg::AggMaker::init()?;
     CompMaker::init()?;
@@ -914,6 +921,12 @@ pub struct HeaderChecker {
 pub fn is_cdx(data: &[u8]) -> bool {
     data.starts_with(b" CDX")
     // check for more validity?
+}
+
+/// like `starts_with` but case-insensitive
+#[must_use]
+pub fn starts_with_no_case(s: &str, prefix: &str) -> bool {
+    s.len() >= prefix.len() && s[..prefix.len()].eq_ignore_ascii_case(prefix)
 }
 
 fn is_valid_cdx(data_in: &[u8], mode: HeaderMode, fname: &str) -> Result<bool> {

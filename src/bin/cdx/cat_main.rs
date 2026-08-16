@@ -77,6 +77,16 @@ impl LineNumber {
     }
 }
 
+const PAD_HELP: &str = "Add trailing newline if absent. Values for Mode can be:
+    Yes : Ensure after each file.
+    No  : Add no newlines (default).
+    End : Ensure newline after last file.";
+
+const NUMBER_HELP: &str = "Number the output lines.
+    Name  : the name of the output column
+    Start : the number of the first line
+    Where : 'begin' to add the number as the first column, 'end' to add it as the last column";
+
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     /*
         let mut ws = libc::winsize{ws_row:0, ws_col:0, ws_xpixel:0, ws_ypixel:0};
@@ -89,20 +99,12 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     */
     let prog = args::ProgSpec::new("Concatenate files.", args::FileCount::Many);
     const A: [ArgSpec; 6] = [
-        arg_enum! {"pad", "p", "Mode",
-"Add trailing newline if absent. Values for Mode can be:
-    Yes : Ensure after each file.
-    No  : Add no newlines (default).
-    End : Ensure newline after last file.", &["Yes","No","End"]},
-        arg! {"remove", "r", "Matcher", "Remove these lines."},
-        arg! {"skip", "s", "Matcher", "Do not number these lines."},
-        arg! {"number", "n", "Name,Start,Where",
-"Number the output lines.
-    Name  : the name of the output column
-    Start : the number of the first line
-    Where : 'begin' to add the number as the first column, 'end' to add it as the last column"},
-        arg! {"begin", "b", "",  "Shortcut for --number number,1,begin"},
-        arg! {"end", "e", "",  "Shortcut for --number number,1,end"},
+        arg_enum! {"pad", "p", "Mode", "Add trailing newline if absent.", &["Yes","No","End"], PAD_HELP},
+        arg_old! {"remove", "r", "Matcher", "Remove these lines."},
+        arg_old! {"skip", "s", "Matcher", "Do not number these lines."},
+        arg! {"number", "n", "Name,Start,Where", "Number the output lines.", NUMBER_HELP},
+        arg_old! {"begin", "b", "",  "Shortcut for --number number,1,begin"},
+        arg_old! {"end", "e", "",  "Shortcut for --number number,1,end"},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

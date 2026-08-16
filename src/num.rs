@@ -174,7 +174,7 @@ pub const fn ulp_to_ulong(d: f64) -> u64 {
 }
 
 /// how to format a number
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum NumFormat {
     /// Plain or Float, whichever is shorter
     Short(Option<usize>),

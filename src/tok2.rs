@@ -46,6 +46,8 @@ pub(crate) enum Token {
     Number(f64),
     /// A variable.
     Var(String),
+    /// A variable assignment.
+    Assign,
     /// A function with name and number of arguments.
     Func(String, Option<usize>),
 
@@ -84,8 +86,9 @@ fn is_d(x: &str) -> bool {
 }
 
 const fn can_binary(token: &Token) -> bool {
-    use Token::{Binary, Comma, Dice, Func, LParen, Number, RParen, Unary, Var};
+    use Token::{Assign, Binary, Comma, Dice, Func, LParen, Number, RParen, Unary, Var};
     match token {
+        Assign => false,
         Binary(_) => false,
         Unary(_) => false,
         LParen => false,
@@ -195,7 +198,7 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                     res.push(Token::Binary(BinaryOp::EQ));
                     input.skip_first();
                 } else {
-                    return err!("Equal can't be followed by {} in '{}'", next, orig);
+                    res.push(Token::Assign);
                 }
             }
             _ => {

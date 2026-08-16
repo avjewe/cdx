@@ -80,9 +80,9 @@ impl For {
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Sample lines from files.", args::FileCount::Many);
     const A: [ArgSpec; 3] = [
-        arg! {"for", "f", "by,from,to", "for i=from; i<=to; i+= by"},
-        arg! {"sample", "s", "Number", "Select this number of lines, more or less evenly spaced."},
-        arg! {"range", "r", "Ranges", "e.g. 1-5,42,95-106."},
+        arg_old! {"for", "f", "by,from,to", "for i=from; i<=to; i+= by"},
+        arg_old! {"sample", "s", "Number", "Select this number of lines, more or less evenly spaced."},
+        arg_old! {"range", "r", "Ranges", "e.g. 1-5,42,95-106."},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 

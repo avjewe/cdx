@@ -4,11 +4,11 @@ use cdx::prelude::*;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Generate a text file.", args::FileCount::Zero);
     const A: [ArgSpec; 5] = [
-        arg! {"lines", "n", "Number", "Generate this many lines of data. Default 10."},
-        arg! {"column", "c", "Spec", "Generate one column of this type"},
-        arg! {"multi", "m", "N,Spec", "Generate N columns of this type"},
-        arg! {"full", "F", "Spec", "Generate a file with this contents."},
-        arg! {"with-header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
+        arg_old! {"lines", "n", "Number", "Generate this many lines of data. Default 10."},
+        arg_old! {"column", "c", "Spec", "Generate one column of this type"},
+        arg_old! {"multi", "m", "N,Spec", "Generate N columns of this type"},
+        arg_old! {"full", "F", "Spec", "Generate a file with this contents."},
+        arg_old! {"with-header", "h", "", "Write a CDX header, with columns named c1, c2, ..."},
     ];
     let (args, _files) = args::parse(&prog, &A, argv, settings)?;
 

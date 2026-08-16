@@ -13,7 +13,7 @@ fn print_centered(txt: &str, width: usize) {
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Display files.", args::FileCount::Many);
-    const A: [ArgSpec; 1] = [arg! {"end", "e", "",  "nothing"}];
+    const A: [ArgSpec; 1] = [arg_old! {"end", "e", "",  "nothing"}];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
     let mut end = false;

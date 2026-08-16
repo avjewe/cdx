@@ -20,16 +20,16 @@ use cdx::*;
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Verify file contents.", args::FileCount::Many);
     const A: [ArgSpec; 9] = [
-        arg! {"report", "r", "Number", "How many failures to report before exit."},
-        arg! {"first", "f", "Op,Value", "'FirstLine Op Value' must be true. E.g LT,a for first line is less than 'a'."},
-        arg! {"last", "l", "Op,Value", "'LastLine Op Value' must be true."},
-        arg! {"key", "k", "Spec", "How to compare adjacent lines"},
-        arg! {"sort", "s", "", "Check that the file is sorted."},
-        arg! {"unique", "u", "", "Check that the file is sorted, with unique lines."},
-        arg! {"pattern", "p", "Col,Spec,Pattern", "Require that this col matches this pattern."},
+        arg_old! {"report", "r", "Number", "How many failures to report before exit."},
+        arg_old! {"first", "f", "Op,Value", "'FirstLine Op Value' must be true. E.g LT,a for first line is less than 'a'."},
+        arg_old! {"last", "l", "Op,Value", "'LastLine Op Value' must be true."},
+        arg_old! {"key", "k", "Spec", "How to compare adjacent lines"},
+        arg_old! {"sort", "s", "", "Check that the file is sorted."},
+        arg_old! {"unique", "u", "", "Check that the file is sorted, with unique lines."},
+        arg_old! {"pattern", "p", "Col,Spec,Pattern", "Require that this col matches this pattern."},
         // arg! {"show-matchers", "", "", "Print available matchers"},
-        arg! {"show-const", "", "", "Print available constants"},
-        arg! {"show-func", "", "", "Print available functions"},
+        arg_old! {"show-const", "", "", "Print available constants"},
+        arg_old! {"show-func", "", "", "Print available functions"},
     ];
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
 
