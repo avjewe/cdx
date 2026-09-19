@@ -49,7 +49,60 @@ fn main() {
     }
 }
 
+// fn funkiness(data: &[u32]) -> u64 {
+//     let mut total = 0u64;
+//     for i in 0..data.len() {
+//         let prev = if i == 0 { data.len() - 1 } else { i - 1 };
+//         let x = data[i] as u64;
+//         let y = data[prev] as u64;
+//         let diff = if x > y { x - y } else { y - x };
+//         total += diff;
+//     }
+//     total
+// }
+// fn funky_order(data: &[u32]) -> Vec<u32> {
+//     use itertools::Itertools;
+//     let perms = data.iter().permutations(data.len());
+//     let mut v = vec![];
+//     let mut prev = 0u64;
+//     for p in perms {
+//         let f = funkiness(&p);
+//         if f >= prev {
+//             println!("{} {:?}", f, p);
+//             prev = f;
+//         }
+//     }
+//     v
+// }
+
+// fn add_one(data: &mut Vec<u32>, min: u32, max: u32) -> bool {
+//     for i in 0..data.len() {
+//         if data[i] < max {
+//             data[i] += 1;
+//             return true;
+//         }
+//         data[i] = min;
+//     }
+//     false
+// }
+
+// fn funky_order2() {
+//     let mut data = vec![30u32; 4];
+//     let mut prev = 0u64;
+//     while add_one(&mut data, 30, 40) {
+//         if 140u32 == data.iter().sum() {
+//             let f = funkiness(&data);
+//             if f >= prev {
+//                 println!("{} {:?}", f, data);
+//                 prev = f;
+//             }
+//         }
+//     }
+// }
+
 pub fn inner_main(mut args: Vec<String>, settings: &mut Settings) -> Result<()> {
+    // funky_order(&[35, 45, 55, 65, 75, 85]);
+    // funky_order2();
     cdx::util::init()?;
     if args.len() > 1 {
         for x in cdxmain::MAIN_LIST {

@@ -5,8 +5,9 @@ use cdx::*;
 
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Select columns", args::FileCount::Many);
-    const A: [ArgSpec; 5] = [
+    const A: [ArgSpec; 6] = [
         arg_old! {"fields", "f", "Columns", "the columns to select."},
+        arg_old! {"format", "", "Format", "How to format expr values."},
         arg_old! {"group", "g", "Columns", "the columns in a bunch, e.g. '.group:1-3'"},
         arg_old! {"expr", "e", "Name:Expr", "The result of an arithmetic expression."},
         arg_old! {"composite", "c", "Spec", "new value made from parts. e.g. 'stuff:abc^{two}def'"},
@@ -20,15 +21,19 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let (args, files) = args::parse(&prog, &A, argv, settings)?;
     let mut header = ColumnHeader::new();
     let mut v = Writer::new();
+    let mut expr_format = NumFormat::default();
+
     for x in args {
         if x.name == "dups" {
             header.set_handling(DupColHandling::new(&x.value)?);
+        } else if x.name == "format" {
+            expr_format = NumFormat::new(&x.value)?;
         } else if x.name == "fields" {
             v.push(Box::new(ReaderColumns::new(ColumnSet::from_spec(&x.value)?)));
         } else if x.name == "group" {
             v.push(Box::new(ColumnClump::from_spec(&x.value)?));
         } else if x.name == "expr" {
-            v.push(Box::new(ColumnExpr::new(&x.value)?));
+            v.push(Box::new(ColumnExpr::new(&x.value, expr_format)?));
         } else if x.name == "composite" {
             v.push(Box::new(CompositeColumn::new(&x.value)?));
         } else {

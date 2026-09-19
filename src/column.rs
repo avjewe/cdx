@@ -493,11 +493,11 @@ pub struct ColumnExpr {
 impl ColumnExpr {
     // FIXME - include format in spec or pass in from command line
     /// new from Expr or Name:Expr
-    pub fn new(spec: &str) -> Result<Self> {
+    pub fn new(spec: &str, f: NumFormat) -> Result<Self> {
         if let Some((a, b)) = spec.split_once(':') {
-            Ok(Self { name: a.to_string(), expr: Expr::new(b)?, format: NumFormat::default() })
+            Ok(Self { name: a.to_string(), expr: Expr::new(b)?, format: f })
         } else {
-            Ok(Self { name: String::new(), expr: Expr::new(spec)?, format: NumFormat::default() })
+            Ok(Self { name: String::new(), expr: Expr::new(spec)?, format: f })
         }
     }
 }

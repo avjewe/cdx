@@ -13,6 +13,8 @@ pub enum DyadicKind {
     Standard,
     /// Print best fraction. If would be 32nds, write "1/2 + 1/32" or the like
     Pulled,
+    /// Always used specified denominator, even if a better fraction exists
+    Fixed,
 }
 
 /// Fraction where the denominator is a power of two
@@ -34,7 +36,7 @@ impl Dyadic {
     /// Create new Dyadic
     #[expect(clippy::cast_precision_loss)]
     pub fn new(kind: DyadicKind, denom: usize) -> Result<Self> {
-        if !denom.is_power_of_two() {
+        if kind != DyadicKind::Fixed && !denom.is_power_of_two() {
             anyhow::bail!("denominator for dyadic must be a power of two 2 <= denom <= 64.");
         }
         if denom < 2 {
@@ -57,10 +59,12 @@ impl Dyadic {
                 kind = DyadicKind::Debug;
             } else if p.eq_ignore_ascii_case("pulled") {
                 kind = DyadicKind::Pulled;
+            } else if p.eq_ignore_ascii_case("fixed") {
+                kind = DyadicKind::Fixed;
             } else if p.eq_ignore_ascii_case("standard") {
                 kind = DyadicKind::Standard;
             } else {
-                let n = x.parse::<usize>();
+                let n = p.parse::<usize>();
                 match n {
                     Ok(d) => {
                         denom = d;
@@ -157,6 +161,12 @@ impl Dyadic {
     #[expect(clippy::needless_range_loop)]
     fn format_frac3(self, f: f64) -> String {
         let f_denom = self.denom as f64;
+        if self.kind == DyadicKind::Fixed {
+            let numer = (f * f_denom).round() as usize;
+            let f = Self::frac(numer, self.denom);
+            return f;
+        }
+
         let mut values = vec![(0, 0.0); self.denom];
 
         for i in 0..self.denom {
