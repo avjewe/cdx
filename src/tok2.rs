@@ -201,6 +201,11 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                     res.push(Token::Assign);
                 }
             }
+            '.' => {
+                let (x, y) = orig[orig.len() - prev..].to_f64();
+                input = y;
+                res.push(Token::Number(x));
+            }
             _ => {
                 if ch.is_alphabetic() {
                     let mut var = String::new();
@@ -238,7 +243,9 @@ pub(crate) fn tokenize<S: AsRef<str>>(orig: S) -> Result<Vec<Token>> {
                 } else if ch.is_whitespace() {
                     // Do nothing.
                 } else {
-                    return err!("Unrecognized character {ch} in {orig}");
+                    return err!(
+                        "Unrecognized floating point expression character '{ch}' in '{orig}'"
+                    );
                 }
             }
         }

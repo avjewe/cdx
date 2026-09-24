@@ -383,27 +383,45 @@ impl Expr {
     }
 
     /// process input file
-    pub fn import_file(&mut self, file_name: &str, w: &mut dyn std::io::Write) -> Result<()> {
+    pub fn import_file(
+        &mut self,
+        file_name: &str,
+        w: &mut dyn std::io::Write,
+        custom: &[&str],
+    ) -> Result<()> {
         let file = std::fs::File::open(file_name)?;
         let lines = std::io::BufReader::new(file).lines();
 
         for line in lines {
             let line = line?;
-            self.do_line(&line, w)?;
+            self.do_line(&line, w, custom)?;
         }
         Ok(())
     }
 
     /// process input file, but produce no output
-    pub fn import_file_silent(&mut self, file_name: &str) -> Result<()> {
-        self.import_file(file_name, &mut std::io::sink())
+    pub fn import_file_silent(&mut self, file_name: &str, custom: &[&str]) -> Result<()> {
+        self.import_file(file_name, &mut std::io::sink(), custom)
+    }
+
+    fn any_starts_with(line: &str, strings: &[&str]) -> bool {
+        strings.iter().any(|string| line.starts_with(string))
+    }
+    fn all_starts_with(prefix: &str, strings: &[&str]) -> bool {
+        strings.iter().all(|string| string.starts_with(prefix))
     }
 
     /// process input line
-    pub fn do_line(&mut self, line: &str, w: &mut dyn std::io::Write) -> Result<()> {
+    pub fn do_line(
+        &mut self,
+        line: &str,
+        w: &mut dyn std::io::Write,
+        custom: &[&str],
+    ) -> Result<bool> {
+        debug_assert!(Self::all_starts_with("#", custom));
         let line = line.trim();
         if line.is_empty() {
-            return Ok(());
+            return Ok(false);
         }
         if line.as_bytes()[0] == b'#' {
             if line == "#degrees" {
@@ -418,25 +436,28 @@ impl Expr {
                     Ok(new_fmt) => self.set_fmt(new_fmt),
                     Err(e) => {
                         writeln!(w, "Error parsing format: {e}")?;
-                        return Ok(());
+                        return Ok(false);
                     }
                 }
             } else if let Some(stripped) = line.strip_prefix("#import") {
                 let f = stripped.trim();
-                match self.import_file(f, w) {
+                match self.import_file(f, w, custom) {
                     Ok(()) => {}
                     Err(e) => {
                         writeln!(w, "Error importing file '{f}': {e}")?;
-                        return Ok(());
+                        return Ok(false);
                     }
                 }
+            } else if Self::any_starts_with(line, custom) {
+                return Ok(true);
             } else {
+                // FIXME - include custom directives in the error message
                 writeln!(
                     w,
                     "Unrecognized directive: {line} should be one of #degrees, #radians, #import or #format <fmt>"
                 )?;
             }
-            return Ok(());
+            return Ok(false);
         }
         match self.calc(line) {
             Ok(v) => {
@@ -445,7 +466,7 @@ impl Expr {
             }
             Err(e) => writeln!(w, "{e}")?,
         }
-        Ok(())
+        Ok(false)
     }
     #[expect(clippy::missing_asserts_for_indexing)]
     #[expect(clippy::cast_precision_loss)]

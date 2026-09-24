@@ -13,6 +13,31 @@ fn get_config_file() -> Option<PathBuf> {
     Some(config_dir.join(HISTORY_FILE))
 }
 
+fn handle_custom(
+    rl: &rustyline::Editor<(), rustyline::history::FileHistory>,
+    line: &str,
+    w: &mut dyn std::io::Write,
+) -> Result<()> {
+    if let Some(stripped) = line.strip_prefix("#history") {
+        let f: &str = stripped.trim();
+        if f.is_empty() {
+            for h in rl.history().iter() {
+                writeln!(w, "{h}")?;
+            }
+        } else {
+            let regex = regex::RegexBuilder::new(f).build()?;
+            for h in rl.history().iter() {
+                if regex.is_match(h) {
+                    writeln!(w, "{h}")?;
+                }
+            }
+        }
+    } else {
+        bail!("Internal error: handle_custom called with non-custom line: {line}");
+    }
+    Ok(())
+}
+
 pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let prog = args::ProgSpec::new("Evaluate Formatted Expressions.", args::FileCount::Zero);
     const A: [ArgSpec; 4] = [
@@ -24,15 +49,16 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
     let (args, _files) = args::parse(&prog, &A, argv, settings)?;
     let mut expr = Expr::default();
     let mut w = get_writer("-")?;
+    let custom = ["#history"];
     for x in args {
         if x.name == "format" {
             expr.set_fmt(NumFormat::new(&x.value)?);
         } else if x.name == "degrees" {
             expr.set_trig_mode(TrigMode::Degrees);
         } else if x.name == "import" {
-            expr.import_file(&x.value, &mut w.0)?;
+            expr.import_file(&x.value, &mut w.0, &custom)?;
         } else if x.name == "import-silent" {
-            expr.import_file_silent(&x.value)?;
+            expr.import_file_silent(&x.value, &custom)?;
         } else {
             unreachable!();
         }
@@ -47,7 +73,9 @@ pub fn main(argv: &[String], settings: &mut Settings) -> Result<()> {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str())?;
-                expr.do_line(&line, &mut w.0)?;
+                if expr.do_line(&line, &mut w.0, &custom)? {
+                    handle_custom(&rl, &line, &mut w.0)?;
+                }
                 w.flush()?;
             }
             Err(_) => break,
